@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>ZeroPoint Access Core</title>
+  <title>Remote Access Core</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -24,6 +24,15 @@
         linear-gradient(to right, rgba(0, 255, 120, 0.06) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(0, 255, 120, 0.06) 1px, transparent 1px);
       background-size: 40px 40px, 40px 40px;
+      transition: none;
+    }
+
+    /* Alternate theme: blue grid */
+    #screen.altTheme {
+      background-color: #02030c;
+      background-image:
+        linear-gradient(to right, rgba(0, 180, 255, 0.09) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 180, 255, 0.09) 1px, transparent 1px);
     }
 
     #header {
@@ -91,7 +100,7 @@
       display: inline-block;
       width: 8px;
       height: 1em;
-      background: #0f0; /* solid block, no blinking */
+      background: #0f0; /* solid block */
       margin-left: 2px;
     }
 
@@ -143,6 +152,14 @@
     .choice-btn:hover {
       background: #0f0;
       color: #000;
+    }
+
+    .choice-btn:disabled {
+      opacity: 0.35;
+      border-color: #555;
+      color: #555;
+      background: #111;
+      cursor: default;
     }
 
     /* Ending screen */
@@ -213,7 +230,7 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      min-width: 200px;
+      min-width: 220px;
     }
 
     .adminTitle {
@@ -245,6 +262,7 @@
       gap: 4px;
       z-index: 4;
       font-size: 10px;
+      max-width: 220px;
     }
 
     .adminBtn {
@@ -310,6 +328,16 @@
     <button class="adminBtn" id="btnForceYes">Force YES ending</button>
     <button class="adminBtn" id="btnForceNo">Force NO ending</button>
     <button class="adminBtn" id="btnToggleAlert">Toggle alert mode</button>
+    <button class="adminBtn" id="btnPause">Pause / resume typing</button>
+    <button class="adminBtn" id="btnSkip">Skip to question</button>
+    <button class="adminBtn" id="btnClear">Clear console</button>
+    <button class="adminBtn" id="btnInject">Inject log line</button>
+    <button class="adminBtn" id="btnTheme">Toggle theme</button>
+    <button class="adminBtn" id="btnSpeed">Speed: normal</button>
+    <button class="adminBtn" id="btnAutoYes">Auto-YES: OFF</button>
+    <button class="adminBtn" id="btnJam">Jam YES/NO buttons</button>
+    <button class="adminBtn" id="btnLink">Simulate link drop</button>
+    <button class="adminBtn" id="btnFullscreen">Toggle fullscreen</button>
   </div>
 
   <script>
@@ -332,6 +360,16 @@
     const btnForceYes = document.getElementById("btnForceYes");
     const btnForceNo = document.getElementById("btnForceNo");
     const btnToggleAlert = document.getElementById("btnToggleAlert");
+    const btnPause = document.getElementById("btnPause");
+    const btnSkip = document.getElementById("btnSkip");
+    const btnClear = document.getElementById("btnClear");
+    const btnInject = document.getElementById("btnInject");
+    const btnTheme = document.getElementById("btnTheme");
+    const btnSpeed = document.getElementById("btnSpeed");
+    const btnAutoYes = document.getElementById("btnAutoYes");
+    const btnJam = document.getElementById("btnJam");
+    const btnLink = document.getElementById("btnLink");
+    const btnFullscreen = document.getElementById("btnFullscreen");
 
     const titleEl = document.getElementById("title");
     const subtitleEl = document.getElementById("subtitle");
@@ -387,7 +425,7 @@
 
     const shortUA = ua.length > 80 ? ua.slice(0, 80) + "..." : ua;
 
-    // Shorter console script
+    // Short console script
     const baseLines = [
       "[LINK] Attaching ZeroPoint core...",
       `  TIME   : ${now}`,
@@ -431,6 +469,15 @@
     let branchStarted = false;
     let cancelAllTyping = false;
     let alertMode = false;
+    let typingPaused = false;
+    let linkLost = false;
+    let autoYes = false;
+    let jammed = false;
+
+    const speedModes = [0.5, 1, 2, 4]; // slow, normal, fast, turbo
+    const speedLabels = ["slow", "normal", "fast", "turbo"];
+    let typingSpeedModeIndex = 1; // normal
+    let typingSpeedFactor = speedModes[typingSpeedModeIndex];
 
     function styleLine(lineEl, text) {
       if (text.startsWith("[PHASE")) {
@@ -439,7 +486,11 @@
         lineEl.classList.add("ok");
       } else if (text.startsWith("[WARN]")) {
         lineEl.classList.add("warn");
-      } else if (text.startsWith("[CONTROL]") || text.startsWith("[INJECT]")) {
+      } else if (
+        text.startsWith("[CONTROL]") ||
+        text.startsWith("[INJECT]") ||
+        text.startsWith("[SYSTEM]")
+      ) {
         lineEl.classList.add("muted");
       } else if (text.includes("OVERRIDDEN")) {
         lineEl.classList.add("danger");
@@ -450,6 +501,10 @@
 
     function typeBase() {
       if (cancelAllTyping) return;
+      if (typingPaused || linkLost) {
+        setTimeout(typeBase, 50);
+        return;
+      }
 
       if (baseLineIndex >= baseLines.length) {
         showChoice();
@@ -480,13 +535,20 @@
         text.includes("ACCESS GRANTED") ||
         text.includes("Session is ARMED") ||
         text.includes("OVERRIDE?");
-      const delay = slow ? 80 : 18 + Math.random() * 25;
+      let delay = slow ? 80 : 18 + Math.random() * 25;
+      delay = Math.max(5, delay / typingSpeedFactor);
 
       setTimeout(typeBase, delay);
     }
 
     function showChoice() {
       choiceOverlay.classList.add("visible");
+      applyJamState();
+      if (autoYes && !choiceMade) {
+        setTimeout(() => {
+          if (!choiceMade && !jammed) handleChoice("yes");
+        }, 800);
+      }
     }
 
     function runBranch(mode) {
@@ -497,6 +559,10 @@
 
       function step() {
         if (cancelAllTyping) return;
+        if (typingPaused || linkLost) {
+          setTimeout(step, 50);
+          return;
+        }
 
         if (i >= lines.length) {
           setTimeout(() => showReveal(mode), 500);
@@ -526,7 +592,8 @@
         const slow =
           text.includes("OVERRIDDEN") ||
           text.includes("RETAINS FULL CONTROL");
-        const delay = slow ? 80 : 22 + Math.random() * 28;
+        let delay = slow ? 80 : 22 + Math.random() * 28;
+        delay = Math.max(5, delay / typingSpeedFactor);
 
         setTimeout(step, delay);
       }
@@ -554,7 +621,7 @@
     }
 
     function handleChoice(answer) {
-      if (choiceMade) return;
+      if (choiceMade || jammed) return;
       choiceMade = true;
       choiceOverlay.classList.remove("visible");
       runBranch(answer);
@@ -563,7 +630,7 @@
     yesBtn.addEventListener("click", () => handleChoice("yes"));
     noBtn.addEventListener("click", () => handleChoice("no"));
 
-    // Admin stuff
+    // Admin login
     adminLink.addEventListener("click", () => {
       adminLogin.style.display = "flex";
       adminPass.value = "";
@@ -583,40 +650,69 @@
       if (e.key === "Enter") adminSubmit.click();
     });
 
-    function resetHeader() {
-      alertMode = false;
-      titleEl.textContent = "ZEROPOINT REMOTE ACCESS CORE";
-      subtitleEl.textContent =
-        "TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR";
-      statusLink.textContent = "LINK: SYNCHED";
-      statusLink.classList.remove("warn");
-      statusLink.classList.add("ok");
-      statusMode.textContent = "MODE: GHOST OBSERVE";
-      statusMode.classList.remove("warn");
-      statusMode.classList.add("info");
-    }
-
-    function toggleAlertMode() {
-      if (!alertMode) {
-        alertMode = true;
+    // Header state
+    function updateHeader() {
+      // Title + subtitle depend on alertMode
+      if (alertMode) {
         titleEl.textContent = "ZEROPOINT ALERT NODE";
         subtitleEl.textContent =
           "TARGET: LIVE HANDSET • STATUS: COMPROMISED";
-        statusLink.textContent = "LINK: UNSTABLE";
-        statusLink.classList.remove("ok");
+      } else {
+        titleEl.textContent = "ZEROPOINT REMOTE ACCESS CORE";
+        subtitleEl.textContent =
+          "TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR";
+      }
+
+      // Link + mode depend on alertMode + linkLost
+      statusLink.classList.remove("ok", "warn", "info");
+      statusMode.classList.remove("ok", "warn", "info");
+
+      if (linkLost) {
+        statusLink.textContent = "LINK: LOST";
         statusLink.classList.add("warn");
-        statusMode.textContent = "MODE: ACTIVE OVERRIDE";
-        statusMode.classList.remove("info");
+        statusMode.textContent = alertMode
+          ? "MODE: OVERRIDE / LINK DOWN"
+          : "MODE: LINK DOWN";
         statusMode.classList.add("warn");
       } else {
-        resetHeader();
+        statusLink.textContent = alertMode ? "LINK: UNSTABLE" : "LINK: SYNCHED";
+        statusLink.classList.add("ok");
+        statusMode.textContent = alertMode
+          ? "MODE: ACTIVE OVERRIDE"
+          : "MODE: GHOST OBSERVE";
+        statusMode.classList.add(alertMode ? "warn" : "info");
       }
     }
 
+    function resetHeader() {
+      alertMode = false;
+      linkLost = false;
+      updateHeader();
+    }
+
+    function toggleAlertMode() {
+      alertMode = !alertMode;
+      updateHeader();
+    }
+
+    function toggleLink() {
+      linkLost = !linkLost;
+      const lineEl = document.createElement("div");
+      lineEl.classList.add("warn");
+      lineEl.textContent = linkLost
+        ? "[LINK] *** CONNECTION LOST (simulated by admin) ***"
+        : "[LINK] Connection restored by admin override.";
+      term.insertBefore(lineEl, cursor);
+      term.scrollTop = term.scrollHeight;
+      updateHeader();
+    }
+
     function adminForce(mode) {
+      cancelAllTyping = true;
       choiceOverlay.classList.remove("visible");
       if (!choiceMade) choiceMade = true;
       if (!branchStarted) {
+        cancelAllTyping = false;
         runBranch(mode);
       } else {
         showReveal(mode);
@@ -625,6 +721,8 @@
 
     function restartConsole() {
       cancelAllTyping = true;
+      typingPaused = false;
+      linkLost = false;
       choiceOverlay.classList.remove("visible");
       resetHeader();
       screen.style.display = "flex";
@@ -639,10 +737,114 @@
       setTimeout(typeBase, 300);
     }
 
+    function togglePause() {
+      typingPaused = !typingPaused;
+      btnPause.textContent = typingPaused
+        ? "Resume typing"
+        : "Pause / resume typing";
+    }
+
+    function skipToQuestion() {
+      cancelAllTyping = true;
+      for (let i = baseLineIndex; i < baseLines.length; i++) {
+        const text = baseLines[i];
+        const lineEl = document.createElement("div");
+        styleLine(lineEl, text);
+        lineEl.textContent = text;
+        term.insertBefore(lineEl, cursor);
+      }
+      term.scrollTop = term.scrollHeight;
+      baseLineIndex = baseLines.length;
+      baseCharIndex = 0;
+      cancelAllTyping = false;
+      showChoice();
+    }
+
+    function clearConsole() {
+      term.innerHTML = "";
+      term.appendChild(cursor);
+    }
+
+    function injectLog() {
+      const msg = prompt("Admin log message:");
+      if (!msg) return;
+      const lineEl = document.createElement("div");
+      lineEl.classList.add("muted");
+      lineEl.textContent = "[ADMIN] " + msg;
+      term.insertBefore(lineEl, cursor);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    let altTheme = false;
+    function toggleTheme() {
+      altTheme = !altTheme;
+      if (altTheme) {
+        screen.classList.add("altTheme");
+      } else {
+        screen.classList.remove("altTheme");
+      }
+    }
+
+    function cycleSpeed() {
+      typingSpeedModeIndex =
+        (typingSpeedModeIndex + 1) % speedModes.length;
+      typingSpeedFactor = speedModes[typingSpeedModeIndex];
+      btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
+    }
+
+    function toggleAutoYes() {
+      autoYes = !autoYes;
+      btnAutoYes.textContent = autoYes
+        ? "Auto-YES: ON"
+        : "Auto-YES: OFF";
+    }
+
+    function applyJamState() {
+      yesBtn.disabled = jammed;
+      noBtn.disabled = jammed;
+    }
+
+    function toggleJam() {
+      jammed = !jammed;
+      applyJamState();
+      btnJam.textContent = jammed
+        ? "Unjam YES/NO buttons"
+        : "Jam YES/NO buttons";
+    }
+
+    function toggleFullscreenButton() {
+      if (
+        !document.fullscreenElement &&
+        !document.webkitFullscreenElement &&
+        !document.msFullscreenElement
+      ) {
+        requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        else if (document.msExitFullscreen) document.msExitFullscreen();
+      }
+    }
+
+    // Initial header + speed label
+    updateHeader();
+    btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
+
+    // Admin button actions
     btnRestart.addEventListener("click", restartConsole);
     btnForceYes.addEventListener("click", () => adminForce("yes"));
     btnForceNo.addEventListener("click", () => adminForce("no"));
     btnToggleAlert.addEventListener("click", toggleAlertMode);
+    btnPause.addEventListener("click", togglePause);
+    btnSkip.addEventListener("click", skipToQuestion);
+    btnClear.addEventListener("click", clearConsole);
+    btnInject.addEventListener("click", injectLog);
+    btnTheme.addEventListener("click", toggleTheme);
+    btnSpeed.addEventListener("click", cycleSpeed);
+    btnAutoYes.addEventListener("click", toggleAutoYes);
+    btnJam.addEventListener("click", toggleJam);
+    btnLink.addEventListener("click", toggleLink);
+    btnFullscreen.addEventListener("click", toggleFullscreenButton);
 
     // Start
     setTimeout(typeBase, 500);
