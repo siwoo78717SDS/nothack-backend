@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>System Breach</title>
+  <title>ZeroPoint Access Core</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -13,85 +13,168 @@
       overflow: hidden;
     }
 
+    /* Static cyber grid background */
     #screen {
+      position: relative;
       height: 100vh;
       display: flex;
       flex-direction: column;
+      background-color: #02060c;
+      background-image:
+        linear-gradient(to right, rgba(0, 255, 120, 0.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 120, 0.06) 1px, transparent 1px);
+      background-size: 40px 40px, 40px 40px;
     }
 
     #header {
-      padding: 10px 16px 4px;
-      background: #100;
-      border-bottom: 1px solid #300;
+      padding: 12px 18px 6px;
+      background: #020b14;
+      border-bottom: 1px solid #046;
+      box-shadow: 0 0 14px rgba(0, 255, 120, 0.2);
+      z-index: 1;
     }
 
     #title {
-      color: #f33;
+      color: #00f7ff;
       font-weight: bold;
-      letter-spacing: 0.25em;
-      font-size: 18px;
+      letter-spacing: 0.24em;
+      font-size: 15px;
+      text-transform: uppercase;
     }
 
     #subtitle {
       margin-top: 4px;
-      font-size: 11px;
-      color: #888;
+      font-size: 10px;
+      color: #7df3c2;
       text-transform: uppercase;
       letter-spacing: 0.18em;
     }
 
+    #statusBar {
+      margin-top: 6px;
+      font-size: 10px;
+      color: #999;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .status-pill {
+      padding: 2px 9px;
+      border-radius: 999px;
+      border: 1px solid #044;
+      background: #020f0b;
+    }
+
+    .status-pill.ok   { border-color: #0f0;    color: #0f0; }
+    .status-pill.warn { border-color: #ffb400; color: #ffb400; }
+    .status-pill.info { border-color: #00f7ff; color: #00f7ff; }
+
+    #adminLink {
+      margin-left: auto;
+      cursor: pointer;
+    }
+
     #term {
       flex: 1;
-      padding: 10px 16px;
+      padding: 10px 18px;
       white-space: pre-wrap;
       overflow-y: auto;
       font-size: 13px;
       line-height: 1.4;
+      position: relative;
+      z-index: 0;
     }
 
     .cursor {
       display: inline-block;
       width: 8px;
-      background: #0f0;
+      height: 1em;
+      background: #0f0; /* solid block, no blinking */
       margin-left: 2px;
-      animation: blink 0.9s steps(1) infinite;
     }
 
-    @keyframes blink {
-      0%, 50% { opacity: 1; }
-      50.01%, 100% { opacity: 0; }
+    .phase-tag { color: #00f7ff; }
+    .ok        { color: #0f0; }
+    .warn      { color: #ffb400; }
+    .danger    { color: #ff3b3b; }
+    .muted     { color: #0a9b6a; }
+
+    /* YES / NO overlay */
+    #choiceOverlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.8);
+      text-align: center;
+      z-index: 2;
     }
 
+    #choiceOverlay.visible {
+      display: flex;
+    }
+
+    #choicePrompt {
+      font-size: 12px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      color: #0f0;
+    }
+
+    .choice-btn {
+      margin: 0 8px;
+      padding: 8px 20px;
+      background: #000;
+      border: 1px solid #0f0;
+      color: #0f0;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      min-width: 80px;
+    }
+
+    .choice-btn:hover {
+      background: #0f0;
+      color: #000;
+    }
+
+    /* Ending screen */
     #reveal {
       position: fixed;
       inset: 0;
-      display: flex;
+      display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: #000;
+      background: #02060c;
       color: #eee;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.5s;
       text-align: center;
       padding: 20px;
+      z-index: 3;
     }
 
     #reveal.visible {
-      opacity: 1;
-      pointer-events: auto;
+      display: flex;
     }
 
     #reveal h1 {
       margin-bottom: 10px;
-      color: #0f0;
-      font-size: 24px;
+      color: #00f7ff;
+      font-size: 22px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
     }
 
     #reveal p {
-      font-size: 14px;
-      max-width: 420px;
+      font-size: 13px;
+      max-width: 460px;
       margin-bottom: 8px;
       color: #bbb;
     }
@@ -111,134 +194,458 @@
       background: #0f0;
       color: #000;
     }
+
+    /* Admin login + panel */
+    #adminLogin {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 4;
+    }
+
+    #adminLoginBox {
+      background: #020b14;
+      border: 1px solid #0f0;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 200px;
+    }
+
+    .adminTitle {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #0f0;
+      margin-bottom: 4px;
+    }
+
+    #adminPass {
+      background: #000;
+      border: 1px solid #0f0;
+      color: #0f0;
+      padding: 4px 6px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    #adminPanel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: #020b14;
+      border: 1px solid #0f0;
+      padding: 8px 10px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 4;
+      font-size: 10px;
+    }
+
+    .adminBtn {
+      font-size: 10px;
+      padding: 4px 8px;
+      background: #000;
+      border: 1px solid #0f0;
+      color: #0f0;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .adminBtn:hover {
+      background: #0f0;
+      color: #000;
+    }
   </style>
 </head>
 <body>
   <div id="screen">
     <div id="header">
-      <div id="title">SYSTEM BREACH</div>
-      <div id="subtitle">UNAUTHORIZED ACCESS DETECTED • SESSION LOG</div>
+      <div id="title">ZEROPOINT REMOTE ACCESS CORE</div>
+      <div id="subtitle">TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR</div>
+      <div id="statusBar">
+        <span class="status-pill ok"   id="statusLink">LINK: SYNCHED</span>
+        <span class="status-pill ok"   id="statusAuth">AUTH: ROOT TOKEN</span>
+        <span class="status-pill warn" id="statusUser">USER-FOCUS: IDLE</span>
+        <span class="status-pill info" id="statusMode">MODE: GHOST OBSERVE</span>
+        <span class="status-pill info" id="adminLink">ADMIN</span>
+      </div>
     </div>
+
     <div id="term"></div>
+
+    <div id="choiceOverlay">
+      <div id="choicePrompt">ELEVATE TO FULL DEVICE OVERRIDE?</div>
+      <div>
+        <button class="choice-btn" id="yesBtn">YES</button>
+        <button class="choice-btn" id="noBtn">NO</button>
+      </div>
+    </div>
   </div>
 
   <div id="reveal">
-    <h1>ACCESS GRANTED</h1>
-    <p>This was only a fake hacking screen. No files were changed or accessed.</p>
-    <p>Edit the text in the code to customize your own prank.</p>
+    <h1 id="revealTitle"></h1>
+    <p id="revealText1"></p>
+    <p id="revealText2"></p>
     <button onclick="location.reload()">Run again</button>
+  </div>
+
+  <!-- Admin login and panel -->
+  <div id="adminLogin">
+    <div id="adminLoginBox">
+      <div class="adminTitle">ADMIN ACCESS</div>
+      <input type="password" id="adminPass" placeholder="Passcode (5 digits)" />
+      <button id="adminSubmit">Enter</button>
+    </div>
+  </div>
+
+  <div id="adminPanel">
+    <div class="adminTitle">ADMIN PANEL</div>
+    <button class="adminBtn" id="btnRestart">Restart console</button>
+    <button class="adminBtn" id="btnForceYes">Force YES ending</button>
+    <button class="adminBtn" id="btnForceNo">Force NO ending</button>
+    <button class="adminBtn" id="btnToggleAlert">Toggle alert mode</button>
   </div>
 
   <script>
     const term = document.getElementById("term");
     const screen = document.getElementById("screen");
     const reveal = document.getElementById("reveal");
+    const choiceOverlay = document.getElementById("choiceOverlay");
+    const yesBtn = document.getElementById("yesBtn");
+    const noBtn = document.getElementById("noBtn");
+    const revealTitle = document.getElementById("revealTitle");
+    const revealText1 = document.getElementById("revealText1");
+    const revealText2 = document.getElementById("revealText2");
+
+    const adminLink = document.getElementById("adminLink");
+    const adminLogin = document.getElementById("adminLogin");
+    const adminPass = document.getElementById("adminPass");
+    const adminSubmit = document.getElementById("adminSubmit");
+    const adminPanel = document.getElementById("adminPanel");
+    const btnRestart = document.getElementById("btnRestart");
+    const btnForceYes = document.getElementById("btnForceYes");
+    const btnForceNo = document.getElementById("btnForceNo");
+    const btnToggleAlert = document.getElementById("btnToggleAlert");
+
+    const titleEl = document.getElementById("title");
+    const subtitleEl = document.getElementById("subtitle");
+    const statusLink = document.getElementById("statusLink");
+    const statusAuth = document.getElementById("statusAuth");
+    const statusUser = document.getElementById("statusUser");
+    const statusMode = document.getElementById("statusMode");
+
+    // Try fullscreen (F11-like) once on first tap/click
+    function requestFullscreen() {
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      else if (el.msRequestFullscreen) el.msRequestFullscreen();
+    }
+
+    function handleFullscreenGesture() {
+      if (
+        !document.fullscreenElement &&
+        !document.webkitFullscreenElement &&
+        !document.msFullscreenElement
+      ) {
+        requestFullscreen();
+      }
+    }
+
+    document.addEventListener("click", handleFullscreenGesture, { once: true });
+    document.addEventListener("touchstart", handleFullscreenGesture, { once: true });
 
     const cursor = document.createElement("span");
     cursor.className = "cursor";
     term.appendChild(cursor);
 
-    const lines = [
-      "$ ssh root@192.168.0.13",
-      "root@192.168.0.13's password: ******",
-      "[OK] Authentication successful",
+    // Real device/env info (browser only — safe)
+    const ua = navigator.userAgent || "unknown";
+    const platform = navigator.platform || "unknown";
+    const lang = navigator.language || "unknown";
+    const w = window.screen.width;
+    const h = window.screen.height;
+    const tz =
+      (Intl.DateTimeFormat().resolvedOptions().timeZone) || "unknown";
+    const touch =
+      "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+    const origin =
+      window.location.origin ||
+      (window.location.protocol + "//" + window.location.host) ||
+      "file://local";
+    const now = new Date().toISOString();
+
+    let deviceType = "DESKTOP/OTHER";
+    if (/Android/i.test(ua)) deviceType = "ANDROID DEVICE";
+    else if (/iPhone|iPad|iPod/i.test(ua)) deviceType = "iOS DEVICE";
+
+    const shortUA = ua.length > 80 ? ua.slice(0, 80) + "..." : ua;
+
+    // Shorter console script
+    const baseLines = [
+      "[LINK] Attaching ZeroPoint core...",
+      `  TIME   : ${now}`,
+      `  ORIGIN : ${origin}`,
+      "[OK] Tunnel online (AES-256/GCM)",
+      "",
+      "[AUTH] Requesting elevated scope...",
       "\"ACCESS GRANTED\"",
+      "[OK] Privilege: ROOT / TEMP",
       "",
-      "$ whoami",
-      "root",
-      "$ hostname",
-      "client-device",
-      "$ uname -a",
-      "Linux client-device 5.15.0-76-generic x86_64",
+      "[SCAN] Client snapshot:",
+      `  DEVICE : ${deviceType}`,
+      `  SCREEN : ${w} x ${h}  TOUCH: ${touch ? "ON" : "OFF"}`,
+      `  LOCALE : ${lang}  ZONE: ${tz}`,
+      `  AGENT  : ${shortUA}`,
       "",
-      "$ sudo -l",
-      "[OK] root may run any command",
-      "",
-      "$ netstat -tnp | grep ESTABLISHED",
-      "tcp  0  0 192.168.0.13:443  45.83.21.9:443  ESTABLISHED",
-      "",
-      "[SCAN] Enumerating /home/local_user ...",
-      "[OK] Found 4,236 files, 128 directories",
-      "",
-      "[LOG] Reading recent activity...",
-      "[OK] Session tokens captured",
-      "",
-      "[EXFIL] Sending data to 45.83.21.9:443 ...",
-      "[####........] 21%",
-      "[########....] 57%",
-      "[##########..] 83%",
-      "[############] 100%",
-      "[OK] Remote storage confirmed",
-      "",
-      "\"ACCESS DENIED TO LOCAL USER\"",
-      "",
-      ">>> YOU HAVE BEEN HACKED <<<",
-      "",
-      "Tap anywhere on the screen to restore session..."
+      "[STATUS] Session is ARMED.",
+      "ELEVATE TO FULL DEVICE OVERRIDE? (YES / NO)"
     ];
 
-    let lineIndex = 0;
-    let charIndex = 0;
-    let tapEnabled = false;
+    const yesLines = [
+      "",
+      "[CONTROL] User chose YES.",
+      "[INJECT] Loading override stub [####......] 40%",
+      "[INJECT] Loading override stub [##########] 100%",
+      "\"LOCAL INPUT CHANNEL OVERRIDDEN\"",
+      "[STATUS] Remote console waiting for commands..."
+    ];
 
-    function typeNext() {
-      if (lineIndex >= lines.length) {
-        enableTap();
+    const noLines = [
+      "",
+      "[CONTROL] User chose NO.",
+      "[SYSTEM] Dropping pending payloads...",
+      "[OK] Control paths wiped.",
+      "\"LOCAL USER RETAINS FULL CONTROL\""
+    ];
+
+    let baseLineIndex = 0;
+    let baseCharIndex = 0;
+    let choiceMade = false;
+    let branchStarted = false;
+    let cancelAllTyping = false;
+    let alertMode = false;
+
+    function styleLine(lineEl, text) {
+      if (text.startsWith("[PHASE")) {
+        lineEl.classList.add("phase-tag");
+      } else if (text.startsWith("[OK]") || text.includes("ACCESS GRANTED")) {
+        lineEl.classList.add("ok");
+      } else if (text.startsWith("[WARN]")) {
+        lineEl.classList.add("warn");
+      } else if (text.startsWith("[CONTROL]") || text.startsWith("[INJECT]")) {
+        lineEl.classList.add("muted");
+      } else if (text.includes("OVERRIDDEN")) {
+        lineEl.classList.add("danger");
+      } else if (text.includes("RETAINS FULL CONTROL")) {
+        lineEl.classList.add("ok");
+      }
+    }
+
+    function typeBase() {
+      if (cancelAllTyping) return;
+
+      if (baseLineIndex >= baseLines.length) {
+        showChoice();
         return;
       }
 
-      const text = lines[lineIndex];
-      let lineEl = document.getElementById("line-" + lineIndex);
+      const text = baseLines[baseLineIndex];
+      let lineEl = document.getElementById("base-" + baseLineIndex);
 
       if (!lineEl) {
         lineEl = document.createElement("div");
-        lineEl.id = "line-" + lineIndex;
-
-        if (text.includes("YOU HAVE BEEN HACKED") || text.includes("ACCESS DENIED")) {
-          lineEl.style.color = "#f33";
-        } else if (text.includes("ACCESS GRANTED")) {
-          lineEl.style.color = "#0f0";
-        }
-
+        lineEl.id = "base-" + baseLineIndex;
+        styleLine(lineEl, text);
         term.insertBefore(lineEl, cursor);
       }
 
-      if (charIndex < text.length) {
-        lineEl.textContent += text.charAt(charIndex++);
+      if (baseCharIndex < text.length) {
+        lineEl.textContent += text.charAt(baseCharIndex++);
       } else {
         lineEl.textContent += "\n";
-        lineIndex++;
-        charIndex = 0;
+        baseLineIndex++;
+        baseCharIndex = 0;
       }
 
       term.scrollTop = term.scrollHeight;
 
       const slow =
-        text.includes("YOU HAVE BEEN HACKED") ||
         text.includes("ACCESS GRANTED") ||
-        text.includes("ACCESS DENIED") ||
-        text.includes("Tap anywhere");
-
+        text.includes("Session is ARMED") ||
+        text.includes("OVERRIDE?");
       const delay = slow ? 80 : 18 + Math.random() * 25;
-      setTimeout(typeNext, delay);
+
+      setTimeout(typeBase, delay);
     }
 
-    function enableTap() {
-      if (tapEnabled) return;
-      tapEnabled = true;
+    function showChoice() {
+      choiceOverlay.classList.add("visible");
+    }
 
-      function finish() {
-        screen.removeEventListener("click", finish);
-        screen.removeEventListener("touchstart", finish);
-        screen.style.display = "none";
-        reveal.classList.add("visible");
+    function runBranch(mode) {
+      const lines = mode === "yes" ? yesLines : noLines;
+      let i = 0;
+      let j = 0;
+      branchStarted = true;
+
+      function step() {
+        if (cancelAllTyping) return;
+
+        if (i >= lines.length) {
+          setTimeout(() => showReveal(mode), 500);
+          return;
+        }
+
+        const text = lines[i];
+        let lineEl = document.getElementById(mode + "-" + i);
+
+        if (!lineEl) {
+          lineEl = document.createElement("div");
+          lineEl.id = mode + "-" + i;
+          styleLine(lineEl, text);
+          term.insertBefore(lineEl, cursor);
+        }
+
+        if (j < text.length) {
+          lineEl.textContent += text.charAt(j++);
+        } else {
+          lineEl.textContent += "\n";
+          i++;
+          j = 0;
+        }
+
+        term.scrollTop = term.scrollHeight;
+
+        const slow =
+          text.includes("OVERRIDDEN") ||
+          text.includes("RETAINS FULL CONTROL");
+        const delay = slow ? 80 : 22 + Math.random() * 28;
+
+        setTimeout(step, delay);
       }
 
-      screen.addEventListener("click", finish);
-      screen.addEventListener("touchstart", finish);
+      step();
     }
 
-    setTimeout(typeNext, 600);
+    function showReveal(mode) {
+      screen.style.display = "none";
+      reveal.classList.add("visible");
+
+      if (mode === "yes") {
+        revealTitle.textContent = "OVERRIDE ENABLED*";
+        revealText1.textContent =
+          "But only in this simulation. This console runs inside your browser.";
+        revealText2.textContent =
+          "It used basic environment data (screen, language, time zone, user agent). Nothing left your device.";
+      } else {
+        revealTitle.textContent = "OVERRIDE BLOCKED";
+        revealText1.textContent =
+          "Good call. Also, this was just a scripted console.";
+        revealText2.textContent =
+          "All logs were fake text from JavaScript. Your phone stayed under your control.";
+      }
+    }
+
+    function handleChoice(answer) {
+      if (choiceMade) return;
+      choiceMade = true;
+      choiceOverlay.classList.remove("visible");
+      runBranch(answer);
+    }
+
+    yesBtn.addEventListener("click", () => handleChoice("yes"));
+    noBtn.addEventListener("click", () => handleChoice("no"));
+
+    // Admin stuff
+    adminLink.addEventListener("click", () => {
+      adminLogin.style.display = "flex";
+      adminPass.value = "";
+      setTimeout(() => adminPass.focus && adminPass.focus(), 10);
+    });
+
+    adminSubmit.addEventListener("click", () => {
+      if (adminPass.value === "78717") {
+        adminLogin.style.display = "none";
+        adminPanel.style.display = "flex";
+      } else {
+        alert("Wrong passcode.");
+      }
+    });
+
+    adminPass.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") adminSubmit.click();
+    });
+
+    function resetHeader() {
+      alertMode = false;
+      titleEl.textContent = "ZEROPOINT REMOTE ACCESS CORE";
+      subtitleEl.textContent =
+        "TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR";
+      statusLink.textContent = "LINK: SYNCHED";
+      statusLink.classList.remove("warn");
+      statusLink.classList.add("ok");
+      statusMode.textContent = "MODE: GHOST OBSERVE";
+      statusMode.classList.remove("warn");
+      statusMode.classList.add("info");
+    }
+
+    function toggleAlertMode() {
+      if (!alertMode) {
+        alertMode = true;
+        titleEl.textContent = "ZEROPOINT ALERT NODE";
+        subtitleEl.textContent =
+          "TARGET: LIVE HANDSET • STATUS: COMPROMISED";
+        statusLink.textContent = "LINK: UNSTABLE";
+        statusLink.classList.remove("ok");
+        statusLink.classList.add("warn");
+        statusMode.textContent = "MODE: ACTIVE OVERRIDE";
+        statusMode.classList.remove("info");
+        statusMode.classList.add("warn");
+      } else {
+        resetHeader();
+      }
+    }
+
+    function adminForce(mode) {
+      choiceOverlay.classList.remove("visible");
+      if (!choiceMade) choiceMade = true;
+      if (!branchStarted) {
+        runBranch(mode);
+      } else {
+        showReveal(mode);
+      }
+    }
+
+    function restartConsole() {
+      cancelAllTyping = true;
+      choiceOverlay.classList.remove("visible");
+      resetHeader();
+      screen.style.display = "flex";
+      reveal.classList.remove("visible");
+      term.innerHTML = "";
+      term.appendChild(cursor);
+      baseLineIndex = 0;
+      baseCharIndex = 0;
+      choiceMade = false;
+      branchStarted = false;
+      cancelAllTyping = false;
+      setTimeout(typeBase, 300);
+    }
+
+    btnRestart.addEventListener("click", restartConsole);
+    btnForceYes.addEventListener("click", () => adminForce("yes"));
+    btnForceNo.addEventListener("click", () => adminForce("no"));
+    btnToggleAlert.addEventListener("click", toggleAlertMode);
+
+    // Start
+    setTimeout(typeBase, 500);
   </script>
 </body>
 </html>
