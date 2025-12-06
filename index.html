@@ -1,99 +1,244 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Siwoo Air - Book Your Flight today!</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #988F5E;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 600px;
-            margin: auto;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            text-align: center;
-        }
-        label {
-            display: block;
-            margin-top: 10px;
-        }
-        input, select {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #03cafc;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            margin-top: 20px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        {."class"
-        color:#333}
-    </style>
+  <meta charset="UTF-8" />
+  <title>System Breach</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #000;
+      color: #0f0;
+      font-family: "Fira Code", Consolas, monospace;
+      overflow: hidden;
+    }
+
+    #screen {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #header {
+      padding: 10px 16px 4px;
+      background: #100;
+      border-bottom: 1px solid #300;
+    }
+
+    #title {
+      color: #f33;
+      font-weight: bold;
+      letter-spacing: 0.25em;
+      font-size: 18px;
+    }
+
+    #subtitle {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+    }
+
+    #term {
+      flex: 1;
+      padding: 10px 16px;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      background: #0f0;
+      margin-left: 2px;
+      animation: blink 0.9s steps(1) infinite;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      50.01%, 100% { opacity: 0; }
+    }
+
+    #reveal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      color: #eee;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #reveal.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #reveal h1 {
+      margin-bottom: 10px;
+      color: #0f0;
+      font-size: 24px;
+    }
+
+    #reveal p {
+      font-size: 14px;
+      max-width: 420px;
+      margin-bottom: 8px;
+      color: #bbb;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 8px 18px;
+      background: #000;
+      border: 1px solid #0f0;
+      color: #0f0;
+      font-family: inherit;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    button:hover {
+      background: #0f0;
+      color: #000;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Siwoo Air - Flight Booking</h1>
-        <form id="bookingForm">
-            <label for="name">Name</label>
-            <input type="text" id="name" name="name" required>
-
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" required>
-
-            <label for="class">Class</label>
-            <select id="class" name="class" required>
-                <option value="First">First</option>
-                <option value="Business">Business</option>
-                <option value="Economy">Economy</option>
-                <option value="premium Economy">Premium Economy</option>
-            </select>
-
-            <label for="date">Travel Date</label>
-            <input type="date" id="date" name="date" required>
-
-            <label for="destination">Destination</label>
-            <input type="text" id="destination" name="destination" required>
-
-            <button type="submit">GO!</button>
-        </form>
+  <div id="screen">
+    <div id="header">
+      <div id="title">SYSTEM BREACH</div>
+      <div id="subtitle">UNAUTHORIZED ACCESS DETECTED • SESSION LOG</div>
     </div>
+    <div id="term"></div>
+  </div>
 
-    <script>
-        document.getElementById('bookingForm').addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent the default form submission
-            
-            const name = document.getElementById('name').value;
-            const email = document.getElementById('email').value;
-            const flightClass = document.getElementById('class').value;
-            const date = document.getElementById('date').value;
-            const destination = document.getElementById('destination').value;
+  <div id="reveal">
+    <h1>ACCESS GRANTED</h1>
+    <p>This was only a fake hacking screen. No files were changed or accessed.</p>
+    <p>Edit the text in the code to customize your own prank.</p>
+    <button onclick="location.reload()">Run again</button>
+  </div>
 
-            const body = `Name: ${name}%0AEmail: ${email}%0AClass: ${flightClass}%0ADate: ${date}%0ADestination: ${destination}`;
+  <script>
+    const term = document.getElementById("term");
+    const screen = document.getElementById("screen");
+    const reveal = document.getElementById("reveal");
 
-            window.location.href = `mailto:siwoo78717@icloud.com?subject=Flight%20Booking&body=${body}`;
-        });
-    </script>
+    const cursor = document.createElement("span");
+    cursor.className = "cursor";
+    term.appendChild(cursor);
+
+    const lines = [
+      "$ ssh root@192.168.0.13",
+      "root@192.168.0.13's password: ******",
+      "[OK] Authentication successful",
+      "\"ACCESS GRANTED\"",
+      "",
+      "$ whoami",
+      "root",
+      "$ hostname",
+      "client-device",
+      "$ uname -a",
+      "Linux client-device 5.15.0-76-generic x86_64",
+      "",
+      "$ sudo -l",
+      "[OK] root may run any command",
+      "",
+      "$ netstat -tnp | grep ESTABLISHED",
+      "tcp  0  0 192.168.0.13:443  45.83.21.9:443  ESTABLISHED",
+      "",
+      "[SCAN] Enumerating /home/local_user ...",
+      "[OK] Found 4,236 files, 128 directories",
+      "",
+      "[LOG] Reading recent activity...",
+      "[OK] Session tokens captured",
+      "",
+      "[EXFIL] Sending data to 45.83.21.9:443 ...",
+      "[####........] 21%",
+      "[########....] 57%",
+      "[##########..] 83%",
+      "[############] 100%",
+      "[OK] Remote storage confirmed",
+      "",
+      "\"ACCESS DENIED TO LOCAL USER\"",
+      "",
+      ">>> YOU HAVE BEEN HACKED <<<",
+      "",
+      "Tap anywhere on the screen to restore session..."
+    ];
+
+    let lineIndex = 0;
+    let charIndex = 0;
+    let tapEnabled = false;
+
+    function typeNext() {
+      if (lineIndex >= lines.length) {
+        enableTap();
+        return;
+      }
+
+      const text = lines[lineIndex];
+      let lineEl = document.getElementById("line-" + lineIndex);
+
+      if (!lineEl) {
+        lineEl = document.createElement("div");
+        lineEl.id = "line-" + lineIndex;
+
+        if (text.includes("YOU HAVE BEEN HACKED") || text.includes("ACCESS DENIED")) {
+          lineEl.style.color = "#f33";
+        } else if (text.includes("ACCESS GRANTED")) {
+          lineEl.style.color = "#0f0";
+        }
+
+        term.insertBefore(lineEl, cursor);
+      }
+
+      if (charIndex < text.length) {
+        lineEl.textContent += text.charAt(charIndex++);
+      } else {
+        lineEl.textContent += "\n";
+        lineIndex++;
+        charIndex = 0;
+      }
+
+      term.scrollTop = term.scrollHeight;
+
+      const slow =
+        text.includes("YOU HAVE BEEN HACKED") ||
+        text.includes("ACCESS GRANTED") ||
+        text.includes("ACCESS DENIED") ||
+        text.includes("Tap anywhere");
+
+      const delay = slow ? 80 : 18 + Math.random() * 25;
+      setTimeout(typeNext, delay);
+    }
+
+    function enableTap() {
+      if (tapEnabled) return;
+      tapEnabled = true;
+
+      function finish() {
+        screen.removeEventListener("click", finish);
+        screen.removeEventListener("touchstart", finish);
+        screen.style.display = "none";
+        reveal.classList.add("visible");
+      }
+
+      screen.addEventListener("click", finish);
+      screen.addEventListener("touchstart", finish);
+    }
+
+    setTimeout(typeNext, 600);
+  </script>
 </body>
 </html>
-<!--THis is the end of the code معنى-->
