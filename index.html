@@ -2,156 +2,357 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Remote Access Core</title>
+  <title>ZeroPoint Access Core</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     body {
-      background: #000;
+      background:
+        radial-gradient(circle at top, #10243a 0, #02060c 45%, #000 100%);
       color: #0f0;
-      font-family: "Fira Code", Consolas, monospace;
+      font-family: "Fira Code", "JetBrains Mono", Consolas, monospace;
       overflow: hidden;
     }
 
-    /* Static cyber grid background */
+    /* Main background with subtle animated grid + scanline + glitch */
     #screen {
       position: relative;
       height: 100vh;
+      padding: 18px;
       display: flex;
       flex-direction: column;
-      background-color: #02060c;
+      align-items: center;
+      justify-content: center;
       background-image:
-        linear-gradient(to right, rgba(0, 255, 120, 0.06) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 255, 120, 0.06) 1px, transparent 1px);
-      background-size: 40px 40px, 40px 40px;
-      transition: none;
+        linear-gradient(to right, rgba(0, 255, 120, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 120, 0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      overflow: hidden;
+    }
+
+    /* Glitch overlay */
+    #screen::before {
+      content: "";
+      position: absolute;
+      inset: -20px;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          rgba(0, 255, 120, 0.18) 0,
+          rgba(0, 255, 120, 0.18) 2px,
+          transparent 2px,
+          transparent 4px
+        );
+      mix-blend-mode: screen;
+      opacity: 0.14;
+      pointer-events: none;
+      animation: glitchMove 1.3s infinite steps(2, end);
+    }
+
+    @keyframes glitchMove {
+      0%   { transform: translate(0, 0); }
+      20%  { transform: translate(-3px, 2px); }
+      40%  { transform: translate(2px, -1px); }
+      60%  { transform: translate(-1px, -2px); }
+      80%  { transform: translate(1px, 2px); }
+      100% { transform: translate(0, 0); }
     }
 
     /* Alternate theme: blue grid */
     #screen.altTheme {
-      background-color: #02030c;
       background-image:
-        linear-gradient(to right, rgba(0, 180, 255, 0.09) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 180, 255, 0.09) 1px, transparent 1px);
+        linear-gradient(to right, rgba(0, 180, 255, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 180, 255, 0.07) 1px, transparent 1px);
+    }
+
+    /* Scanline overlay */
+    #screen::after {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(
+          to bottom,
+          rgba(0, 0, 0, 0) 0%,
+          rgba(0, 0, 0, 0.25) 50%,
+          rgba(0, 0, 0, 0) 100%
+        );
+      background-size: 100% 3px;
+      mix-blend-mode: soft-light;
+      opacity: 0.55;
+      animation: scan 7s linear infinite;
+    }
+
+    @keyframes scan {
+      0%   { transform: translateY(-10%); }
+      50%  { transform: translateY(10%); }
+      100% { transform: translateY(-10%); }
+    }
+
+    /* Console card layout */
+    #header,
+    #term,
+    #cmdRow {
+      width: min(980px, 100%);
+      margin: 0 auto;
     }
 
     #header {
       padding: 12px 18px 6px;
-      background: #020b14;
-      border-bottom: 1px solid #046;
-      box-shadow: 0 0 14px rgba(0, 255, 120, 0.2);
+      background: linear-gradient(
+        135deg,
+        rgba(4, 18, 26, 0.94),
+        rgba(0, 35, 28, 0.96)
+      );
+      border: 1px solid rgba(0, 255, 120, 0.45);
+      border-bottom: none;
+      border-radius: 16px 16px 0 0;
+      box-shadow:
+        0 0 20px rgba(0, 255, 150, 0.18),
+        0 0 80px rgba(0, 255, 120, 0.1);
+      backdrop-filter: blur(16px);
       z-index: 1;
-    }
-
-    #title {
-      color: #00f7ff;
-      font-weight: bold;
-      letter-spacing: 0.24em;
-      font-size: 15px;
-      text-transform: uppercase;
-    }
-
-    #subtitle {
-      margin-top: 4px;
-      font-size: 10px;
-      color: #7df3c2;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-    }
-
-    #statusBar {
-      margin-top: 6px;
-      font-size: 10px;
-      color: #999;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .status-pill {
-      padding: 2px 9px;
-      border-radius: 999px;
-      border: 1px solid #044;
-      background: #020f0b;
-    }
-
-    .status-pill.ok   { border-color: #0f0;    color: #0f0; }
-    .status-pill.warn { border-color: #ffb400; color: #ffb400; }
-    .status-pill.info { border-color: #00f7ff; color: #00f7ff; }
-
-    #adminLink {
-      margin-left: auto;
-      cursor: pointer;
     }
 
     #term {
       flex: 1;
-      padding: 10px 18px;
+      min-height: 260px;
+      max-height: min(460px, 70vh);
+      padding: 12px 18px;
       white-space: pre-wrap;
       overflow-y: auto;
       font-size: 13px;
-      line-height: 1.4;
+      line-height: 1.45;
       position: relative;
       z-index: 0;
+      background: radial-gradient(circle at top left, #04261b 0, #020b14 36%, #02060c 100%);
+      border-left: 1px solid rgba(0, 255, 120, 0.35);
+      border-right: 1px solid rgba(0, 255, 120, 0.35);
+      box-shadow:
+        inset 0 0 25px rgba(0, 0, 0, 0.9),
+        0 18px 40px rgba(0, 0, 0, 0.75);
+    }
+
+    /* Custom scrollbar */
+    #term::-webkit-scrollbar {
+      width: 8px;
+    }
+    #term::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.4);
+    }
+    #term::-webkit-scrollbar-thumb {
+      background: linear-gradient(#0f0, #0af2b5);
+      border-radius: 999px;
     }
 
     .cursor {
       display: inline-block;
       width: 8px;
       height: 1em;
-      background: #0f0; /* solid block */
+      background: #0f0;
       margin-left: 2px;
+      box-shadow: 0 0 8px rgba(0, 255, 120, 0.7);
     }
 
-    .phase-tag { color: #00f7ff; }
-    .ok        { color: #0f0; }
-    .warn      { color: #ffb400; }
-    .danger    { color: #ff3b3b; }
-    .muted     { color: #0a9b6a; }
+    /* Command row */
+    #cmdRow {
+      display: none;
+      padding: 7px 18px 10px;
+      background: linear-gradient(
+        145deg,
+        rgba(1, 18, 20, 0.98),
+        rgba(1, 28, 24, 0.98)
+      );
+      border: 1px solid rgba(0, 255, 120, 0.45);
+      border-top: 1px solid rgba(0, 255, 120, 0.2);
+      border-radius: 0 0 16px 16px;
+      box-shadow:
+        0 14px 40px rgba(0, 0, 0, 0.9),
+        0 0 25px rgba(0, 255, 140, 0.2);
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
 
-    /* YES / NO overlay */
-    #choiceOverlay {
+    #cmdPrompt {
+      color: #6affb8;
+      min-width: 80px;
+      white-space: nowrap;
+      text-shadow: 0 0 6px rgba(0, 255, 120, 0.6);
+    }
+
+    #cmdInput {
+      flex: 1;
+      background: #02090a;
+      border: 1px solid rgba(0, 255, 120, 0.6);
+      color: #eaffee;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      border-radius: 6px;
+      box-shadow: inset 0 0 10px rgba(0, 255, 120, 0.15);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease,
+        background-color 0.18s ease;
+    }
+
+    #cmdInput:focus {
+      border-color: #00f7ff;
+      box-shadow:
+        0 0 12px rgba(0, 247, 255, 0.45),
+        inset 0 0 8px rgba(0, 255, 120, 0.25);
+      background: #020f13;
+    }
+
+    /* Header text */
+    #title {
+      color: #00f7ff;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      font-size: 15px;
+      text-transform: uppercase;
+      text-shadow:
+        0 0 10px rgba(0, 247, 255, 0.75),
+        0 0 24px rgba(0, 255, 140, 0.45);
+    }
+
+    #subtitle {
+      margin-top: 4px;
+      font-size: 10px;
+      color: #8cfed0;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      opacity: 0.95;
+    }
+
+    #statusBar {
+      margin-top: 8px;
+      font-size: 10px;
+      color: #999;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .status-pill {
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid #044;
+      background: radial-gradient(circle at top, #032019 0, #010c09 70%);
+      box-shadow: 0 0 10px rgba(0, 255, 120, 0.2);
+    }
+
+    .status-pill.ok {
+      border-color: #30ff9b;
+      color: #9bffd4;
+    }
+    .status-pill.warn {
+      border-color: #ffb400;
+      color: #ffd580;
+      box-shadow: 0 0 10px rgba(255, 180, 0, 0.3);
+    }
+    .status-pill.info {
+      border-color: #00f7ff;
+      color: #7df3ff;
+      box-shadow: 0 0 10px rgba(0, 247, 255, 0.3);
+    }
+
+    #adminLink {
+      margin-left: auto;
+      cursor: pointer;
+      text-shadow: 0 0 8px rgba(0, 247, 255, 0.7);
+    }
+
+    /* Log text colors */
+    .phase-tag { color: #00f7ff; }
+    .ok        { color: #6affb8; }
+    .warn      { color: #ffb45a; }
+    .danger    { color: #ff4c4c; }
+    .muted     { color: #0dd89b; }
+
+    /* Overlays: questions */
+    #choiceOverlay,
+    #choiceOverlay2,
+    #choiceOverlayNo {
       position: absolute;
       inset: 0;
       display: none;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.8);
+      padding: 18px;
+      background: radial-gradient(
+          circle at center,
+          rgba(0, 0, 0, 0.7) 0,
+          rgba(0, 0, 0, 0.94) 55%
+        );
+      backdrop-filter: blur(6px);
       text-align: center;
-      z-index: 2;
+      z-index: 5;
     }
 
-    #choiceOverlay.visible {
+    #choiceOverlay.visible,
+    #choiceOverlay2.visible,
+    #choiceOverlayNo.visible {
       display: flex;
     }
 
-    #choicePrompt {
-      font-size: 12px;
-      letter-spacing: 0.25em;
+    #choicePrompt,
+    #choicePrompt2,
+    #choicePromptNo {
+      font-size: 13px;
+      letter-spacing: 0.28em;
       text-transform: uppercase;
-      margin-bottom: 14px;
-      color: #0f0;
+      margin-bottom: 16px;
+      color: #e6ffe6;
+      text-shadow:
+        0 0 14px rgba(0, 255, 120, 0.8),
+        0 0 18px rgba(0, 247, 255, 0.7);
     }
 
     .choice-btn {
       margin: 0 8px;
-      padding: 8px 20px;
-      background: #000;
+      padding: 9px 22px;
+      background: radial-gradient(circle at top, #02130f 0, #000 70%);
       border: 1px solid #0f0;
-      color: #0f0;
+      color: #caffda;
       font-family: inherit;
       font-size: 12px;
       cursor: pointer;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
-      min-width: 80px;
+      letter-spacing: 0.14em;
+      min-width: 86px;
+      border-radius: 999px;
+      box-shadow:
+        0 0 14px rgba(0, 255, 120, 0.65),
+        0 0 26px rgba(0, 247, 255, 0.4);
+      transition:
+        background-color 0.16s ease,
+        color 0.16s ease,
+        box-shadow 0.16s ease,
+        transform 0.08s ease;
     }
 
-    .choice-btn:hover {
+    .choice-btn:hover:not(:disabled) {
       background: #0f0;
-      color: #000;
+      color: #001007;
+      transform: translateY(-1px);
+      box-shadow:
+        0 0 20px rgba(0, 255, 120, 0.9),
+        0 0 35px rgba(0, 247, 255, 0.6);
+    }
+
+    .choice-btn:active:not(:disabled) {
+      transform: translateY(1px) scale(0.98);
+      box-shadow:
+        0 0 10px rgba(0, 255, 120, 0.7),
+        0 0 20px rgba(0, 247, 255, 0.5);
     }
 
     .choice-btn:disabled {
@@ -160,6 +361,7 @@
       color: #555;
       background: #111;
       cursor: default;
+      box-shadow: none;
     }
 
     /* Ending screen */
@@ -170,11 +372,11 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: #02060c;
+      background: radial-gradient(circle at top, #04101d 0, #000 65%);
       color: #eee;
       text-align: center;
       padding: 20px;
-      z-index: 3;
+      z-index: 10;
     }
 
     #reveal.visible {
@@ -182,37 +384,65 @@
     }
 
     #reveal h1 {
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       color: #00f7ff;
       font-size: 22px;
       letter-spacing: 0.18em;
       text-transform: uppercase;
+      text-shadow:
+        0 0 14px rgba(0, 247, 255, 0.9),
+        0 0 26px rgba(0, 255, 160, 0.6);
     }
 
     #reveal p {
       font-size: 13px;
-      max-width: 460px;
+      max-width: 480px;
       margin-bottom: 8px;
-      color: #bbb;
+      color: #cfd8e0;
+    }
+
+    #revealCredit {
+      margin-top: 4px;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #8cfed0;
     }
 
     button {
-      margin-top: 10px;
-      padding: 8px 18px;
-      background: #000;
+      margin-top: 12px;
+      padding: 8px 20px;
+      background: radial-gradient(circle at top, #02130f 0, #000 70%);
       border: 1px solid #0f0;
-      color: #0f0;
+      color: #caffda;
       font-family: inherit;
       cursor: pointer;
       font-size: 13px;
+      border-radius: 999px;
+      box-shadow:
+        0 0 12px rgba(0, 255, 120, 0.7),
+        0 0 20px rgba(0, 247, 255, 0.4);
+      transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.08s ease;
     }
 
     button:hover {
       background: #0f0;
-      color: #000;
+      color: #001007;
+      transform: translateY(-1px);
     }
 
-    /* Admin login + panel */
+    button:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow:
+        0 0 10px rgba(0, 255, 120, 0.6),
+        0 0 18px rgba(0, 247, 255, 0.5);
+    }
+
+    /* Admin login */
     #adminLogin {
       position: fixed;
       inset: 0;
@@ -220,69 +450,116 @@
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 4;
+      z-index: 12;
     }
 
     #adminLoginBox {
-      background: #020b14;
+      background: radial-gradient(circle at top, #031824 0, #020b14 70%);
       border: 1px solid #0f0;
       padding: 12px 16px;
       display: flex;
       flex-direction: column;
       gap: 8px;
       min-width: 220px;
+      box-shadow:
+        0 0 18px rgba(0, 255, 120, 0.6),
+        0 0 32px rgba(0, 247, 255, 0.4);
     }
 
     .adminTitle {
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.12em;
-      color: #0f0;
+      color: #8cfed0;
       margin-bottom: 4px;
+      border-bottom: 1px solid rgba(0, 255, 120, 0.35);
+      padding-bottom: 3px;
     }
 
     #adminPass {
       background: #000;
       border: 1px solid #0f0;
-      color: #0f0;
+      color: #eaffee;
       padding: 4px 6px;
       font-family: inherit;
       font-size: 12px;
+      border-radius: 4px;
     }
 
     #adminPanel {
       position: fixed;
       top: 10px;
       right: 10px;
-      background: #020b14;
-      border: 1px solid #0f0;
+      background: radial-gradient(circle at top, #041824 0, #020b14 70%);
+      border: 1px solid rgba(0, 255, 120, 0.55);
       padding: 8px 10px;
       display: none;
       flex-direction: column;
       gap: 4px;
-      z-index: 4;
+      z-index: 11;
       font-size: 10px;
-      max-width: 220px;
+      max-width: 230px;
+      max-height: calc(100vh - 20px);
+      overflow-y: auto;
+      box-shadow:
+        0 0 18px rgba(0, 255, 120, 0.6),
+        0 0 36px rgba(0, 247, 255, 0.4);
+      border-radius: 10px;
     }
 
     .adminBtn {
       font-size: 10px;
       padding: 4px 8px;
-      background: #000;
-      border: 1px solid #0f0;
-      color: #0f0;
+      background: #01090b;
+      border: 1px solid rgba(0, 255, 120, 0.5);
+      color: #bfffe1;
       cursor: pointer;
       text-align: left;
+      border-radius: 5px;
+      transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.08s ease;
     }
 
     .adminBtn:hover {
       background: #0f0;
       color: #000;
+      border-color: #00f7ff;
+      transform: translateY(-0.5px);
+    }
+
+    .adminBtn:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    /* Small screens */
+    @media (max-width: 640px) {
+      #screen {
+        padding: 10px;
+      }
+      #header,
+      #term,
+      #cmdRow {
+        width: 100%;
+      }
+      #title {
+        font-size: 12px;
+        letter-spacing: 0.16em;
+      }
+      #subtitle {
+        letter-spacing: 0.12em;
+      }
+      #cmdPrompt {
+        min-width: 64px;
+      }
     }
   </style>
 </head>
 <body>
   <div id="screen">
+    <!-- Header -->
     <div id="header">
       <div id="title">ZEROPOINT REMOTE ACCESS CORE</div>
       <div id="subtitle">TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR</div>
@@ -295,8 +572,16 @@
       </div>
     </div>
 
+    <!-- Terminal area -->
     <div id="term"></div>
 
+    <!-- Command shell row -->
+    <div id="cmdRow">
+      <span id="cmdPrompt">/ $</span>
+      <input id="cmdInput" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <!-- First YES/NO question -->
     <div id="choiceOverlay">
       <div id="choicePrompt">ELEVATE TO FULL DEVICE OVERRIDE?</div>
       <div>
@@ -304,16 +589,36 @@
         <button class="choice-btn" id="noBtn">NO</button>
       </div>
     </div>
+
+    <!-- Second YES/NO question: YES path (configurable) -->
+    <div id="choiceOverlay2">
+      <div id="choicePrompt2">ENABLE SHELL ACCESS? (YES / NO)</div>
+      <div>
+        <button class="choice-btn" id="yesBtn2">YES</button>
+        <button class="choice-btn" id="noBtn2">NO</button>
+      </div>
+    </div>
+
+    <!-- Second YES/NO question: NO path -->
+    <div id="choiceOverlayNo">
+      <div id="choicePromptNo">ENTER SAFE MODE? (YES / NO)</div>
+      <div>
+        <button class="choice-btn" id="yesBtnNo">YES</button>
+        <button class="choice-btn" id="noBtnNo">NO</button>
+      </div>
+    </div>
   </div>
 
+  <!-- Ending / reveal screen -->
   <div id="reveal">
     <h1 id="revealTitle"></h1>
     <p id="revealText1"></p>
     <p id="revealText2"></p>
+    <p id="revealCredit"></p>
     <button onclick="location.reload()">Run again</button>
   </div>
 
-  <!-- Admin login and panel -->
+  <!-- Admin login -->
   <div id="adminLogin">
     <div id="adminLoginBox">
       <div class="adminTitle">ADMIN ACCESS</div>
@@ -322,8 +627,10 @@
     </div>
   </div>
 
+  <!-- Admin control panel -->
   <div id="adminPanel">
     <div class="adminTitle">ADMIN PANEL</div>
+    <button class="adminBtn" id="btnAdminLogout">Log out admin</button>
     <button class="adminBtn" id="btnRestart">Restart console</button>
     <button class="adminBtn" id="btnForceYes">Force YES ending</button>
     <button class="adminBtn" id="btnForceNo">Force NO ending</button>
@@ -338,24 +645,46 @@
     <button class="adminBtn" id="btnJam">Jam YES/NO buttons</button>
     <button class="adminBtn" id="btnLink">Simulate link drop</button>
     <button class="adminBtn" id="btnFullscreen">Toggle fullscreen</button>
+    <!-- Q2 + shell controls -->
+    <button class="adminBtn" id="btnQ2Mode">Q2 Mode: SHELL ACCESS</button>
+    <button class="adminBtn" id="btnShowQ2">Show Q2 (shell question)</button>
+    <button class="adminBtn" id="btnForceQ2Yes">Force Q2 YES</button>
+    <button class="adminBtn" id="btnForceQ2No">Force Q2 NO</button>
+    <button class="adminBtn" id="btnShellToggle">Toggle shell</button>
+    <button class="adminBtn" id="btnShellLock">Shell input: UNLOCKED</button>
+    <button class="adminBtn" id="btnShellFake">Fake shell command</button>
   </div>
 
   <script>
+    // ========= DOM ELEMENTS =========
     const term = document.getElementById("term");
     const screen = document.getElementById("screen");
     const reveal = document.getElementById("reveal");
+
     const choiceOverlay = document.getElementById("choiceOverlay");
+    const choiceOverlay2 = document.getElementById("choiceOverlay2");
+    const choiceOverlayNo = document.getElementById("choiceOverlayNo");
     const yesBtn = document.getElementById("yesBtn");
     const noBtn = document.getElementById("noBtn");
+    const yesBtn2 = document.getElementById("yesBtn2");
+    const noBtn2 = document.getElementById("noBtn2");
+    const yesBtnNo = document.getElementById("yesBtnNo");
+    const noBtnNo = document.getElementById("noBtnNo");
+    const choicePrompt2 = document.getElementById("choicePrompt2");
+    const choicePromptNo = document.getElementById("choicePromptNo");
+
     const revealTitle = document.getElementById("revealTitle");
     const revealText1 = document.getElementById("revealText1");
     const revealText2 = document.getElementById("revealText2");
+    const revealCredit = document.getElementById("revealCredit");
 
     const adminLink = document.getElementById("adminLink");
     const adminLogin = document.getElementById("adminLogin");
     const adminPass = document.getElementById("adminPass");
     const adminSubmit = document.getElementById("adminSubmit");
     const adminPanel = document.getElementById("adminPanel");
+
+    const btnAdminLogout = document.getElementById("btnAdminLogout");
     const btnRestart = document.getElementById("btnRestart");
     const btnForceYes = document.getElementById("btnForceYes");
     const btnForceNo = document.getElementById("btnForceNo");
@@ -370,6 +699,13 @@
     const btnJam = document.getElementById("btnJam");
     const btnLink = document.getElementById("btnLink");
     const btnFullscreen = document.getElementById("btnFullscreen");
+    const btnQ2Mode = document.getElementById("btnQ2Mode");
+    const btnShowQ2 = document.getElementById("btnShowQ2");
+    const btnForceQ2Yes = document.getElementById("btnForceQ2Yes");
+    const btnForceQ2No = document.getElementById("btnForceQ2No");
+    const btnShellToggle = document.getElementById("btnShellToggle");
+    const btnShellLock = document.getElementById("btnShellLock");
+    const btnShellFake = document.getElementById("btnShellFake");
 
     const titleEl = document.getElementById("title");
     const subtitleEl = document.getElementById("subtitle");
@@ -378,7 +714,11 @@
     const statusUser = document.getElementById("statusUser");
     const statusMode = document.getElementById("statusMode");
 
-    // Try fullscreen (F11-like) once on first tap/click
+    const cmdRow = document.getElementById("cmdRow");
+    const cmdPrompt = document.getElementById("cmdPrompt");
+    const cmdInput = document.getElementById("cmdInput");
+
+    // ========= FULLSCREEN HELPERS =========
     function requestFullscreen() {
       const el = document.documentElement;
       if (el.requestFullscreen) el.requestFullscreen();
@@ -399,18 +739,18 @@
     document.addEventListener("click", handleFullscreenGesture, { once: true });
     document.addEventListener("touchstart", handleFullscreenGesture, { once: true });
 
+    // Cursor block
     const cursor = document.createElement("span");
     cursor.className = "cursor";
     term.appendChild(cursor);
 
-    // Real device/env info (browser only — safe)
+    // ========= ENVIRONMENT INFO =========
     const ua = navigator.userAgent || "unknown";
     const platform = navigator.platform || "unknown";
     const lang = navigator.language || "unknown";
     const w = window.screen.width;
     const h = window.screen.height;
-    const tz =
-      (Intl.DateTimeFormat().resolvedOptions().timeZone) || "unknown";
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || "unknown";
     const touch =
       "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
     const origin =
@@ -419,13 +759,38 @@
       "file://local";
     const now = new Date().toISOString();
 
+    let tzRegion = "Unknown";
+    let tzCity = "Unknown";
+    if (tz && tz.includes("/")) {
+      const parts = tz.split("/");
+      tzRegion = parts[0] || "Unknown";
+      tzCity = (parts[1] || "Unknown").replace(/_/g, " ");
+    }
+    const offsetMinutesRaw = -new Date().getTimezoneOffset();
+    function formatOffset(mins) {
+      const sign = mins >= 0 ? "+" : "-";
+      const abs = Math.abs(mins);
+      const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+      const mm = String(abs % 60).padStart(2, "0");
+      return `${sign}${hh}:${mm}`;
+    }
+    const utcOffsetStr = formatOffset(offsetMinutesRaw);
+
+    // Geolocation state (for "info" command)
+    let geoRequested = false;
+    let geoHasFix = false;
+    let geoError = null;
+    let geoLat = null;
+    let geoLon = null;
+    let geoAccuracy = null;
+
     let deviceType = "DESKTOP/OTHER";
     if (/Android/i.test(ua)) deviceType = "ANDROID DEVICE";
     else if (/iPhone|iPad|iPod/i.test(ua)) deviceType = "iOS DEVICE";
 
     const shortUA = ua.length > 80 ? ua.slice(0, 80) + "..." : ua;
 
-    // Short console script
+    // ========= SCRIPTED LOG CONTENT =========
     const baseLines = [
       "[LINK] Attaching ZeroPoint core...",
       `  TIME   : ${now}`,
@@ -439,8 +804,8 @@
       "[SCAN] Client snapshot:",
       `  DEVICE : ${deviceType}`,
       `  SCREEN : ${w} x ${h}  TOUCH: ${touch ? "ON" : "OFF"}`,
-      `  LOCALE : ${lang}  ZONE: ${tz}`,
-      `  AGENT  : ${shortUA}`,
+      `  LOCALE : ${lang}  REGION: ${tzRegion}/${tzCity}`,
+      `  ZONE   : ${tz} (UTC${utcOffsetStr})`,
       "",
       "[STATUS] Session is ARMED.",
       "ELEVATE TO FULL DEVICE OVERRIDE? (YES / NO)"
@@ -452,7 +817,7 @@
       "[INJECT] Loading override stub [####......] 40%",
       "[INJECT] Loading override stub [##########] 100%",
       "\"LOCAL INPUT CHANNEL OVERRIDDEN\"",
-      "[STATUS] Remote console waiting for commands..."
+      "[STATUS] Remote console primed."
     ];
 
     const noLines = [
@@ -463,9 +828,12 @@
       "\"LOCAL USER RETAINS FULL CONTROL\""
     ];
 
+    // ========= GLOBAL STATE =========
     let baseLineIndex = 0;
     let baseCharIndex = 0;
     let choiceMade = false;
+    let secondChoiceMade = false;   // Q2 (YES path)
+    let secondChoiceMadeNo = false; // Q2 (NO path)
     let branchStarted = false;
     let cancelAllTyping = false;
     let alertMode = false;
@@ -473,11 +841,65 @@
     let linkLost = false;
     let autoYes = false;
     let jammed = false;
+    let shellLocked = false;
 
-    const speedModes = [0.5, 1, 2, 4]; // slow, normal, fast, turbo
+    const speedModes = [0.5, 1, 2, 4];
     const speedLabels = ["slow", "normal", "fast", "turbo"];
-    let typingSpeedModeIndex = 1; // normal
+    let typingSpeedModeIndex = 1;
     let typingSpeedFactor = speedModes[typingSpeedModeIndex];
+
+    // Q2 mode: "shell" or "wipe" (YES path)
+    let q2Mode = "shell";
+
+    // Shell state
+    let commandMode = false;
+    let cwd = "/";
+
+    const fsTree = {
+      "/": ["system", "logs", "user"],
+      "/system": ["core.cfg", "device-info.txt"],
+      "/logs": ["access.log"],
+      "/user": ["notes.txt", "readme.txt"]
+    };
+
+    const fileContents = {
+      "/system/core.cfg": [
+        "# ZeroPoint core config",
+        "mode=remote",
+        "privilege=root-temp",
+        "encryption=AES-256-GCM",
+        "persistence=off"
+      ].join("\n"),
+      "/system/device-info.txt": [
+        "DEVICE  : " + deviceType,
+        "PLATFORM: " + platform,
+        "SCREEN  : " + w + " x " + h,
+        "TOUCH   : " + (touch ? "ENABLED" : "DISABLED"),
+        "LOCALE  : " + lang,
+        "TZ      : " + tz + " (UTC" + utcOffsetStr + ")"
+      ].join("\n"),
+      "/logs/access.log": [
+        "[OK] link established",
+        "[OK] auth token granted",
+        "[INFO] recon snapshot captured",
+        "[INFO] awaiting operator commands"
+      ].join("\n"),
+      "/user/readme.txt": [
+        "Welcome to the ZeroPoint remote shell.",
+        "All files and commands here are simulated.",
+        "Nothing on your real device is touched."
+      ].join("\n"),
+      "/user/notes.txt": "TODO: scare the user (but in a fun, fake way)."
+    };
+
+    // ========= UTILS =========
+    function printLineToTerm(text, className) {
+      const lineEl = document.createElement("div");
+      if (className) lineEl.classList.add(className);
+      lineEl.textContent = text;
+      term.insertBefore(lineEl, cursor);
+      term.scrollTop = term.scrollHeight;
+    }
 
     function styleLine(lineEl, text) {
       if (text.startsWith("[PHASE")) {
@@ -499,6 +921,7 @@
       }
     }
 
+    // ========= MAIN TYPING =========
     function typeBase() {
       if (cancelAllTyping) return;
       if (typingPaused || linkLost) {
@@ -541,14 +964,32 @@
       setTimeout(typeBase, delay);
     }
 
+    function applyJamState() {
+      [yesBtn, noBtn, yesBtn2, noBtn2, yesBtnNo, noBtnNo].forEach((btn) => {
+        if (btn) btn.disabled = jammed;
+      });
+    }
+
     function showChoice() {
       choiceOverlay.classList.add("visible");
       applyJamState();
-      if (autoYes && !choiceMade) {
+      if (autoYes && !choiceMade && !jammed) {
         setTimeout(() => {
           if (!choiceMade && !jammed) handleChoice("yes");
         }, 800);
       }
+    }
+
+    function showSecondQuestion() {
+      choiceOverlay2.classList.add("visible");
+      secondChoiceMade = false;
+      applyJamState();
+    }
+
+    function showSecondQuestionNo() {
+      choiceOverlayNo.classList.add("visible");
+      secondChoiceMadeNo = false;
+      applyJamState();
     }
 
     function runBranch(mode) {
@@ -565,7 +1006,11 @@
         }
 
         if (i >= lines.length) {
-          setTimeout(() => showReveal(mode), 500);
+          if (mode === "yes") {
+            setTimeout(() => showSecondQuestion(), 300);
+          } else {
+            setTimeout(() => showSecondQuestionNo(), 300);
+          }
           return;
         }
 
@@ -601,25 +1046,56 @@
       step();
     }
 
+    // ========= REVEAL SCREENS =========
     function showReveal(mode) {
       screen.style.display = "none";
+      cmdRow.style.display = "none";
+      commandMode = false;
+      cursor.style.display = "inline-block";
       reveal.classList.add("visible");
 
-      if (mode === "yes") {
-        revealTitle.textContent = "OVERRIDE ENABLED*";
+      if (mode === "wipeYes") {
+        revealTitle.textContent = "LOGS WIPED*";
         revealText1.textContent =
-          "But only in this simulation. This console runs inside your browser.";
+          "But only in this simulation. No real system logs were touched.";
         revealText2.textContent =
-          "It used basic environment data (screen, language, time zone, user agent). Nothing left your device.";
-      } else {
+          "Those erase messages were just JavaScript text on this page.";
+      } else if (mode === "wipeNo") {
+        revealTitle.textContent = "LOGS PRESERVED";
+        revealText1.textContent =
+          "You chose to keep the logs. Also, this entire console is fake.";
+        revealText2.textContent =
+          "All entries were generated here; your real device logs were never changed.";
+      } else if (mode === "safeYes") {
+        revealTitle.textContent = "SAFE MODE ENABLED";
+        revealText1.textContent =
+          "ZeroPoint dropped into read-only safe mode. No override attempted.";
+        revealText2.textContent =
+          "And remember: all of this was only a simulation inside your browser.";
+      } else if (mode === "safeNo") {
+        revealTitle.textContent = "SESSION TERMINATED";
+        revealText1.textContent =
+          "You refused safe mode. The console session was closed cleanly.";
+        revealText2.textContent =
+          "Your real device stayed under your control the whole time.";
+      } else if (mode === "overrideNo" || mode === "no") {
         revealTitle.textContent = "OVERRIDE BLOCKED";
         revealText1.textContent =
           "Good call. Also, this was just a scripted console.";
         revealText2.textContent =
           "All logs were fake text from JavaScript. Your phone stayed under your control.";
+      } else {
+        revealTitle.textContent = "OVERRIDE ENABLED*";
+        revealText1.textContent =
+          "But only in this simulation. This console runs inside your browser.";
+        revealText2.textContent =
+          "It used basic environment data (screen, language, time zone, user agent). Nothing left your device.";
       }
+
+      revealCredit.textContent = "Made by Siwoo";
     }
 
+    // ========= QUESTION HANDLERS =========
     function handleChoice(answer) {
       if (choiceMade || jammed) return;
       choiceMade = true;
@@ -627,10 +1103,58 @@
       runBranch(answer);
     }
 
+    function handleSecondChoice(answer) {
+      if (secondChoiceMade) return;
+      secondChoiceMade = true;
+      choiceOverlay2.classList.remove("visible");
+
+      if (q2Mode === "shell") {
+        if (answer === "yes") {
+          startCommandMode();
+        } else {
+          showReveal("overrideNo");
+        }
+      } else {
+        // q2Mode === "wipe"
+        if (answer === "yes") {
+          printLineToTerm("[ERASE] User requested full log purge.", "warn");
+          printLineToTerm(
+            "[ERASE] Tagging access logs as wiped* (simulation only).",
+            "muted"
+          );
+          setTimeout(() => showReveal("wipeYes"), 600);
+        } else {
+          printLineToTerm(
+            "[LOG] User declined log purge; preserving entries.",
+            "muted"
+          );
+          setTimeout(() => showReveal("wipeNo"), 600);
+        }
+      }
+    }
+
+    function handleSecondChoiceNo(answer) {
+      if (secondChoiceMadeNo) return;
+      secondChoiceMadeNo = true;
+      choiceOverlayNo.classList.remove("visible");
+
+      if (answer === "yes") {
+        printLineToTerm("[SAFE] User enabled safe mode.", "ok");
+        setTimeout(() => showReveal("safeYes"), 600);
+      } else {
+        printLineToTerm("[SAFE] User declined safe mode. Closing session.", "warn");
+        setTimeout(() => showReveal("safeNo"), 600);
+      }
+    }
+
     yesBtn.addEventListener("click", () => handleChoice("yes"));
     noBtn.addEventListener("click", () => handleChoice("no"));
+    yesBtn2.addEventListener("click", () => handleSecondChoice("yes"));
+    noBtn2.addEventListener("click", () => handleSecondChoice("no"));
+    yesBtnNo.addEventListener("click", () => handleSecondChoiceNo("yes"));
+    noBtnNo.addEventListener("click", () => handleSecondChoiceNo("no"));
 
-    // Admin login
+    // ========= ADMIN LOGIN =========
     adminLink.addEventListener("click", () => {
       adminLogin.style.display = "flex";
       adminPass.value = "";
@@ -650,9 +1174,14 @@
       if (e.key === "Enter") adminSubmit.click();
     });
 
-    // Header state
+    function adminLogout() {
+      adminPanel.style.display = "none";
+    }
+
+    btnAdminLogout.addEventListener("click", adminLogout);
+
+    // ========= HEADER / STATUS =========
     function updateHeader() {
-      // Title + subtitle depend on alertMode
       if (alertMode) {
         titleEl.textContent = "ZEROPOINT ALERT NODE";
         subtitleEl.textContent =
@@ -663,7 +1192,6 @@
           "TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR";
       }
 
-      // Link + mode depend on alertMode + linkLost
       statusLink.classList.remove("ok", "warn", "info");
       statusMode.classList.remove("ok", "warn", "info");
 
@@ -697,25 +1225,30 @@
 
     function toggleLink() {
       linkLost = !linkLost;
-      const lineEl = document.createElement("div");
-      lineEl.classList.add("warn");
-      lineEl.textContent = linkLost
+      const msg = linkLost
         ? "[LINK] *** CONNECTION LOST (simulated by admin) ***"
         : "[LINK] Connection restored by admin override.";
-      term.insertBefore(lineEl, cursor);
-      term.scrollTop = term.scrollHeight;
+      printLineToTerm(msg, "warn");
       updateHeader();
     }
 
+    // ========= ADMIN ACTIONS: OVERRIDE, RESTART, TYPING =========
     function adminForce(mode) {
       cancelAllTyping = true;
       choiceOverlay.classList.remove("visible");
+      choiceOverlay2.classList.remove("visible");
+      choiceOverlayNo.classList.remove("visible");
       if (!choiceMade) choiceMade = true;
       if (!branchStarted) {
         cancelAllTyping = false;
-        runBranch(mode);
+        if (mode === "yes") {
+          startCommandMode();
+        } else {
+          runBranch("no");
+        }
       } else {
-        showReveal(mode);
+        if (mode === "yes") startCommandMode();
+        else showReveal("overrideNo");
       }
     }
 
@@ -724,6 +1257,8 @@
       typingPaused = false;
       linkLost = false;
       choiceOverlay.classList.remove("visible");
+      choiceOverlay2.classList.remove("visible");
+      choiceOverlayNo.classList.remove("visible");
       resetHeader();
       screen.style.display = "flex";
       reveal.classList.remove("visible");
@@ -732,8 +1267,16 @@
       baseLineIndex = 0;
       baseCharIndex = 0;
       choiceMade = false;
+      secondChoiceMade = false;
+      secondChoiceMadeNo = false;
       branchStarted = false;
       cancelAllTyping = false;
+
+      commandMode = false;
+      cwd = "/";
+      cmdRow.style.display = "none";
+      cursor.style.display = "inline-block";
+
       setTimeout(typeBase, 300);
     }
 
@@ -768,21 +1311,14 @@
     function injectLog() {
       const msg = prompt("Admin log message:");
       if (!msg) return;
-      const lineEl = document.createElement("div");
-      lineEl.classList.add("muted");
-      lineEl.textContent = "[ADMIN] " + msg;
-      term.insertBefore(lineEl, cursor);
-      term.scrollTop = term.scrollHeight;
+      printLineToTerm("[ADMIN] " + msg, "muted");
     }
 
     let altTheme = false;
     function toggleTheme() {
       altTheme = !altTheme;
-      if (altTheme) {
-        screen.classList.add("altTheme");
-      } else {
-        screen.classList.remove("altTheme");
-      }
+      if (altTheme) screen.classList.add("altTheme");
+      else screen.classList.remove("altTheme");
     }
 
     function cycleSpeed() {
@@ -797,11 +1333,6 @@
       btnAutoYes.textContent = autoYes
         ? "Auto-YES: ON"
         : "Auto-YES: OFF";
-    }
-
-    function applyJamState() {
-      yesBtn.disabled = jammed;
-      noBtn.disabled = jammed;
     }
 
     function toggleJam() {
@@ -826,11 +1357,274 @@
       }
     }
 
-    // Initial header + speed label
+    // ========= GEOLOCATION (for "info" command) =========
+    function requestGeolocation() {
+      if (!navigator.geolocation || geoRequested) return;
+      geoRequested = true;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          geoHasFix = true;
+          geoLat = pos.coords.latitude;
+          geoLon = pos.coords.longitude;
+          geoAccuracy = pos.coords.accuracy;
+          printLineToTerm("[GEO] Location fix acquired from browser.", "ok");
+          printLineToTerm(
+            `      lat=${geoLat.toFixed(4)}, lon=${geoLon.toFixed(4)} (±${Math.round(geoAccuracy)}m)`
+          );
+        },
+        (err) => {
+          geoError = err && err.message ? err.message : "Unknown error";
+          printLineToTerm("[GEO] Could not read location: " + geoError, "warn");
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: 600000
+        }
+      );
+    }
+
+    // ========= Q2 MODE UI =========
+    function updateQ2ModeUI() {
+      if (q2Mode === "shell") {
+        btnQ2Mode.textContent = "Q2 Mode: SHELL ACCESS";
+        choicePrompt2.textContent = "ENABLE SHELL ACCESS? (YES / NO)";
+      } else {
+        btnQ2Mode.textContent = "Q2 Mode: WIPE LOGS";
+        choicePrompt2.textContent = "WIPE ALL LOGS? (YES / NO)";
+      }
+    }
+
+    // ========= SHELL HELPERS =========
+    function updatePrompt() {
+      cmdPrompt.textContent = cwd + " $";
+    }
+
+    function resolvePath(name) {
+      if (name.startsWith("/")) return name;
+      if (cwd === "/") return "/" + name;
+      return cwd + "/" + name;
+    }
+
+    function listDir() {
+      const items = fsTree[cwd] || [];
+      if (!items.length) {
+        printLineToTerm("(empty directory)");
+        return;
+      }
+      items.forEach((name) => {
+        const path = resolvePath(name);
+        const isDir = !!fsTree[path] || !name.includes(".");
+        const label = isDir ? "[DIR] " : "FILE ";
+        printLineToTerm(label + name);
+      });
+    }
+
+    function changeDir(cmd, arg) {
+      if (cmd === "cd.." || (!arg || arg === "..")) {
+        if (cwd === "/") return;
+        const idx = cwd.lastIndexOf("/");
+        cwd = idx <= 0 ? "/" : cwd.slice(0, idx);
+        updatePrompt();
+        return;
+      }
+      if (!arg) {
+        printLineToTerm("Usage: cd <directory>", "warn");
+        return;
+      }
+      const target = resolvePath(arg);
+      if (fsTree[target]) {
+        cwd = target;
+        updatePrompt();
+      } else {
+        printLineToTerm(`No such directory: ${arg}`, "warn");
+      }
+    }
+
+    function shellClear() {
+      term.innerHTML = "";
+      term.appendChild(cursor);
+    }
+
+    function catFile(arg) {
+      if (!arg) {
+        printLineToTerm("Usage: cat <file>", "warn");
+        return;
+      }
+      const path = resolvePath(arg);
+      if (fileContents[path]) {
+        fileContents[path].split("\n").forEach((line) =>
+          printLineToTerm(line)
+        );
+      } else if (fsTree[path]) {
+        printLineToTerm(`cat: ${arg}: Is a directory`, "warn");
+      } else {
+        printLineToTerm(`cat: ${arg}: No such file`, "warn");
+      }
+    }
+
+    function showDeviceInfoCommand() {
+      printLineToTerm("[DEVICE INFO]", "ok");
+      printLineToTerm(`  Device     : ${deviceType}`);
+      printLineToTerm(`  Platform   : ${platform}`);
+      printLineToTerm(`  Screen     : ${w} x ${h}  touch=${touch ? "ON" : "OFF"}`);
+      printLineToTerm(`  Language   : ${lang}`);
+      printLineToTerm(`  Region/TZ  : ${tzRegion} / ${tzCity} (UTC${utcOffsetStr})`);
+      printLineToTerm(`  Time zone  : ${tz}`);
+      printLineToTerm(`  User-Agent : ${ua}`);
+      printLineToTerm("");
+
+      if (navigator.geolocation) {
+        if (geoHasFix) {
+          printLineToTerm(
+            `  Geo        : lat=${geoLat.toFixed(4)}, lon=${geoLon.toFixed(4)} (±${Math.round(geoAccuracy)}m)`
+          );
+        } else if (!geoRequested) {
+          printLineToTerm("[GEO] Requesting browser location permission...", "muted");
+          requestGeolocation();
+        } else if (!geoHasFix && !geoError) {
+          printLineToTerm("[GEO] Waiting for location fix...", "muted");
+        } else if (geoError) {
+          printLineToTerm("[GEO] Last error: " + geoError, "warn");
+        }
+      } else {
+        printLineToTerm("[GEO] Geolocation API not available in this browser.", "muted");
+      }
+
+      printLineToTerm("");
+      printLineToTerm(
+        "[Note] Location uses your browser's APIs and is not sent anywhere.",
+        "muted"
+      );
+    }
+
+    function handleCommand(line) {
+      const parts = line.trim().split(/\s+/);
+      if (!parts[0]) return;
+      let cmd = parts[0].toLowerCase();
+      const arg = parts[1];
+      const rest = parts.slice(1).join(" ");
+
+      if (cmd === "help") {
+        printLineToTerm("Commands:", "ok");
+        printLineToTerm("  help        - show this help");
+        printLineToTerm("  ls, dir     - list current directory");
+        printLineToTerm("  cd <dir>    - change directory");
+        printLineToTerm("  cd..        - go up one directory");
+        printLineToTerm("  pwd         - print current path");
+        printLineToTerm("  clear, cls  - clear console");
+        printLineToTerm("  echo <text> - print text");
+        printLineToTerm("  cat <file>  - show fake file contents");
+        printLineToTerm("  date, time  - show current date/time");
+        printLineToTerm("  info        - show device info (with region/city/GPS)");
+        printLineToTerm("");
+        printLineToTerm(
+          "All commands are simulated. No real files or data are changed.",
+          "muted"
+        );
+      } else if (cmd === "ls" || cmd === "dir") {
+        listDir();
+      } else if (cmd === "cd" || cmd === "cd..") {
+        changeDir(cmd, arg);
+      } else if (cmd === "pwd") {
+        printLineToTerm(cwd);
+      } else if (cmd === "clear" || cmd === "cls") {
+        shellClear();
+      } else if (cmd === "echo") {
+        printLineToTerm(rest);
+      } else if (cmd === "cat") {
+        catFile(arg);
+      } else if (cmd === "date" || cmd === "time") {
+        const d = new Date();
+        printLineToTerm(d.toString());
+      } else if (cmd === "info") {
+        showDeviceInfoCommand();
+      } else {
+        printLineToTerm(
+          `Unknown command: ${cmd} (type "help" for commands)`,
+          "warn"
+        );
+      }
+    }
+
+    function startCommandMode() {
+      commandMode = true;
+      cwd = "/";
+      updatePrompt();
+      cmdRow.style.display = "flex";
+      cursor.style.display = "none";
+
+      cmdInput.disabled = shellLocked;
+      cmdInput.style.opacity = shellLocked ? 0.4 : 1;
+
+      printLineToTerm("");
+      printLineToTerm("[SHELL] ZeroPoint remote shell attached.", "ok");
+      if (shellLocked) {
+        printLineToTerm("[SHELL] Input is LOCKED by admin.", "warn");
+      }
+      printLineToTerm('Type "help" for available commands.', "muted");
+      if (!shellLocked) cmdInput.focus();
+    }
+
+    cmdInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        if (cmdInput.disabled) return;
+        const raw = cmdInput.value;
+        cmdInput.value = "";
+        printLineToTerm(cwd + " $ " + raw);
+        if (!raw.trim()) return;
+        handleCommand(raw);
+      }
+    });
+
+    // ========= EXTRA ADMIN HELPERS FOR Q2 + SHELL =========
+    function adminShowQ2Now() {
+      choiceOverlay.classList.remove("visible");
+      if (!choiceMade) choiceMade = true;
+      showSecondQuestion();
+    }
+
+    function adminForceQ2(mode) {
+      choiceOverlay.classList.remove("visible");
+      choiceOverlay2.classList.remove("visible");
+      if (!choiceMade) choiceMade = true;
+      secondChoiceMade = false;
+      handleSecondChoice(mode === "yes" ? "yes" : "no");
+    }
+
+    function toggleShell() {
+      if (!commandMode) {
+        startCommandMode();
+      } else {
+        commandMode = false;
+        cmdRow.style.display = "none";
+        cursor.style.display = "inline-block";
+        printLineToTerm("[SHELL] Session closed by admin.", "warn");
+      }
+    }
+
+    function toggleShellLock() {
+      shellLocked = !shellLocked;
+      btnShellLock.textContent = shellLocked
+        ? "Shell input: LOCKED"
+        : "Shell input: UNLOCKED";
+      cmdInput.disabled = shellLocked;
+      cmdInput.style.opacity = shellLocked ? 0.4 : 1;
+    }
+
+    function fakeShellCommand() {
+      const cmd = prompt("Fake shell command to display:");
+      if (!cmd) return;
+      printLineToTerm(cwd + " $ " + cmd);
+      printLineToTerm("(simulated output by admin)", "muted");
+    }
+
+    // ========= INITIALIZE =========
     updateHeader();
     btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
+    updateQ2ModeUI();
 
-    // Admin button actions
+    // Admin button wiring
     btnRestart.addEventListener("click", restartConsole);
     btnForceYes.addEventListener("click", () => adminForce("yes"));
     btnForceNo.addEventListener("click", () => adminForce("no"));
@@ -846,7 +1640,18 @@
     btnLink.addEventListener("click", toggleLink);
     btnFullscreen.addEventListener("click", toggleFullscreenButton);
 
-    // Start
+    btnQ2Mode.addEventListener("click", () => {
+      q2Mode = q2Mode === "shell" ? "wipe" : "shell";
+      updateQ2ModeUI();
+    });
+    btnShowQ2.addEventListener("click", adminShowQ2Now);
+    btnForceQ2Yes.addEventListener("click", () => adminForceQ2("yes"));
+    btnForceQ2No.addEventListener("click", () => adminForceQ2("no"));
+    btnShellToggle.addEventListener("click", toggleShell);
+    btnShellLock.addEventListener("click", toggleShellLock);
+    btnShellFake.addEventListener("click", fakeShellCommand);
+
+    // Start the console
     setTimeout(typeBase, 500);
   </script>
 </body>
