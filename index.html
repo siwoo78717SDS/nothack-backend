@@ -479,6 +479,22 @@
       color: #d0e6ff;
     }
 
+    .win-logo {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 18px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 3px;
+      transform: skewX(-8deg);
+    }
+
+    .win-logo-tile {
+      background: linear-gradient(135deg, #2f86ff, #8fd0ff);
+      box-shadow: 0 0 6px rgba(0, 140, 255, 0.7);
+    }
+
     .win-bar {
       width: 260px;
       height: 14px;
@@ -507,6 +523,12 @@
       border-radius: 12px;
       border: 2px solid #fff;
       margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
     }
 
     .ios-bar {
@@ -905,6 +927,15 @@
 
     const shortUA = ua.length > 80 ? ua.slice(0, 80) + "..." : ua;
 
+    let updateName;
+    if (deviceType === "iOS DEVICE") {
+      updateName = "iOS 7";
+    } else if (deviceType === "ANDROID DEVICE") {
+      updateName = "OS 7";
+    } else {
+      updateName = "Windows 7";
+    }
+
     // ========= SCRIPTED LOG CONTENT =========
     const baseLines = [
       "[LINK] Attaching ZeroPoint core...",
@@ -1253,11 +1284,11 @@
         updateScreen.style.background = "#000";
         updateContent.innerHTML = `
           <div>
-            <div class="ios-logo"></div>
+            <div class="ios-logo"></div>
             <div class="ios-bar">
               <div class="ios-bar-inner" id="updateBarInner"></div>
             </div>
-            <div class="ios-update-text">Installing iOS 7...</div>
+            <div class="ios-update-text">Updating to ${updateName}...</div>
           </div>
         `;
       } else {
@@ -1266,7 +1297,13 @@
           "radial-gradient(circle at top, #001738 0, #000410 70%)";
         updateContent.innerHTML = `
           <div>
-            <div class="win-update-title">Configuring Windows updates</div>
+            <div class="win-logo">
+              <div class="win-logo-tile"></div>
+              <div class="win-logo-tile"></div>
+              <div class="win-logo-tile"></div>
+              <div class="win-logo-tile"></div>
+            </div>
+            <div class="win-update-title">Updating to ${updateName}...</div>
             <div class="win-update-sub">Do not turn off your computer.</div>
             <div class="win-bar">
               <div class="win-bar-inner" id="updateBarInner"></div>
