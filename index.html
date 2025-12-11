@@ -33,6 +33,7 @@
         linear-gradient(to bottom, rgba(0, 255, 120, 0.04) 1px, transparent 1px);
       background-size: 40px 40px;
       overflow: hidden;
+      transition: box-shadow 0.3s ease, background-color 0.3s ease;
     }
 
     /* Glitch overlay */
@@ -68,6 +69,13 @@
       background-image:
         linear-gradient(to right, rgba(0, 180, 255, 0.07) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(0, 180, 255, 0.07) 1px, transparent 1px);
+    }
+
+    /* Alert visual */
+    #screen.alertGlow {
+      box-shadow:
+        0 0 40px rgba(255, 0, 80, 0.6),
+        inset 0 0 50px rgba(255, 0, 80, 0.4);
     }
 
     /* Scanline overlay */
@@ -281,7 +289,9 @@
     #choiceOverlay,
     #choiceOverlay2,
     #choiceOverlayNo,
-    #choiceOverlayUpdate {
+    #choiceOverlayUpdate,
+    #choiceOverlayTelemetry,
+    #choiceOverlaySnapshot {
       position: absolute;
       inset: 0;
       display: none;
@@ -301,14 +311,18 @@
     #choiceOverlay.visible,
     #choiceOverlay2.visible,
     #choiceOverlayNo.visible,
-    #choiceOverlayUpdate.visible {
+    #choiceOverlayUpdate.visible,
+    #choiceOverlayTelemetry.visible,
+    #choiceOverlaySnapshot.visible {
       display: flex;
     }
 
     #choicePrompt,
     #choicePrompt2,
     #choicePromptNo,
-    #choicePromptUpdate {
+    #choicePromptUpdate,
+    #choicePromptTelemetry,
+    #choicePromptSnapshot {
       font-size: 13px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
@@ -609,7 +623,7 @@
       gap: 4px;
       z-index: 11;
       font-size: 10px;
-      max-width: 230px;
+      max-width: 260px;
       max-height: calc(100vh - 20px);
       overflow-y: auto;
       box-shadow:
@@ -727,6 +741,24 @@
         <button class="choice-btn" id="noBtnUpdate">NO</button>
       </div>
     </div>
+
+    <!-- Fourth YES/NO question: Telemetry -->
+    <div id="choiceOverlayTelemetry">
+      <div id="choicePromptTelemetry">ENABLE LIVE TELEMETRY MIRROR? (YES / NO)</div>
+      <div>
+        <button class="choice-btn" id="yesBtnTelemetry">YES</button>
+        <button class="choice-btn" id="noBtnTelemetry">NO</button>
+      </div>
+    </div>
+
+    <!-- Fifth YES/NO question: Snapshot -->
+    <div id="choiceOverlaySnapshot">
+      <div id="choicePromptSnapshot">STORE LOCAL SESSION SNAPSHOT? (YES / NO)</div>
+      <div>
+        <button class="choice-btn" id="yesBtnSnapshot">YES</button>
+        <button class="choice-btn" id="noBtnSnapshot">NO</button>
+      </div>
+    </div>
   </div>
 
   <!-- Fake update full-screen -->
@@ -771,14 +803,22 @@
     <button class="adminBtn" id="btnJam">Jam YES/NO buttons</button>
     <button class="adminBtn" id="btnLink">Simulate link drop</button>
     <button class="adminBtn" id="btnFullscreen">Toggle fullscreen</button>
-    <!-- Q2 + shell controls -->
-    <button class="adminBtn" id="btnQ2Mode">Q2 Mode: SHELL ACCESS</button>
+    <!-- Question controls -->
+    <button class="adminBtn" id="btnShowQ1">Show Q1 (override)</button>
     <button class="adminBtn" id="btnShowQ2">Show Q2 (shell question)</button>
+    <button class="adminBtn" id="btnShowTelemetry">Show telemetry question</button>
+    <button class="adminBtn" id="btnShowSnapshot">Show snapshot question</button>
     <button class="adminBtn" id="btnForceQ2Yes">Force Q2 YES</button>
     <button class="adminBtn" id="btnForceQ2No">Force Q2 NO</button>
+    <!-- Shell controls -->
+    <button class="adminBtn" id="btnQ2Mode">Q2 Mode: SHELL ACCESS</button>
     <button class="adminBtn" id="btnShellToggle">Toggle shell</button>
     <button class="adminBtn" id="btnShellLock">Shell input: UNLOCKED</button>
     <button class="adminBtn" id="btnShellFake">Fake shell command</button>
+    <!-- Device / logs / debug -->
+    <button class="adminBtn" id="btnSpoofDevice">Spoof device</button>
+    <button class="adminBtn" id="btnHeartbeat">Heartbeat logs: OFF</button>
+    <button class="adminBtn" id="btnDebugState">Debug: log state</button>
   </div>
 
   <script>
@@ -794,6 +834,8 @@
     const choiceOverlay2 = document.getElementById("choiceOverlay2");
     const choiceOverlayNo = document.getElementById("choiceOverlayNo");
     const choiceOverlayUpdate = document.getElementById("choiceOverlayUpdate");
+    const choiceOverlayTelemetry = document.getElementById("choiceOverlayTelemetry");
+    const choiceOverlaySnapshot = document.getElementById("choiceOverlaySnapshot");
 
     const yesBtn = document.getElementById("yesBtn");
     const noBtn = document.getElementById("noBtn");
@@ -803,8 +845,13 @@
     const noBtnNo = document.getElementById("noBtnNo");
     const yesBtnUpdate = document.getElementById("yesBtnUpdate");
     const noBtnUpdate = document.getElementById("noBtnUpdate");
+    const yesBtnTelemetry = document.getElementById("yesBtnTelemetry");
+    const noBtnTelemetry = document.getElementById("noBtnTelemetry");
+    const yesBtnSnapshot = document.getElementById("yesBtnSnapshot");
+    const noBtnSnapshot = document.getElementById("noBtnSnapshot");
 
     const choicePrompt2 = document.getElementById("choicePrompt2");
+    const choicePromptUpdate = document.getElementById("choicePromptUpdate");
 
     const revealTitle = document.getElementById("revealTitle");
     const revealText1 = document.getElementById("revealText1");
@@ -836,13 +883,22 @@
     const btnJam = document.getElementById("btnJam");
     const btnLink = document.getElementById("btnLink");
     const btnFullscreen = document.getElementById("btnFullscreen");
-    const btnQ2Mode = document.getElementById("btnQ2Mode");
+
+    const btnShowQ1 = document.getElementById("btnShowQ1");
     const btnShowQ2 = document.getElementById("btnShowQ2");
+    const btnShowTelemetry = document.getElementById("btnShowTelemetry");
+    const btnShowSnapshot = document.getElementById("btnShowSnapshot");
+
+    const btnQ2Mode = document.getElementById("btnQ2Mode");
     const btnForceQ2Yes = document.getElementById("btnForceQ2Yes");
     const btnForceQ2No = document.getElementById("btnForceQ2No");
     const btnShellToggle = document.getElementById("btnShellToggle");
     const btnShellLock = document.getElementById("btnShellLock");
     const btnShellFake = document.getElementById("btnShellFake");
+
+    const btnSpoofDevice = document.getElementById("btnSpoofDevice");
+    const btnHeartbeat = document.getElementById("btnHeartbeat");
+    const btnDebugState = document.getElementById("btnDebugState");
 
     const titleEl = document.getElementById("title");
     const subtitleEl = document.getElementById("subtitle");
@@ -980,6 +1036,8 @@
     let choiceMade = false;
     let secondChoiceMade = false;    // Q2 (YES path)
     let secondChoiceMadeNo = false;  // Q2 (NO path)
+    let telemetryChoiceMade = false; // Telemetry question
+    let snapshotChoiceMade = false;  // Snapshot question
     let branchStarted = false;
     let cancelAllTyping = false;
     let alertMode = false;
@@ -988,6 +1046,11 @@
     let autoYes = false;
     let jammed = false;
     let shellLocked = false;
+
+    // Choices summary
+    let telemetryAnswer = null;
+    let snapshotAnswer = null;
+    let consentScore = 0; // increments on "YES" answers
 
     const speedModes = [0.5, 1, 2, 4];
     const speedLabels = ["slow", "normal", "fast", "turbo"];
@@ -1006,6 +1069,18 @@
 
     // For update -> reveal mapping
     let pendingRevealMode = "overrideNo";
+
+    // Heartbeat logging
+    let heartbeatTimer = null;
+    const heartbeatMessages = [
+      "[HB] link-check ... ok",
+      "[HB] latency within normal range",
+      "[HB] idle scan complete",
+      "[HB] operator channel: silent",
+      "[HB] cryptographic session keys rotated",
+      "[HB] packet loss < 0.3%",
+      "[HB] watchdog timers synced"
+    ];
 
     const fsTree = {
       "/": ["system", "logs", "user"],
@@ -1117,11 +1192,16 @@
     }
 
     function applyJamState() {
-      [yesBtn, noBtn, yesBtn2, noBtn2, yesBtnNo, noBtnNo, yesBtnUpdate, noBtnUpdate].forEach(
-        (btn) => {
-          if (btn) btn.disabled = jammed;
-        }
-      );
+      [
+        yesBtn, noBtn,
+        yesBtn2, noBtn2,
+        yesBtnNo, noBtnNo,
+        yesBtnUpdate, noBtnUpdate,
+        yesBtnTelemetry, noBtnTelemetry,
+        yesBtnSnapshot, noBtnSnapshot
+      ].forEach((btn) => {
+        if (btn) btn.disabled = jammed;
+      });
     }
 
     function showChoice() {
@@ -1208,6 +1288,7 @@
       cursor.style.display = "inline-block";
       reveal.classList.add("visible");
 
+      // Base text
       if (mode === "wipeYes") {
         revealTitle.textContent = "LOGS WIPED*";
         revealText1.textContent =
@@ -1246,17 +1327,26 @@
           "It used basic environment data (screen, language, time zone, user agent). Nothing left your device.";
       }
 
+      // Add summary of choices
+      const teleStr = telemetryAnswer ? telemetryAnswer.toUpperCase() : "SKIPPED";
+      const snapStr = snapshotAnswer ? snapshotAnswer.toUpperCase() : "SKIPPED";
+      revealText2.textContent +=
+        ` Consent index: ${consentScore}. Telemetry: ${teleStr}. Snapshot: ${snapStr}.`;
+
       revealCredit.textContent = "Made by Siwoo";
     }
 
-    // ========= UPDATE PROMPT + FAKE UPDATE =========
+    // ========= UPDATE PROMPT + FAKE UPDATE + TELEMETRY + SNAPSHOT =========
     function showUpdatePrompt(mode) {
       pendingRevealMode = mode;
+      choicePromptUpdate.textContent =
+        "INSTALL " + updateName.toUpperCase() + " UPDATE? (YES / NO)";
       choiceOverlayUpdate.classList.add("visible");
       applyJamState();
     }
 
     function handleUpdateChoice(answer) {
+      if (answer === "yes") consentScore++;
       choiceOverlayUpdate.classList.remove("visible");
       if (answer === "yes") {
         showBlackUpdateThenReveal();
@@ -1272,7 +1362,7 @@
 
       setTimeout(() => {
         updateScreen.classList.remove("visible");
-        showReveal(pendingRevealMode);
+        showTelemetryPrompt();
       }, UPDATE_DURATION);
     }
 
@@ -1346,20 +1436,80 @@
           if (barInner) barInner.style.width = "100%";
           if (percentEl) percentEl.textContent = "100%";
           updateScreen.classList.remove("visible");
-          showReveal(pendingRevealMode);
+          showTelemetryPrompt();
         }
       }
 
       requestAnimationFrame(step);
     }
 
+    function showTelemetryPrompt() {
+      telemetryChoiceMade = false;
+      choiceOverlayTelemetry.classList.add("visible");
+      applyJamState();
+    }
+
+    function handleTelemetryChoice(answer) {
+      if (telemetryChoiceMade) return;
+      telemetryChoiceMade = true;
+      telemetryAnswer = answer;
+      if (answer === "yes") consentScore++;
+      choiceOverlayTelemetry.classList.remove("visible");
+
+      if (answer === "yes") {
+        printLineToTerm("[MIRROR] Live telemetry mirror enabled (simulated).", "ok");
+        printLineToTerm(
+          "[MIRROR] Stream source: this browser only. No data leaves your device.",
+          "muted"
+        );
+      } else {
+        printLineToTerm("[MIRROR] Telemetry mirror disabled by user.", "warn");
+      }
+
+      setTimeout(() => showSnapshotPrompt(), 600);
+    }
+
+    function showSnapshotPrompt() {
+      snapshotChoiceMade = false;
+      choiceOverlaySnapshot.classList.add("visible");
+      applyJamState();
+    }
+
+    function handleSnapshotChoice(answer) {
+      if (snapshotChoiceMade) return;
+      snapshotChoiceMade = true;
+      snapshotAnswer = answer;
+      if (answer === "yes") consentScore++;
+      choiceOverlaySnapshot.classList.remove("visible");
+
+      if (answer === "yes") {
+        printLineToTerm("[SNAPSHOT] Local session snapshot flagged for storage*.", "warn");
+        printLineToTerm(
+          "[SNAPSHOT] Note: all data remains in this page only; nothing is written to disk.",
+          "muted"
+        );
+      } else {
+        printLineToTerm(
+          "[SNAPSHOT] Session snapshot discarded. No state persisted.",
+          "ok"
+        );
+      }
+
+      setTimeout(() => showReveal(pendingRevealMode), 600);
+    }
+
     yesBtnUpdate.addEventListener("click", () => handleUpdateChoice("yes"));
     noBtnUpdate.addEventListener("click", () => handleUpdateChoice("no"));
+    yesBtnTelemetry.addEventListener("click", () => handleTelemetryChoice("yes"));
+    noBtnTelemetry.addEventListener("click", () => handleTelemetryChoice("no"));
+    yesBtnSnapshot.addEventListener("click", () => handleSnapshotChoice("yes"));
+    noBtnSnapshot.addEventListener("click", () => handleSnapshotChoice("no"));
 
     // ========= QUESTION HANDLERS =========
     function handleChoice(answer) {
       if (choiceMade || jammed) return;
       choiceMade = true;
+      if (answer === "yes") consentScore++;
       choiceOverlay.classList.remove("visible");
       runBranch(answer);
     }
@@ -1367,6 +1517,7 @@
     function handleSecondChoice(answer) {
       if (secondChoiceMade) return;
       secondChoiceMade = true;
+      if (answer === "yes") consentScore++;
       choiceOverlay2.classList.remove("visible");
 
       if (q2Mode === "shell") {
@@ -1397,6 +1548,7 @@
     function handleSecondChoiceNo(answer) {
       if (secondChoiceMadeNo) return;
       secondChoiceMadeNo = true;
+      if (answer === "yes") consentScore++;
       choiceOverlayNo.classList.remove("visible");
 
       if (answer === "yes") {
@@ -1463,10 +1615,12 @@
         titleEl.textContent = "ZEROPOINT ALERT NODE";
         subtitleEl.textContent =
           "TARGET: LIVE HANDSET • STATUS: COMPROMISED";
+        screen.classList.add("alertGlow");
       } else {
         titleEl.textContent = "ZEROPOINT REMOTE ACCESS CORE";
         subtitleEl.textContent =
           "TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR";
+        screen.classList.remove("alertGlow");
       }
 
       statusLink.classList.remove("ok", "warn", "info");
@@ -1516,6 +1670,8 @@
       choiceOverlay2.classList.remove("visible");
       choiceOverlayNo.classList.remove("visible");
       choiceOverlayUpdate.classList.remove("visible");
+      choiceOverlayTelemetry.classList.remove("visible");
+      choiceOverlaySnapshot.classList.remove("visible");
       if (!choiceMade) choiceMade = true;
       if (!branchStarted) {
         cancelAllTyping = false;
@@ -1538,6 +1694,8 @@
       choiceOverlay2.classList.remove("visible");
       choiceOverlayNo.classList.remove("visible");
       choiceOverlayUpdate.classList.remove("visible");
+      choiceOverlayTelemetry.classList.remove("visible");
+      choiceOverlaySnapshot.classList.remove("visible");
       resetHeader();
       screen.style.display = "flex";
       reveal.classList.remove("visible");
@@ -1549,6 +1707,11 @@
       choiceMade = false;
       secondChoiceMade = false;
       secondChoiceMadeNo = false;
+      telemetryChoiceMade = false;
+      snapshotChoiceMade = false;
+      telemetryAnswer = null;
+      snapshotAnswer = null;
+      consentScore = 0;
       branchStarted = false;
       cancelAllTyping = false;
 
@@ -1556,6 +1719,12 @@
       cwd = "/";
       cmdRow.style.display = "none";
       cursor.style.display = "inline-block";
+
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+        btnHeartbeat.textContent = "Heartbeat logs: OFF";
+      }
 
       setTimeout(typeBase, 300);
     }
@@ -1870,7 +2039,7 @@
       }
     });
 
-    // ========= EXTRA ADMIN HELPERS FOR Q2 + SHELL =========
+    // ========= EXTRA ADMIN HELPERS =========
     function adminShowQ2Now() {
       choiceOverlay.classList.remove("visible");
       if (!choiceMade) choiceMade = true;
@@ -1912,10 +2081,70 @@
       printLineToTerm("(simulated output by admin)", "muted");
     }
 
+    function adminShowQ1() {
+      choiceOverlay.classList.add("visible");
+      choiceOverlay2.classList.remove("visible");
+      choiceOverlayNo.classList.remove("visible");
+      choiceOverlayUpdate.classList.remove("visible");
+      choiceOverlayTelemetry.classList.remove("visible");
+      choiceOverlaySnapshot.classList.remove("visible");
+      applyJamState();
+    }
+
+    function adminShowTelemetry() {
+      showTelemetryPrompt();
+    }
+
+    function adminShowSnapshot() {
+      showSnapshotPrompt();
+    }
+
+    function cycleDeviceSpoof() {
+      if (deviceType === "DESKTOP/OTHER") {
+        deviceType = "ANDROID DEVICE";
+        updateName = "OS 7";
+      } else if (deviceType === "ANDROID DEVICE") {
+        deviceType = "iOS DEVICE";
+        updateName = "iOS 7";
+      } else {
+        deviceType = "DESKTOP/OTHER";
+        updateName = "Windows 7";
+      }
+      btnSpoofDevice.textContent = "Spoof device: " + deviceType;
+      printLineToTerm("[ADMIN] Spoofed deviceType to " + deviceType, "muted");
+    }
+
+    let heartbeatTimer = null;
+    function toggleHeartbeat() {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+        btnHeartbeat.textContent = "Heartbeat logs: OFF";
+        printLineToTerm("[ADMIN] Heartbeat logging stopped.", "muted");
+      } else {
+        btnHeartbeat.textContent = "Heartbeat logs: ON";
+        printLineToTerm("[ADMIN] Heartbeat logging started.", "muted");
+        heartbeatTimer = setInterval(() => {
+          if (linkLost) return;
+          const msg =
+            heartbeatMessages[Math.floor(Math.random() * heartbeatMessages.length)];
+          printLineToTerm(msg, "muted");
+        }, 1200 + Math.random() * 1200);
+      }
+    }
+
+    function debugState() {
+      printLineToTerm(
+        `[DEBUG] consentScore=${consentScore}, choiceMade=${choiceMade}, Q2Yes=${secondChoiceMade}, Q2No=${secondChoiceMadeNo}, telemetry=${telemetryAnswer || "null"}, snapshot=${snapshotAnswer || "null"}`,
+        "muted"
+      );
+    }
+
     // ========= INITIALIZE =========
     updateHeader();
     btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
     updateQ2ModeUI();
+    btnSpoofDevice.textContent = "Spoof device: " + deviceType;
 
     // Admin button wiring
     btnRestart.addEventListener("click", restartConsole);
@@ -1938,11 +2167,17 @@
       updateQ2ModeUI();
     });
     btnShowQ2.addEventListener("click", adminShowQ2Now);
+    btnShowQ1.addEventListener("click", adminShowQ1);
+    btnShowTelemetry.addEventListener("click", adminShowTelemetry);
+    btnShowSnapshot.addEventListener("click", adminShowSnapshot);
     btnForceQ2Yes.addEventListener("click", () => adminForceQ2("yes"));
     btnForceQ2No.addEventListener("click", () => adminForceQ2("no"));
     btnShellToggle.addEventListener("click", toggleShell);
     btnShellLock.addEventListener("click", toggleShellLock);
     btnShellFake.addEventListener("click", fakeShellCommand);
+    btnSpoofDevice.addEventListener("click", cycleDeviceSpoof);
+    btnHeartbeat.addEventListener("click", toggleHeartbeat);
+    btnDebugState.addEventListener("click", debugState);
 
     // Start the console
     setTimeout(typeBase, 500);
