@@ -164,7 +164,7 @@ function HistoryFactsDocPage({ onBack }) {
             <div style={{ whiteSpace: "pre-wrap" }}>{error}</div>
             <div style={{ marginTop: 10 }}>
               This can happen if Wikidata is blocked on your network or temporarily down.
-              Try "Refresh".
+              Try “Refresh”.
             </div>
           </div>
         )}
