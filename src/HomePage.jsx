@@ -1,0 +1,357 @@
+import React, { useEffect, useMemo, useState } from "react";
+
+/* =========================
+   WIKIDATA (SEARCHED-UP FACTS)
+   ========================= */
+
+const WDQS_ENDPOINT = "https://query.wikidata.org/sparql";
+const FACTS_CACHE_KEY = "historyFacts1000_cache_v3";
+const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function formatWikidataDate(iso) {
+  const m = String(iso).match(/^(-?\d{1,6})-(\d{2})-(\d{2})/);
+  if (!m) return String(iso);
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+  const mm = monthNames[month - 1] || `Month ${month}`;
+
+  // BCE handling: negative years
+  if (year <= 0) {
+    const bce = 1 - year;
+    return `${mm} ${day}, ${bce} BCE`;
+  }
+  return `${mm} ${day}, ${year}`;
+}
+
+function toFactLine(row) {
+  const dateIso = row?.date?.value || "";
+  const label = row?.eventLabel?.value || "Unknown event";
+  const desc = row?.eventDescription?.value || "";
+  const dateText = dateIso ? formatWikidataDate(dateIso) : "Unknown date";
+
+  if (desc) return `On ${dateText}, ${label} — ${desc}.`;
+  return `On ${dateText}, ${label}.`;
+}
+
+async function fetchHistoryFacts1000FromWikidata() {
+  // "historical event" = Q1190554
+  // Get events that have a date (point in time P585 OR start time P580)
+  const sparql = `
+PREFIX wd: <http://www.wikidata.org/entity/>
+PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX wikibase: <http://wikiba.se/ontology#>
+PREFIX bd: <http://www.bigdata.com/rdf#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?eventLabel ?eventDescription ?date WHERE {
+  {
+    SELECT ?event ?date WHERE {
+      ?event wdt:P31/wdt:P279* wd:Q1190554.
+      OPTIONAL { ?event wdt:P585 ?date. }
+      OPTIONAL { ?event wdt:P580 ?date. }
+      FILTER(BOUND(?date) && DATATYPE(?date) = xsd:dateTime)
+    }
+    ORDER BY DESC(?date)
+    LIMIT 1000
+  }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+`;
+
+  const url = `${WDQS_ENDPOINT}?format=json&query=${encodeURIComponent(sparql)}`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/sparql-results+json" }
+  });
+
+  if (!res.ok) {
+    throw new Error(`Wikidata request failed: ${res.status} ${res.statusText}`);
+  }
+
+  const json = await res.json();
+  const bindings = json?.results?.bindings || [];
+  const facts = bindings.map(toFactLine).filter(Boolean);
+
+  return facts.slice(0, 1000);
+}
+
+/* =========================
+   DOC PAGE (FULL PAGE VIEW)
+   ========================= */
+
+function HistoryFactsDocPage({ onBack }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [facts, setFacts] = useState([]);
+
+  async function loadFacts({ forceRefresh = false } = {}) {
+    setLoading(true);
+    setError("");
+
+    try {
+      if (!forceRefresh) {
+        const cachedRaw = localStorage.getItem(FACTS_CACHE_KEY);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          const okAge = Date.now() - (cached.savedAt || 0) < CACHE_MAX_AGE_MS;
+
+          if (okAge && Array.isArray(cached.facts) && cached.facts.length) {
+            setFacts(cached.facts);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      const fresh = await fetchHistoryFacts1000FromWikidata();
+      setFacts(fresh);
+
+      localStorage.setItem(
+        FACTS_CACHE_KEY,
+        JSON.stringify({ savedAt: Date.now(), facts: fresh })
+      );
+    } catch (e) {
+      setError(String(e?.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadFacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fast render: single <pre> instead of 1000 <li>
+  const text = useMemo(() => {
+    if (!facts.length) return "";
+    return facts.map((f, i) => `${i + 1}. ${f}`).join("\n");
+  }, [facts]);
+
+  return (
+    <div style={docStyles.page}>
+      <div style={docStyles.doc}>
+        <div style={docStyles.topRow} className="no-print">
+          <div>
+            <div style={docStyles.title}>History Facts</div>
+            <div style={docStyles.subTitle}>
+              {loading ? "Loading 1000 facts..." : `${facts.length} facts`}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={onBack} style={docStyles.btn}>Back</button>
+            <button onClick={() => loadFacts({ forceRefresh: true })} style={docStyles.btn}>
+              Refresh
+            </button>
+            <button onClick={() => window.print()} style={docStyles.btn}>Print</button>
+          </div>
+        </div>
+
+        <hr style={docStyles.hr} />
+
+        {loading && <div style={docStyles.info}>Searching and loading facts...</div>}
+
+        {!loading && error && (
+          <div style={docStyles.errorBox}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Could not load facts</div>
+            <div style={{ whiteSpace: "pre-wrap" }}>{error}</div>
+            <div style={{ marginTop: 10 }}>
+              This can happen if Wikidata is blocked on your network or temporarily down.
+              Try "Refresh".
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && <pre style={docStyles.pre}>{text}</pre>}
+      </div>
+
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const docStyles = {
+  page: {
+    minHeight: "100vh",
+    background: "#ffffff",
+    padding: "24px 12px",
+    display: "flex",
+    justifyContent: "center"
+  },
+  doc: {
+    width: "min(900px, 100%)",
+    background: "#ffffff",
+    color: "#000000",
+    fontFamily: '"Times New Roman", Times, serif',
+    border: "1px solid #e6e6e6",
+    padding: "34px 40px"
+  },
+  topRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start"
+  },
+  title: { fontSize: 28, fontWeight: 700 },
+  subTitle: { fontSize: 14, color: "#444", marginTop: 4 },
+  btn: { padding: "6px 10px" },
+  hr: { margin: "16px 0", border: "none", borderTop: "1px solid #e6e6e6" },
+  info: { fontSize: 16, color: "#222" },
+  errorBox: {
+    border: "1px solid #ffb3b3",
+    background: "#fff5f5",
+    padding: 12
+  },
+  pre: {
+    margin: 0,
+    fontSize: 16,
+    lineHeight: 1.45,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word"
+  }
+};
+
+/* =========================
+   HOME PAGE (FAKE HACK)
+   ========================= */
+
+export default function HomePage() {
+  // "pages" inside your fake hack website
+  const [view, setView] = useState("hack"); // "hack" | "history"
+
+  // Admin login only for the phone button in Admin Controls
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Shift + H for EVERYONE (not admin-only)
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      const typing =
+        tag === "input" || tag === "textarea" || e.target?.isContentEditable;
+
+      if (typing) return;
+
+      if (e.shiftKey && (e.key === "H" || e.key === "h" || e.code === "KeyH")) {
+        e.preventDefault();
+        setView("history");
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Full-page doc view
+  if (view === "history") {
+    return <HistoryFactsDocPage onBack={() => setView("hack")} />;
+  }
+
+  // Your normal fake hack page
+  return (
+    <div
+      style={{
+        width: "100%",
+        display: "flex",
+        justifyContent: "center",
+        flexDirection: "column",
+        alignItems: "center"
+      }}
+    >
+      <h1 style={{ fontFamily: '"Comic Sans MS", fantasy', color: "#4b9be1" }}>
+        {"Lemon78717's website"}
+      </h1>
+
+      <h2
+        style={{
+          fontFamily: "Arial, Helvetica, cursive",
+          color: "rgb(243, 103, 123)",
+          marginBottom: "2rem"
+        }}
+      >
+        click the buttons below
+      </h2>
+
+      <button
+        style={{
+          fontFamily: "monospace",
+          padding: "1rem",
+          fontSize: "2rem",
+          background: "blue",
+          color: "white"
+        }}
+        onClick={() => alert("Hello there")}
+      >
+        Welcome
+      </button>
+
+      <button
+        style={{
+          fontFamily: '"Times New Roman", Times, serif',
+          padding: "1rem",
+          fontSize: "2rem",
+          background: "purple",
+          color: "white",
+          marginTop: "2rem"
+        }}
+        onClick={() => {
+          const name = prompt("What's your name?");
+          if (name) alert("Nice to meet you, " + name + "!");
+          else alert("Nice to meet you, stranger");
+        }}
+      >
+        {"What's your name?"}
+      </button>
+
+      {/* ADMIN CONTROLS (phone-friendly open button) */}
+      <div
+        style={{
+          marginTop: "3rem",
+          width: "min(700px, 95%)",
+          border: "2px dashed #999",
+          padding: "1rem"
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Admin Controls</h3>
+
+        {!isAdmin ? (
+          <button
+            onClick={() => {
+              const pw = prompt("Admin password?");
+              // Change this password if you want
+              if (pw === "admin123") setIsAdmin(true);
+              else alert("Not admin.");
+            }}
+          >
+            Admin Login
+          </button>
+        ) : (
+          <>
+            <button onClick={() => setView("history")}>
+              Open History Facts (1000) (Phone friendly)
+            </button>
+
+            <button style={{ marginLeft: 8 }} onClick={() => setIsAdmin(false)}>
+              Logout
+            </button>
+
+            <div style={{ marginTop: 10, fontSize: 12, color: "#555" }}>
+              Tip: Anyone can press <b>Shift + H</b> on computer.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
