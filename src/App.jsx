@@ -101,6 +101,16 @@ function HistoryFactsDoc({ onBack }) {
     [facts]
   );
 
+  const btnStyle = {
+    padding: "6px 10px",
+    background: "#f6f6f6",
+    border: "1px solid #d8d8d8",
+    color: "#111",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    marginRight: "8px"
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#fff", padding: "24px 12px" }}>
       <div
@@ -114,34 +124,34 @@ function HistoryFactsDoc({ onBack }) {
           background: "#fff"
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 28 }}>History Facts</h1>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>History Facts</h1>
             <div style={{ marginTop: 6, color: "#444", fontSize: 14 }}>
               {loading ? "Loading 1000 facts…" : `${facts.length} facts`}
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={onBack}>Back</button>
-            <button onClick={() => load({ forceRefresh: true })}>Refresh</button>
-            <button onClick={() => window.print()}>Print</button>
+            <button onClick={onBack} style={btnStyle}>Back</button>
+            <button onClick={() => load({ forceRefresh: true })} style={btnStyle}>Refresh</button>
+            <button onClick={() => window.print()} style={btnStyle}>Print</button>
           </div>
         </div>
 
         <hr style={{ margin: "16px 0", border: "none", borderTop: "1px solid #e6e6e6" }} />
 
-        {loading && <div>Searching and loading facts…</div>}
+        {loading && <div style={{ fontSize: 16, color: "#222" }}>Searching and loading facts…</div>}
 
         {!loading && error && (
           <div style={{ border: "1px solid #ffb3b3", background: "#fff5f5", padding: 12 }}>
             <b>Could not load facts</b>
-            <div style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>{error}</div>
+            <div style={{ whiteSpace: "pre-wrap", marginTop: 6, fontSize: 14 }}>{error}</div>
           </div>
         )}
 
         {!loading && !error && (
-          <pre style={{ margin: 0, fontSize: 16, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
+          <pre style={{ margin: 0, fontSize: 16, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {text}
           </pre>
         )}
@@ -151,10 +161,9 @@ function HistoryFactsDoc({ onBack }) {
 }
 
 export default function HomePage() {
-  const [view, setView] = useState("hack"); // "hack" | "facts"
+  const [view, setView] = useState("hack");
   const [lines, setLines] = useState([]);
 
-  // Shift+H for everyone
   useEffect(() => {
     const handler = (e) => {
       const tag = (e.target?.tagName || "").toLowerCase();
@@ -171,7 +180,7 @@ export default function HomePage() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  function start() {
+  const handleStart = () => {
     const now = new Date();
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
     const boot = [
@@ -184,39 +193,61 @@ export default function HomePage() {
       "[TIP] Press Shift+H for History Facts (1000)."
     ];
     setLines(boot);
-  }
+  };
+
+  const handleClear = () => setLines([]);
+
+  const handleHelp = () => {
+    setLines(prev => [...prev, "[HELP] Shift+H opens the History Facts document page."]);
+  };
+
+  const btnStyle = {
+    cursor: "pointer",
+    background: "transparent",
+    color: "#39ff14",
+    border: "1px solid rgba(57,255,20,.28)",
+    padding: "10px 12px",
+    fontFamily: "inherit",
+    fontSize: "14px",
+    marginRight: "8px"
+  };
 
   if (view === "facts") return <HistoryFactsDoc onBack={() => setView("hack")} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "#000", color: "#39ff14", padding: 18 }}>
       <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-        <div style={{ fontSize: 26, margin: "10px 0" }}>Cyber Terminal Simulator</div>
+        <div style={{ fontSize: 26, margin: "10px 0", textShadow: "0 0 16px rgba(57,255,20,.20)" }}>
+          Cyber Terminal Simulator
+        </div>
         <div style={{ color: "rgba(57,255,20,.75)", marginBottom: 16, lineHeight: 1.4 }}>
-          Harmless terminal animation. Press <b>Shift + H</b> for History Facts.
+          This is a harmless terminal animation (no real hacking). Press <b>Shift + H</b> to open the "History Facts" document (1000 facts).
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={start}>Start</button>
-          <button onClick={() => setLines([])}>Clear</button>
-          <button onClick={() => setLines((p) => [...p, "[HELP] Shift+H opens the History Facts page."])}>
-            Help
-          </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+          <button onClick={handleStart} style={btnStyle}>Start</button>
+          <button onClick={handleClear} style={btnStyle}>Clear</button>
+          <button onClick={handleHelp} style={btnStyle}>Help</button>
         </div>
 
         <div
           style={{
-            marginTop: 14,
             border: "1px solid rgba(57,255,20,.28)",
             background: "rgba(0,0,0,.35)",
             padding: 12,
             height: 340,
             overflow: "auto",
             whiteSpace: "pre-wrap",
-            lineHeight: 1.35
+            lineHeight: 1.35,
+            fontFamily: "inherit",
+            fontSize: "14px"
           }}
         >
-          {lines.join("\n")}
+          {lines.length > 0 ? lines.join("\n") : ""}
+        </div>
+
+        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(57,255,20,.7)" }}>
+          Tip: Shift+H works anywhere (as long as you're not typing in an input).
         </div>
       </div>
     </div>
