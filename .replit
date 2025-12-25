@@ -18,10 +18,6 @@ publicDir = "dist"
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 5173
-externalPort = 80
-
 [agent]
 expertMode = true
 
