@@ -594,7 +594,7 @@
     }
 
     /* ===========================
-       COOL BUTTON UPGRADE (DROP-IN)
+       COOL + BIGGER BUTTON UPGRADE
        =========================== */
 
     :root{
@@ -609,10 +609,16 @@
       --btn-glow2: rgba(0, 247, 255, 0.22);
     }
 
+    /* Base for ALL buttons: bigger body, same font-size */
     button, .choice-btn, .adminBtn {
       position: relative;
       overflow: hidden;
       isolation: isolate;
+
+      /* Bigger clickable area */
+      padding: 14px 34px !important;
+      min-height: 52px !important;
+      min-width: 160px !important;
 
       border-radius: 999px !important;
       border: 1px solid var(--btn-border) !important;
@@ -638,6 +644,14 @@
         filter 200ms ease;
     }
 
+    /* Make YES/NO choices even bigger */
+    .choice-btn {
+      min-width: 200px !important;
+      min-height: 58px !important;
+      padding: 16px 42px !important;
+    }
+
+    /* Animated “energy ring” behind button */
     button::before, .choice-btn::before, .adminBtn::before {
       content: "";
       position: absolute;
@@ -657,6 +671,7 @@
       z-index: -1;
     }
 
+    /* Shine sweep */
     button::after, .choice-btn::after, .adminBtn::after {
       content: "";
       position: absolute;
@@ -705,12 +720,17 @@
       box-shadow: none !important;
     }
 
+    /* Admin buttons: keep compact-ish so panel isn't huge */
     .adminBtn {
-      border-radius: 10px !important;
+      border-radius: 12px !important;
       text-transform: none;
       letter-spacing: 0.02em;
       font-size: 10px !important;
-      padding: 6px 8px !important;
+
+      padding: 10px 12px !important;
+      min-height: 40px !important;
+      min-width: 0 !important; /* let admin panel decide width */
+      width: 100%;
     }
 
     /* Special: Back buttons (purple portal) */
@@ -799,7 +819,7 @@
         <div id="ultraTitle">ULTRA TOP SECRET — NODE-7</div>
         <div id="ultraSub">Exit this place to trigger the final sequence.</div>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
         <button id="ultraBackBtn">Exit</button>
         <button id="ultraFactsBtn">Facts</button>
       </div>
@@ -818,7 +838,7 @@
         <div id="ultra2Title">ULTRA TOP SECRET — LEVEL 2 (GOLD ARCHIVE)</div>
         <div style="font-size:11px;opacity:.85;margin-top:6px;">Exiting here ends everything.</div>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
         <button id="ultra2ExitBtn">Finalize</button>
         <button id="ultra2FactsBtn">Facts</button>
       </div>
@@ -910,8 +930,6 @@
     const term = document.getElementById("term");
     const screen = document.getElementById("screen");
 
-    const titleEl = document.getElementById("title");
-    const subtitleEl = document.getElementById("subtitle");
     const statusLink = document.getElementById("statusLink");
     const statusAuth = document.getElementById("statusAuth");
     const statusUser = document.getElementById("statusUser");
@@ -1027,7 +1045,7 @@
       (deviceType === "iOS DEVICE") ? "iOS 7" :
       (deviceType === "ANDROID DEVICE") ? "OS 7" : "Windows 7";
 
-    // ===== OFFLINE (more interesting) history facts =====
+    // ===== OFFLINE history facts =====
     const PRELOADED_FACTS = [
       "A famous ~3,700-year-old clay tablet is a customer complaint: Nanni scolds the merchant Ea-nasir for low-quality copper.",
       "The Antikythera mechanism (ancient Greek) used gears to model astronomy and predict eclipses—basically a hand-powered analog computer.",
@@ -1044,7 +1062,8 @@
       "Tree-ring evidence suggests the year 536 CE had extreme cooling, sometimes called a 'mystery climate catastrophe.'",
       "The Royal Game of Ur (Mesopotamia) is one of the earliest known board games; rules were reconstructed from tablets.",
       "Some Inca record-keeping used quipu—knotted cords that stored numerical data and maybe more.",
-      "The Voynich Manuscript is a medieval illustrated book written in an unknown script; it remains unsolved."
+      "The Voynich Manuscript is a medieval illustrated book written in an unknown script; it remains unsolved.",
+      "The first living creature in space was a dog named Laika.", "The tiny Easter Island is home to 887 giant head statues.", "Queen Elizabeth II was never supposed to be queen.", "Rats killed over 75 million Europeans in the Middle Ages.", "In Ancient Egypt, the New Year celebration was called Wepet Renpet.", "The Vikings loved grooming.", "Abraham Lincoln may have had a dream predicting his own assassination three days before it happened.", "The First Emperor of China was nearly killed by a lute" 
     ];
 
     function showFacts() {
@@ -1611,6 +1630,7 @@
 
     function enterUltra1(source) {
       stopTelemetry();
+
       qOverlay.classList.remove("visible");
       choiceOverlayUpdate.classList.remove("visible");
       updateScreen.classList.remove("visible");
@@ -1928,14 +1948,8 @@
       URL.revokeObjectURL(url);
     });
 
-    // ===== Update question is LAST, so only show it after Ultra exit flow =====
-    function showUpdatePromptLast() {
-      choicePromptUpdate.textContent = "INSTALL " + updateName.toUpperCase() + " UPDATE? (YES / NO)";
-      choiceOverlayUpdate.classList.add("visible");
-    }
-
     // ===== start =====
-    // ===== secret message "Jean Jun" =====
+    // ===== Secret message "Jean Jun" =====
     updateHeader();
     btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
     setTimeout(typeBase, 500);
