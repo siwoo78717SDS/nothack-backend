@@ -1,24 +1,1945 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cyber Terminal Simulator</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        background: radial-gradient(circle at top, #0a1b12 0, #030704 45%, #000 100%);
+<head>
+  <meta charset="UTF-8" />
+  <title>ZeroPoint Access Core</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: radial-gradient(circle at top, #10243a 0, #02060c 45%, #000 100%);
+      color: #0f0;
+      font-family: "Fira Code", "JetBrains Mono", Consolas, monospace;
+      overflow: hidden;
+    }
+
+    /* Matrix overlay */
+    #matrixCanvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      mix-blend-mode: screen;
+    }
+    #matrixCanvas.on { opacity: 0.18; }
+
+    /* Main background with subtle animated grid + scanline + glitch */
+    #screen {
+      position: relative;
+      height: 100vh;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-image:
+        linear-gradient(to right, rgba(0, 255, 120, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 120, 0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      overflow: hidden;
+      transition: box-shadow 0.3s ease, background-color 0.3s ease, filter 0.25s ease;
+      z-index: 2;
+    }
+
+    /* Glitch overlay */
+    #screen::before {
+      content: "";
+      position: absolute;
+      inset: -20px;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          rgba(0, 255, 120, 0.18) 0,
+          rgba(0, 255, 120, 0.18) 2px,
+          transparent 2px,
+          transparent 4px
+        );
+      mix-blend-mode: screen;
+      opacity: 0.14;
+      pointer-events: none;
+      animation: glitchMove 1.3s infinite steps(2, end);
+    }
+
+    @keyframes glitchMove {
+      0%   { transform: translate(0, 0); }
+      20%  { transform: translate(-3px, 2px); }
+      40%  { transform: translate(2px, -1px); }
+      60%  { transform: translate(-1px, -2px); }
+      80%  { transform: translate(1px, 2px); }
+      100% { transform: translate(0, 0); }
+    }
+
+    /* Alternate theme: blue grid */
+    #screen.altTheme {
+      background-image:
+        linear-gradient(to right, rgba(0, 180, 255, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 180, 255, 0.07) 1px, transparent 1px);
+    }
+
+    /* Alert visual */
+    #screen.alertGlow {
+      box-shadow:
+        0 0 40px rgba(255, 0, 80, 0.6),
+        inset 0 0 50px rgba(255, 0, 80, 0.4);
+    }
+
+    /* Scanline overlay */
+    #screen::after {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(
+          to bottom,
+          rgba(0, 0, 0, 0) 0%,
+          rgba(0, 0, 0, 0.25) 50%,
+          rgba(0, 0, 0, 0) 100%
+        );
+      background-size: 100% 3px;
+      mix-blend-mode: soft-light;
+      opacity: 0.55;
+      animation: scan 7s linear infinite;
+    }
+
+    @keyframes scan {
+      0%   { transform: translateY(-10%); }
+      50%  { transform: translateY(10%); }
+      100% { transform: translateY(-10%); }
+    }
+
+    /* Console card layout */
+    #header, #term, #cmdRow { width: min(980px, 100%); margin: 0 auto; }
+
+    #header {
+      padding: 12px 18px 6px;
+      background: linear-gradient(
+        135deg,
+        rgba(4, 18, 26, 0.94),
+        rgba(0, 35, 28, 0.96)
+      );
+      border: 1px solid rgba(0, 255, 120, 0.45);
+      border-bottom: none;
+      border-radius: 16px 16px 0 0;
+      box-shadow:
+        0 0 20px rgba(0, 255, 150, 0.18),
+        0 0 80px rgba(0, 255, 120, 0.1);
+      backdrop-filter: blur(16px);
+      z-index: 1;
+    }
+
+    #term {
+      flex: 1;
+      min-height: 260px;
+      max-height: min(460px, 70vh);
+      padding: 12px 18px;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.45;
+      position: relative;
+      z-index: 0;
+      background: radial-gradient(circle at top left, #04261b 0, #020b14 36%, #02060c 100%);
+      border-left: 1px solid rgba(0, 255, 120, 0.35);
+      border-right: 1px solid rgba(0, 255, 120, 0.35);
+      box-shadow:
+        inset 0 0 25px rgba(0, 0, 0, 0.9),
+        0 18px 40px rgba(0, 0, 0, 0.75);
+    }
+
+    /* Custom scrollbar */
+    #term::-webkit-scrollbar { width: 8px; }
+    #term::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.4); }
+    #term::-webkit-scrollbar-thumb {
+      background: linear-gradient(#0f0, #0af2b5);
+      border-radius: 999px;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1em;
+      background: #0f0;
+      margin-left: 2px;
+      box-shadow: 0 0 8px rgba(0, 255, 120, 0.7);
+    }
+
+    /* Command row */
+    #cmdRow {
+      display: none;
+      padding: 7px 18px 10px;
+      background: linear-gradient(
+        145deg,
+        rgba(1, 18, 20, 0.98),
+        rgba(1, 28, 24, 0.98)
+      );
+      border: 1px solid rgba(0, 255, 120, 0.45);
+      border-top: 1px solid rgba(0, 255, 120, 0.2);
+      border-radius: 0 0 16px 16px;
+      box-shadow:
+        0 14px 40px rgba(0, 0, 0, 0.9),
+        0 0 25px rgba(0, 255, 140, 0.2);
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    #cmdPrompt {
+      color: #6affb8;
+      min-width: 80px;
+      white-space: nowrap;
+      text-shadow: 0 0 6px rgba(0, 255, 120, 0.6);
+    }
+
+    #cmdInput {
+      flex: 1;
+      background: #02090a;
+      border: 1px solid rgba(0, 255, 120, 0.6);
+      color: #eaffee;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      border-radius: 6px;
+      box-shadow: inset 0 0 10px rgba(0, 255, 120, 0.15);
+    }
+
+    #cmdInput:focus {
+      border-color: #00f7ff;
+      box-shadow:
+        0 0 12px rgba(0, 247, 255, 0.45),
+        inset 0 0 8px rgba(0, 255, 120, 0.25);
+      background: #020f13;
+    }
+
+    /* Header text */
+    #title {
+      color: #00f7ff;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      font-size: 15px;
+      text-transform: uppercase;
+      text-shadow:
+        0 0 10px rgba(0, 247, 255, 0.75),
+        0 0 24px rgba(0, 255, 140, 0.45);
+    }
+
+    #subtitle {
+      margin-top: 4px;
+      font-size: 10px;
+      color: #8cfed0;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      opacity: 0.95;
+    }
+
+    #statusBar {
+      margin-top: 8px;
+      font-size: 10px;
+      color: #999;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .status-pill {
+      padding: 2px 10px;
+      border-radius: 999px;
+      border: 1px solid #044;
+      background: radial-gradient(circle at top, #032019 0, #010c09 70%);
+      box-shadow: 0 0 10px rgba(0, 255, 120, 0.2);
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .status-pill.ok   { border-color: #30ff9b; color: #9bffd4; }
+    .status-pill.warn { border-color: #ffb400; color: #ffd580; box-shadow: 0 0 10px rgba(255, 180, 0, 0.3); }
+    .status-pill.info { border-color: #00f7ff; color: #7df3ff; box-shadow: 0 0 10px rgba(0, 247, 255, 0.3); }
+
+    #adminLink { margin-left: auto; cursor: pointer; text-shadow: 0 0 8px rgba(0, 247, 255, 0.7); }
+
+    /* Log text colors */
+    .ok     { color: #6affb8; }
+    .warn   { color: #ffb45a; }
+    .danger { color: #ff4c4c; }
+    .muted  { color: #0dd89b; }
+    .dim    { color: rgba(180, 255, 220, 0.75); }
+
+    /* Generic YES/NO overlay (Telemetry, Snapshot, Override) */
+    #qOverlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: radial-gradient(circle at center, rgba(0,0,0,0.72) 0, rgba(0,0,0,0.94) 55%);
+      backdrop-filter: blur(6px);
+      text-align: center;
+      z-index: 8;
+    }
+    #qOverlay.visible { display: flex; }
+    #qPrompt {
+      font-size: 13px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      color: #e6ffe6;
+      text-shadow:
+        0 0 14px rgba(0, 255, 120, 0.8),
+        0 0 18px rgba(0, 247, 255, 0.7);
+    }
+
+    /* LAST question: Software update */
+    #choiceOverlayUpdate {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: radial-gradient(circle at center, rgba(0,0,0,0.72) 0, rgba(0,0,0,0.94) 55%);
+      backdrop-filter: blur(6px);
+      text-align: center;
+      z-index: 8;
+    }
+    #choiceOverlayUpdate.visible { display: flex; }
+    #choicePromptUpdate {
+      font-size: 13px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      color: #e6ffe6;
+      text-shadow:
+        0 0 14px rgba(0, 255, 120, 0.8),
+        0 0 18px rgba(0, 247, 255, 0.7);
+    }
+
+    /* Fake update full-screen */
+    #updateScreen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      color: #fff;
+      z-index: 9;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #updateScreen.visible { display: flex; }
+    #updateContent { text-align: center; max-width: 420px; padding: 20px; }
+
+    .win-update-title { font-size: 20px; margin-bottom: 14px; }
+    .win-update-sub { font-size: 13px; margin-bottom: 16px; color: #d0e6ff; }
+    .win-logo {
+      width: 52px; height: 52px;
+      margin: 0 auto 18px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 3px;
+      transform: skewX(-8deg);
+    }
+    .win-logo-tile {
+      background: linear-gradient(135deg, #2f86ff, #8fd0ff);
+      box-shadow: 0 0 6px rgba(0, 140, 255, 0.7);
+    }
+    .win-bar {
+      width: 260px; height: 14px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      margin: 0 auto 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+    .win-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #57b0ff, #b5e7ff);
+      transition: width 0.1s linear;
+    }
+    .win-percent { font-size: 12px; color: #e0efff; }
+
+    .ios-logo {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      border: 2px solid #fff;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+    }
+    .ios-bar {
+      width: 200px; height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    .ios-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: #fff;
+      transition: width 0.1s linear;
+    }
+    .ios-update-text { margin-top: 16px; font-size: 13px; color: #ddd; }
+
+    /* Ultra Secret (Level 1) */
+    #ultraSecret {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 50;
+      background: radial-gradient(circle at top, #15002e 0, #05000c 60%, #000 100%);
+      color: #e7d9ff;
+      overflow: hidden;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    #ultraSecret.visible { display: flex; flex-direction: column; }
+    #ultraHeader {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(231,217,255,0.18);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+    #ultraTitle { letter-spacing: 0.22em; text-transform: uppercase; font-size: 13px; color: #d8b7ff; }
+    #ultraSub { font-size: 11px; opacity: 0.85; margin-top: 6px; }
+    #ultraTerm { flex: 1; padding: 14px 16px; overflow: auto; white-space: pre-wrap; line-height: 1.45; font-size: 13px; }
+    #ultraCmdRow { padding: 10px 16px 14px; border-top: 1px solid rgba(231,217,255,0.18); display: flex; gap: 8px; align-items: center; }
+    #ultraPrompt { color: #caa6ff; white-space: nowrap; }
+    #ultraInput {
+      flex: 1;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(216,183,255,0.35);
+      color: #f2eaff;
+      padding: 6px 8px;
+      border-radius: 8px;
+      outline: none;
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    /* Ultra Secret (Level 2) */
+    #ultraSecret2 {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 55;
+      background: radial-gradient(circle at top, #221300 0, #060300 70%, #000 100%);
+      color: #ffe8b0;
+      overflow: hidden;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    #ultraSecret2.visible { display: flex; flex-direction: column; }
+    #ultra2Header {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,232,176,0.18);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+    #ultra2Title { letter-spacing: 0.22em; text-transform: uppercase; font-size: 13px; color: #ffd27a; }
+    #ultra2Term { flex: 1; padding: 14px 16px; overflow: auto; white-space: pre-wrap; line-height: 1.45; font-size: 13px; }
+    #ultra2CmdRow { padding: 10px 16px 14px; border-top: 1px solid rgba(255,232,176,0.18); display: flex; gap: 8px; align-items: center; }
+    #ultra2Prompt { color: #ffd27a; white-space: nowrap; }
+    #ultra2Input {
+      flex: 1;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,232,176,0.35);
+      color: #fff3d6;
+      padding: 6px 8px;
+      border-radius: 8px;
+      outline: none;
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    /* Offline facts view */
+    #factsView {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: #fff;
+      color: #000;
+      z-index: 60;
+      overflow: auto;
+    }
+    #factsView.visible { display: block; }
+    #factsWrap { max-width: 900px; margin: 0 auto; padding: 22px 12px 40px; }
+    #factsDoc { background: #fff; border: 1px solid #e6e6e6; padding: 30px 36px; font-family: "Times New Roman", Times, serif; }
+    #factsTop { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+    #factsTitle { margin: 0; font-size: 28px; font-weight: 700; }
+    #factsStatus { margin-top: 6px; color: #444; font-size: 14px; }
+    #factsText { margin: 0; font-size: 16px; line-height: 1.45; white-space: pre-wrap; }
+
+    /* Final screen */
+    #finalReveal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at top, #04101d 0, #000 65%);
+      color: #eee;
+      text-align: center;
+      padding: 20px;
+      z-index: 70;
+    }
+    #finalReveal.visible { display: flex; }
+    #finalReveal h1 {
+      margin-bottom: 12px;
+      color: #00f7ff;
+      font-size: 22px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-shadow:
+        0 0 14px rgba(0, 247, 255, 0.9),
+        0 0 26px rgba(0, 255, 160, 0.6);
+    }
+    #finalReveal p { font-size: 13px; max-width: 540px; margin-bottom: 8px; color: #cfd8e0; }
+    #finalRevealCredit { margin-top: 4px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8cfed0; }
+
+    /* Admin login */
+    #adminLogin {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 90;
+    }
+    #adminLoginBox {
+      background: radial-gradient(circle at top, #031824 0, #020b14 70%);
+      border: 1px solid #0f0;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 220px;
+      box-shadow:
+        0 0 18px rgba(0, 255, 120, 0.6),
+        0 0 32px rgba(0, 247, 255, 0.4);
+    }
+    .adminTitle {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #8cfed0;
+      margin-bottom: 4px;
+      border-bottom: 1px solid rgba(0, 255, 120, 0.35);
+      padding-bottom: 3px;
+    }
+    #adminPass {
+      background: #000;
+      border: 1px solid #0f0;
+      color: #eaffee;
+      padding: 4px 6px;
+      font-family: inherit;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+
+    /* Admin panel */
+    #adminPanel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: radial-gradient(circle at top, #041824 0, #020b14 70%);
+      border: 1px solid rgba(0, 255, 120, 0.55);
+      padding: 8px 10px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 91;
+      font-size: 10px;
+      max-width: 320px;
+      max-height: calc(100vh - 20px);
+      overflow-y: auto;
+      box-shadow:
+        0 0 18px rgba(0, 255, 120, 0.6),
+        0 0 36px rgba(0, 247, 255, 0.4);
+      border-radius: 10px;
+    }
+    .adminBtn {
+      font-size: 10px;
+      padding: 4px 8px;
+      background: #01090b;
+      border: 1px solid rgba(0, 255, 120, 0.5);
+      color: #bfffe1;
+      cursor: pointer;
+      text-align: left;
+      border-radius: 5px;
+    }
+
+    /* Small screens */
+    @media (max-width: 640px) {
+      #screen { padding: 10px; }
+      #header, #term, #cmdRow { width: 100%; }
+      #title { font-size: 12px; letter-spacing: 0.16em; }
+      #subtitle { letter-spacing: 0.12em; }
+      #cmdPrompt { min-width: 64px; }
+    }
+
+    /* ===========================
+       COOL BUTTON UPGRADE (DROP-IN)
+       =========================== */
+
+    :root{
+      --neon-a: #00f7ff;
+      --neon-b: #30ff9b;
+      --neon-c: #b45cff;
+      --btn-text: #eaffee;
+      --btn-bg0: rgba(0, 0, 0, 0.65);
+      --btn-bg1: rgba(0, 255, 160, 0.10);
+      --btn-border: rgba(0, 255, 160, 0.55);
+      --btn-glow: rgba(0, 255, 160, 0.35);
+      --btn-glow2: rgba(0, 247, 255, 0.22);
+    }
+
+    button, .choice-btn, .adminBtn {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+
+      border-radius: 999px !important;
+      border: 1px solid var(--btn-border) !important;
+
+      color: var(--btn-text) !important;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(0,247,255,0.12) 0%, transparent 45%),
+        linear-gradient(180deg, var(--btn-bg1), var(--btn-bg0)) !important;
+
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      text-shadow: 0 0 8px rgba(0,255,160,0.22);
+
+      box-shadow:
+        0 0 18px var(--btn-glow),
+        0 0 34px var(--btn-glow2),
+        inset 0 0 18px rgba(0,0,0,0.65) !important;
+
+      transition:
+        transform 120ms ease,
+        box-shadow 200ms ease,
+        border-color 200ms ease,
+        filter 200ms ease;
+    }
+
+    button::before, .choice-btn::before, .adminBtn::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      background: conic-gradient(
+        from 180deg,
+        transparent 0deg,
+        rgba(0,247,255,0.55) 70deg,
+        rgba(48,255,155,0.55) 150deg,
+        rgba(180,92,255,0.55) 230deg,
+        transparent 360deg
+      );
+      filter: blur(10px);
+      opacity: 0;
+      transition: opacity 180ms ease;
+      z-index: -1;
+    }
+
+    button::after, .choice-btn::after, .adminBtn::after {
+      content: "";
+      position: absolute;
+      top: -120%;
+      left: -60%;
+      width: 60%;
+      height: 320%;
+      transform: rotate(25deg);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+      opacity: 0;
+      z-index: 1;
+    }
+
+    @keyframes btnShine {
+      0%   { transform: translateX(0) rotate(25deg); opacity: 0; }
+      15%  { opacity: 0.35; }
+      100% { transform: translateX(260%) rotate(25deg); opacity: 0; }
+    }
+
+    button:hover, .choice-btn:hover, .adminBtn:hover {
+      transform: translateY(-2px);
+      border-color: rgba(0,247,255,0.75) !important;
+      box-shadow:
+        0 0 22px rgba(0,255,160,0.45),
+        0 0 48px rgba(0,247,255,0.28),
+        inset 0 0 20px rgba(0,0,0,0.55) !important;
+      filter: saturate(1.15);
+    }
+    button:hover::before, .choice-btn:hover::before, .adminBtn:hover::before { opacity: 1; }
+    button:hover::after, .choice-btn:hover::after, .adminBtn:hover::after { animation: btnShine 650ms ease; }
+
+    button:active, .choice-btn:active, .adminBtn:active {
+      transform: translateY(1px) scale(0.985);
+      filter: saturate(1.05) contrast(1.05);
+    }
+
+    button:focus-visible, .choice-btn:focus-visible, .adminBtn:focus-visible {
+      outline: 2px solid rgba(0,247,255,0.75);
+      outline-offset: 2px;
+    }
+
+    button:disabled, .choice-btn:disabled, .adminBtn:disabled {
+      opacity: 0.35 !important;
+      cursor: not-allowed !important;
+      filter: grayscale(1);
+      box-shadow: none !important;
+    }
+
+    .adminBtn {
+      border-radius: 10px !important;
+      text-transform: none;
+      letter-spacing: 0.02em;
+      font-size: 10px !important;
+      padding: 6px 8px !important;
+    }
+
+    /* Special: Back buttons (purple portal) */
+    #ultraBackBtn, #factsBackBtn {
+      border-color: rgba(180,92,255,0.65) !important;
+      box-shadow:
+        0 0 18px rgba(180,92,255,0.25),
+        0 0 34px rgba(0,247,255,0.18),
+        inset 0 0 18px rgba(0,0,0,0.65) !important;
+    }
+
+    /* Special: Finalize button (gold final-boss) */
+    #ultra2ExitBtn {
+      border-color: rgba(255, 210, 122, 0.75) !important;
+      color: #fff3d6 !important;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(255,210,122,0.16) 0%, transparent 45%),
+        linear-gradient(180deg, rgba(255,210,122,0.12), rgba(0,0,0,0.72)) !important;
+      box-shadow:
+        0 0 22px rgba(255,210,122,0.35),
+        0 0 48px rgba(255,180,0,0.18),
+        inset 0 0 18px rgba(0,0,0,0.62) !important;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="matrixCanvas"></canvas>
+
+  <div id="screen">
+    <div id="header">
+      <div id="title">ZEROPOINT REMOTE ACCESS CORE</div>
+      <div id="subtitle">TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR</div>
+      <div id="statusBar">
+        <span class="status-pill ok"   id="statusLink">LINK: SYNCHED</span>
+        <span class="status-pill ok"   id="statusAuth">AUTH: ROOT TOKEN</span>
+        <span class="status-pill warn" id="statusUser">USER-FOCUS: IDLE</span>
+        <span class="status-pill info" id="statusMode">MODE: GHOST OBSERVE</span>
+        <span class="status-pill info" id="adminLink">ADMIN</span>
+      </div>
+    </div>
+
+    <div id="term"></div>
+
+    <div id="cmdRow">
+      <span id="cmdPrompt">/ $</span>
+      <input id="cmdInput" autocomplete="off" spellcheck="false" />
+    </div>
+  </div>
+
+  <!-- Generic question overlay -->
+  <div id="qOverlay">
+    <div>
+      <div id="qPrompt">QUESTION</div>
+      <div>
+        <button class="choice-btn" id="qYes">YES</button>
+        <button class="choice-btn" id="qNo">NO</button>
+      </div>
+      <div style="margin-top:14px; font-size:11px; opacity:0.7; letter-spacing:0.12em;">
+        SIMULATION UI ONLY
+      </div>
+    </div>
+  </div>
+
+  <!-- LAST question: Software update -->
+  <div id="choiceOverlayUpdate">
+    <div>
+      <div id="choicePromptUpdate">INSTALL SYSTEM UPDATE? (YES / NO)</div>
+      <div>
+        <button class="choice-btn" id="yesBtnUpdate">YES</button>
+        <button class="choice-btn" id="noBtnUpdate">NO</button>
+      </div>
+      <div style="margin-top:14px; font-size:11px; opacity:0.7; letter-spacing:0.12em;">
+        SIMULATION UI ONLY
+      </div>
+    </div>
+  </div>
+
+  <!-- Fake update full-screen -->
+  <div id="updateScreen"><div id="updateContent"></div></div>
+
+  <!-- Ultra Secret (Level 1) -->
+  <div id="ultraSecret">
+    <div id="ultraHeader">
+      <div>
+        <div id="ultraTitle">ULTRA TOP SECRET — NODE-7</div>
+        <div id="ultraSub">Exit this place to trigger the final sequence.</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="ultraBackBtn">Exit</button>
+        <button id="ultraFactsBtn">Facts</button>
+      </div>
+    </div>
+    <div id="ultraTerm"></div>
+    <div id="ultraCmdRow">
+      <span id="ultraPrompt">ultra:/ $</span>
+      <input id="ultraInput" autocomplete="off" spellcheck="false" />
+    </div>
+  </div>
+
+  <!-- Ultra Secret (Level 2) -->
+  <div id="ultraSecret2">
+    <div id="ultra2Header">
+      <div>
+        <div id="ultra2Title">ULTRA TOP SECRET — LEVEL 2 (GOLD ARCHIVE)</div>
+        <div style="font-size:11px;opacity:.85;margin-top:6px;">Exiting here ends everything.</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="ultra2ExitBtn">Finalize</button>
+        <button id="ultra2FactsBtn">Facts</button>
+      </div>
+    </div>
+    <div id="ultra2Term"></div>
+    <div id="ultra2CmdRow">
+      <span id="ultra2Prompt">gold:/ $</span>
+      <input id="ultra2Input" autocomplete="off" spellcheck="false" />
+    </div>
+  </div>
+
+  <!-- Offline Facts view -->
+  <div id="factsView">
+    <div id="factsWrap">
+      <div id="factsDoc">
+        <div id="factsTop">
+          <div>
+            <h1 id="factsTitle">History Facts (Offline)</h1>
+            <div id="factsStatus">Loading…</div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="factsBackBtn">Back</button>
+            <button id="factsPrintBtn">Print</button>
+          </div>
+        </div>
+        <hr style="margin:14px 0; border:none; border-top:1px solid #e6e6e6;" />
+        <pre id="factsText"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Final reveal -->
+  <div id="finalReveal">
+    <h1 id="finalTitle"></h1>
+    <p id="finalText1"></p>
+    <p id="finalText2"></p>
+    <p id="finalRevealCredit"></p>
+    <button onclick="location.reload()">Run again</button>
+  </div>
+
+  <!-- Admin login -->
+  <div id="adminLogin">
+    <div id="adminLoginBox">
+      <div class="adminTitle">ADMIN ACCESS</div>
+      <input type="password" id="adminPass" placeholder="Passcode (5 digits)" />
+      <button id="adminSubmit">Enter</button>
+    </div>
+  </div>
+
+  <!-- Admin panel -->
+  <div id="adminPanel">
+    <div class="adminTitle">ADMIN PANEL</div>
+
+    <button class="adminBtn" id="btnAdminClose">Close admin</button>
+    <button class="adminBtn" id="btnRestart">Restart console</button>
+    <button class="adminBtn" id="btnPause">Pause / resume typing</button>
+    <button class="adminBtn" id="btnSpeed">Speed: normal</button>
+    <button class="adminBtn" id="btnTheme">Toggle theme</button>
+
+    <div class="adminTitle" style="margin-top:6px;">FLOW</div>
+    <button class="adminBtn" id="btnEnterUltra1">Enter Ultra (L1)</button>
+    <button class="adminBtn" id="btnStartPostUltra">Start post-ultra questions</button>
+    <button class="adminBtn" id="btnShowUpdateLast">Show update question (last)</button>
+    <button class="adminBtn" id="btnEnterUltra2">Enter Ultra (L2)</button>
+    <button class="adminBtn" id="btnShowFinal">Show final screen</button>
+
+    <div class="adminTitle" style="margin-top:6px;">TOOLS</div>
+    <button class="adminBtn" id="btnMatrix">Matrix toggle</button>
+    <button class="adminBtn" id="btnLockShell">Shell input: UNLOCKED</button>
+    <button class="adminBtn" id="btnForceIOS">Force iOS UI</button>
+    <button class="adminBtn" id="btnForceWin">Force Windows UI</button>
+    <button class="adminBtn" id="btnDumpState">Dump state to DevTools</button>
+
+    <div class="adminTitle" style="margin-top:6px;">FACTS</div>
+    <button class="adminBtn" id="btnOpenFacts">Open Facts</button>
+    <button class="adminBtn" id="btnAddFact">Add 1 fact (prompt)</button>
+    <button class="adminBtn" id="btnExportFacts">Export facts (download)</button>
+  </div>
+
+  <script>
+  (function(){
+    "use strict";
+
+    // ===== config =====
+    const UPDATE_DURATION = 6000;
+    let adminPassword = "78717";
+
+    // ===== DOM =====
+    const term = document.getElementById("term");
+    const screen = document.getElementById("screen");
+
+    const titleEl = document.getElementById("title");
+    const subtitleEl = document.getElementById("subtitle");
+    const statusLink = document.getElementById("statusLink");
+    const statusAuth = document.getElementById("statusAuth");
+    const statusUser = document.getElementById("statusUser");
+    const statusMode = document.getElementById("statusMode");
+
+    const cmdRow = document.getElementById("cmdRow");
+    const cmdPrompt = document.getElementById("cmdPrompt");
+    const cmdInput = document.getElementById("cmdInput");
+
+    const qOverlay = document.getElementById("qOverlay");
+    const qPrompt = document.getElementById("qPrompt");
+    const qYes = document.getElementById("qYes");
+    const qNo = document.getElementById("qNo");
+
+    const choiceOverlayUpdate = document.getElementById("choiceOverlayUpdate");
+    const choicePromptUpdate = document.getElementById("choicePromptUpdate");
+    const yesBtnUpdate = document.getElementById("yesBtnUpdate");
+    const noBtnUpdate = document.getElementById("noBtnUpdate");
+
+    const updateScreen = document.getElementById("updateScreen");
+    const updateContent = document.getElementById("updateContent");
+
+    const ultraSecret = document.getElementById("ultraSecret");
+    const ultraBackBtn = document.getElementById("ultraBackBtn");
+    const ultraFactsBtn = document.getElementById("ultraFactsBtn");
+    const ultraTerm = document.getElementById("ultraTerm");
+    const ultraInput = document.getElementById("ultraInput");
+
+    const ultraSecret2 = document.getElementById("ultraSecret2");
+    const ultra2ExitBtn = document.getElementById("ultra2ExitBtn");
+    const ultra2FactsBtn = document.getElementById("ultra2FactsBtn");
+    const ultra2Term = document.getElementById("ultra2Term");
+    const ultra2Input = document.getElementById("ultra2Input");
+
+    const factsView = document.getElementById("factsView");
+    const factsStatus = document.getElementById("factsStatus");
+    const factsText = document.getElementById("factsText");
+    const factsBackBtn = document.getElementById("factsBackBtn");
+    const factsPrintBtn = document.getElementById("factsPrintBtn");
+
+    const finalReveal = document.getElementById("finalReveal");
+    const finalTitle = document.getElementById("finalTitle");
+    const finalText1 = document.getElementById("finalText1");
+    const finalText2 = document.getElementById("finalText2");
+    const finalRevealCredit = document.getElementById("finalRevealCredit");
+
+    const adminLink = document.getElementById("adminLink");
+    const adminLogin = document.getElementById("adminLogin");
+    const adminPass = document.getElementById("adminPass");
+    const adminSubmit = document.getElementById("adminSubmit");
+    const adminPanel = document.getElementById("adminPanel");
+
+    const btnAdminClose = document.getElementById("btnAdminClose");
+    const btnRestart = document.getElementById("btnRestart");
+    const btnPause = document.getElementById("btnPause");
+    const btnSpeed = document.getElementById("btnSpeed");
+    const btnTheme = document.getElementById("btnTheme");
+
+    const btnEnterUltra1 = document.getElementById("btnEnterUltra1");
+    const btnStartPostUltra = document.getElementById("btnStartPostUltra");
+    const btnShowUpdateLast = document.getElementById("btnShowUpdateLast");
+    const btnEnterUltra2 = document.getElementById("btnEnterUltra2");
+    const btnShowFinal = document.getElementById("btnShowFinal");
+
+    const btnMatrix = document.getElementById("btnMatrix");
+    const btnLockShell = document.getElementById("btnLockShell");
+    const btnForceIOS = document.getElementById("btnForceIOS");
+    const btnForceWin = document.getElementById("btnForceWin");
+    const btnDumpState = document.getElementById("btnDumpState");
+
+    const btnOpenFacts = document.getElementById("btnOpenFacts");
+    const btnAddFact = document.getElementById("btnAddFact");
+    const btnExportFacts = document.getElementById("btnExportFacts");
+
+    const matrixCanvas = document.getElementById("matrixCanvas");
+    const mctx = matrixCanvas.getContext("2d");
+
+    // Cursor block
+    const cursor = document.createElement("span");
+    cursor.className = "cursor";
+    term.appendChild(cursor);
+
+    // ===== FULLSCREEN (first click / touch) =====
+    function requestFullscreen() {
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      else if (el.msRequestFullscreen) el.msRequestFullscreen();
+    }
+    function handleFullscreenGesture() {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        requestFullscreen();
       }
-      html, body, #root { height: 100%; width: 100%; }
-      @media print {
-        .no-print { display: none !important; }
-        body { background: #fff !important; }
+    }
+    document.addEventListener("click", handleFullscreenGesture, { once: true });
+    document.addEventListener("touchstart", handleFullscreenGesture, { once: true });
+
+    // ===== environment =====
+    const ua = navigator.userAgent || "unknown";
+    const lang = navigator.language || "unknown";
+    const w = window.screen.width;
+    const h = window.screen.height;
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || "unknown";
+    const touch = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
+    const origin = window.location.origin || (window.location.protocol + "//" + window.location.host) || "file://local";
+    const now = new Date().toISOString();
+
+    let deviceType = "DESKTOP/OTHER";
+    if (/Android/i.test(ua)) deviceType = "ANDROID DEVICE";
+    else if (/iPhone|iPad|iPod/i.test(ua)) deviceType = "iOS DEVICE";
+
+    let updateName =
+      (deviceType === "iOS DEVICE") ? "iOS 7" :
+      (deviceType === "ANDROID DEVICE") ? "OS 7" : "Windows 7";
+
+    // ===== OFFLINE (more interesting) history facts =====
+    const PRELOADED_FACTS = [
+      "A famous ~3,700-year-old clay tablet is a customer complaint: Nanni scolds the merchant Ea-nasir for low-quality copper.",
+      "The Antikythera mechanism (ancient Greek) used gears to model astronomy and predict eclipses—basically a hand-powered analog computer.",
+      "One of the oldest known notated songs is the Hurrian Hymn from Ugarit (c. 1400 BCE).",
+      "The Treaty of Kadesh (Egypt–Hittites, c. 1259 BCE) is one of the earliest surviving peace treaties.",
+      "Vindolanda tablets from Roman Britain include everyday letters—like requests for socks and invitations to birthday parties.",
+      "Korea’s 'Jikji' (1377) is the oldest extant book printed with movable metal type.",
+      "The Tripitaka Koreana (13th century) was carved onto over 80,000 woodblocks and is still preserved.",
+      "The 'Phaistos Disc' is a clay disc with stamped symbols; its writing is still undeciphered.",
+      "Roman dodecahedra are found across Europe; nobody is sure what they were for.",
+      "The first recorded labor strike happened in ancient Egypt (Deir el-Medina) when workers demanded food rations.",
+      "In 1814, London had a 'Beer Flood' when a huge vat burst and sent beer through streets.",
+      "In 1783, Iceland’s Laki eruption caused a toxic haze and climate problems across parts of Europe.",
+      "Tree-ring evidence suggests the year 536 CE had extreme cooling, sometimes called a 'mystery climate catastrophe.'",
+      "The Royal Game of Ur (Mesopotamia) is one of the earliest known board games; rules were reconstructed from tablets.",
+      "Some Inca record-keeping used quipu—knotted cords that stored numerical data and maybe more.",
+      "The Voynich Manuscript is a medieval illustrated book written in an unknown script; it remains unsolved."
+    ];
+
+    function showFacts() {
+      factsView.classList.add("visible");
+      factsStatus.textContent = `Showing ${PRELOADED_FACTS.length} offline facts.`;
+      factsText.textContent = PRELOADED_FACTS.map((f,i)=>`${i+1}. ${f}`).join("\n");
+    }
+    function hideFacts() { factsView.classList.remove("visible"); }
+
+    factsBackBtn.addEventListener("click", hideFacts);
+    factsPrintBtn.addEventListener("click", () => window.print());
+
+    // Shift+H opens facts (unless typing in input)
+    window.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName || "").toLowerCase();
+      const typing = tag === "input" || tag === "textarea" || e.target.isContentEditable;
+      if (typing) return;
+      if (e.shiftKey && (e.key === "H" || e.key === "h")) {
+        e.preventDefault();
+        showFacts();
       }
-    </style>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+    });
+
+    // ===== utils =====
+    function printLineToTerm(text, className) {
+      const lineEl = document.createElement("div");
+      if (className) lineEl.classList.add(className);
+      lineEl.textContent = text;
+      term.insertBefore(lineEl, cursor);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    // ===== state =====
+    let baseLineIndex = 0;
+    let baseCharIndex = 0;
+    let typingPaused = false;
+    let cancelAllTyping = false;
+
+    const speedModes = [0.5, 1, 2, 4];
+    const speedLabels = ["slow", "normal", "fast", "turbo"];
+    let typingSpeedModeIndex = 1;
+    let typingSpeedFactor = speedModes[typingSpeedModeIndex];
+
+    let shellOpen = false;
+    let shellLocked = false;
+    let linkLost = false;
+    let cwd = "/";
+
+    // Post-ultra answers
+    let telemetryEnabled = null;
+    let snapshotStored = null;
+    let overrideAnswer = null;
+    let updateAnswer = null;
+
+    // gating so update question is last
+    let postUltraStarted = false;
+
+    // secret combo to enter Ultra1
+    let combo = { scan:false, hash:false, ciel:false, unlocked:false };
+
+    // Telemetry consequence
+    let telemetryTimer = null;
+    function stopTelemetry() {
+      if (telemetryTimer) {
+        clearInterval(telemetryTimer);
+        telemetryTimer = null;
+      }
+    }
+
+    function updateHeader() {
+      statusLink.className = "status-pill";
+      statusMode.className = "status-pill";
+      statusUser.className = "status-pill";
+      statusAuth.className = "status-pill ok";
+
+      if (linkLost) {
+        statusLink.textContent = "LINK: LOST";
+        statusLink.classList.add("warn");
+        statusMode.textContent = "MODE: LINK DOWN";
+        statusMode.classList.add("warn");
+      } else {
+        statusLink.textContent = "LINK: SYNCHED";
+        statusLink.classList.add("ok");
+        statusMode.textContent = shellOpen ? "MODE: SHELL" : "MODE: GHOST OBSERVE";
+        statusMode.classList.add("info");
+      }
+
+      statusUser.textContent = shellOpen ? "USER-FOCUS: ACTIVE" : "USER-FOCUS: IDLE";
+      statusUser.classList.add(shellOpen ? "ok" : "warn");
+
+      statusAuth.textContent = "AUTH: ROOT TOKEN";
+    }
+
+    // ===== matrix =====
+    let matrixOn = false;
+    let mW = 0, mH = 0, cols = 0, drops = [];
+    const mChars = "01ABCDEFGHJKLMNPQRSTUVWXYZ#$%&*"; // ASCII only
+
+    function resizeMatrix() {
+      mW = matrixCanvas.width = window.innerWidth;
+      mH = matrixCanvas.height = window.innerHeight;
+      cols = Math.floor(mW / 14);
+      drops = new Array(cols).fill(0).map(() => Math.floor(Math.random() * (mH / 14)));
+    }
+    window.addEventListener("resize", resizeMatrix);
+    resizeMatrix();
+
+    function drawMatrix() {
+      if (!matrixOn) return;
+      mctx.fillStyle = "rgba(0,0,0,0.08)";
+      mctx.fillRect(0, 0, mW, mH);
+      mctx.font = "14px monospace";
+      for (let i = 0; i < cols; i++) {
+        const ch = mChars[Math.floor(Math.random() * mChars.length)];
+        const x = i * 14;
+        const y = drops[i] * 14;
+        mctx.fillStyle = "rgba(0,255,120,0.9)";
+        mctx.fillText(ch, x, y);
+        if (y > mH && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+      requestAnimationFrame(drawMatrix);
+    }
+
+    function toggleMatrix(force) {
+      matrixOn = (typeof force === "boolean") ? force : !matrixOn;
+      matrixCanvas.classList.toggle("on", matrixOn);
+      if (matrixOn) requestAnimationFrame(drawMatrix);
+    }
+
+    // ===== simple fs (sim) =====
+    const fsTree = {
+      "/": ["system", "logs", "user"],
+      "/system": ["core.cfg", "device-info.txt"],
+      "/logs": ["access.log"],
+      "/user": ["readme.txt"]
+    };
+
+    const fileContents = {
+      "/system/core.cfg": "mode=remote\nprivilege=root-temp\nencryption=AES-256-GCM\npersistence=off\n",
+      "/system/device-info.txt": `DEVICE  : ${deviceType}\nSCREEN  : ${w} x ${h}\nTOUCH   : ${touch ? "ON" : "OFF"}\nLOCALE  : ${lang}\nTZ      : ${tz}\n`,
+      "/logs/access.log": "[OK] link established\n[OK] auth token granted\n[INFO] recon snapshot captured\n",
+      "/user/readme.txt": "All commands are simulated.\nSecret combo: scan ports + hash <text> + ciel\n"
+    };
+
+    function updatePrompt() { cmdPrompt.textContent = cwd + " $"; }
+
+    function resolvePath(name) {
+      if (name.startsWith("/")) return name;
+      if (cwd === "/") return "/" + name;
+      return cwd + "/" + name;
+    }
+
+    function listDir() {
+      const items = fsTree[cwd] || [];
+      if (!items.length) { printLineToTerm("(empty directory)", "dim"); return; }
+      items.forEach((name) => {
+        const path = resolvePath(name);
+        const isDir = !!fsTree[path] || !name.includes(".");
+        printLineToTerm((isDir ? "[DIR] " : "FILE ") + name, "dim");
+      });
+    }
+
+    function changeDir(arg) {
+      if (!arg || arg === "..") {
+        if (cwd === "/") return;
+        const idx = cwd.lastIndexOf("/");
+        cwd = idx <= 0 ? "/" : cwd.slice(0, idx);
+        updatePrompt();
+        return;
+      }
+      const target = resolvePath(arg);
+      if (fsTree[target]) { cwd = target; updatePrompt(); }
+      else printLineToTerm("No such directory", "warn");
+    }
+
+    function catFile(arg) {
+      if (!arg) { printLineToTerm("Usage: cat <file>", "warn"); return; }
+      const path = resolvePath(arg);
+      if (fileContents[path]) fileContents[path].split("\n").forEach(l => printLineToTerm(l, "dim"));
+      else if (fsTree[path]) printLineToTerm("cat: is a directory", "warn");
+      else printLineToTerm("No such file", "warn");
+    }
+
+    async function sha256Hex(text) {
+      if (!crypto || !crypto.subtle) return null;
+      const enc = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest("SHA-256", enc);
+      const arr = Array.from(new Uint8Array(buf));
+      return arr.map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    // ===== intro typing =====
+    const baseLines = [
+      "[LINK] Attaching ZeroPoint core...",
+      `  TIME   : ${now}`,
+      `  ORIGIN : ${origin}`,
+      "[OK] Tunnel online (AES-256/GCM)",
+      "",
+      "[AUTH] Requesting elevated scope...",
+      "\"ACCESS GRANTED\"",
+      "[OK] Privilege: ROOT / TEMP",
+      "",
+      "[SCAN] Client snapshot:",
+      `  DEVICE : ${deviceType}`,
+      `  SCREEN : ${w} x ${h}  TOUCH: ${touch ? "ON" : "OFF"}`,
+      `  LOCALE : ${lang}`,
+      `  TZ     : ${tz}`,
+      "",
+      "[STATUS] Session is ARMED.",
+      "",
+      "[TIP] Secret combo unlocks Ultra: scan ports + hash <text> + ciel",
+      "[TIP] Shift+H opens offline History Facts."
+    ];
+
+    function typeBase() {
+      if (cancelAllTyping) return;
+      if (typingPaused || linkLost) { setTimeout(typeBase, 50); return; }
+
+      if (baseLineIndex >= baseLines.length) {
+        setTimeout(openShell, 500);
+        return;
+      }
+
+      const text = baseLines[baseLineIndex];
+      let lineEl = document.getElementById("base-" + baseLineIndex);
+
+      if (!lineEl) {
+        lineEl = document.createElement("div");
+        lineEl.id = "base-" + baseLineIndex;
+        term.insertBefore(lineEl, cursor);
+      }
+
+      if (baseCharIndex < text.length) {
+        lineEl.textContent += text.charAt(baseCharIndex++);
+      } else {
+        lineEl.textContent += "\n";
+        baseLineIndex++;
+        baseCharIndex = 0;
+      }
+
+      term.scrollTop = term.scrollHeight;
+
+      const slow = text.includes("ACCESS GRANTED") || text.includes("Session is ARMED");
+      let delay = slow ? 80 : 18 + Math.random() * 25;
+      delay = Math.max(5, delay / typingSpeedFactor);
+      setTimeout(typeBase, delay);
+    }
+
+    // ===== shell =====
+    function openShell() {
+      shellOpen = true;
+      cwd = "/";
+      updatePrompt();
+      cmdRow.style.display = "flex";
+      cursor.style.display = "none";
+      cmdInput.disabled = shellLocked;
+      cmdInput.style.opacity = shellLocked ? 0.45 : 1;
+
+      printLineToTerm("", "dim");
+      printLineToTerm("[SHELL] ZeroPoint remote shell attached (sim).", "ok");
+      printLineToTerm("Type: help", "muted");
+      if (!shellLocked) cmdInput.focus();
+
+      updateHeader();
+    }
+
+    function closeShell(reason) {
+      shellOpen = false;
+      cmdRow.style.display = "none";
+      cursor.style.display = "inline-block";
+      printLineToTerm("[SHELL] Session closed. " + (reason || ""), "warn");
+      updateHeader();
+    }
+
+    function comboCheck(tag) {
+      if (tag === "scan") combo.scan = true;
+      if (tag === "hash") combo.hash = true;
+      if (tag === "ciel") combo.ciel = true;
+
+      if (!combo.unlocked && combo.scan && combo.hash && combo.ciel) {
+        combo.unlocked = true;
+        printLineToTerm("[COMBO] Hidden condition met.", "warn");
+        printLineToTerm("[COMBO] Redirecting to Ultra Secret…", "muted");
+        setTimeout(() => enterUltra1("combo.scan+hash+ciel"), 600);
+      }
+    }
+
+    function showDeviceInfoCommand() {
+      printLineToTerm("[DEVICE INFO]", "ok");
+      printLineToTerm(`  Device     : ${deviceType}`, "dim");
+      printLineToTerm(`  Screen     : ${w} x ${h}  touch=${touch ? "ON" : "OFF"}`, "dim");
+      printLineToTerm(`  Language   : ${lang}`, "dim");
+      printLineToTerm(`  Time zone  : ${tz}`, "dim");
+      printLineToTerm(`  User-Agent : ${ua}`, "dim");
+      printLineToTerm("[Note] All local, browser-only.", "muted");
+    }
+
+    function handleCommand(line) {
+      const raw = String(line || "").trim();
+      if (!raw) return;
+
+      const parts = raw.split(/\s+/);
+      const cmd = (parts[0] || "").toLowerCase();
+      const arg = parts[1];
+      const rest = parts.slice(1).join(" ");
+
+      if (cmd === "help") {
+        printLineToTerm("Commands:", "ok");
+        printLineToTerm("  help, clear, exit", "dim");
+        printLineToTerm("  pwd, ls/dir, cd <dir>, cat <file>", "dim");
+        printLineToTerm("  echo <text>, date/time, info", "dim");
+        printLineToTerm("  scan wifi|ports|mem", "dim");
+        printLineToTerm("  hash <text>", "dim");
+        printLineToTerm("  ciel", "dim");
+        printLineToTerm("  facts (offline), matrix", "dim");
+        printLineToTerm("", "dim");
+        printLineToTerm("Note: Update prompt appears only after Ultra exit.", "muted");
+        return;
+      }
+
+      if (cmd === "clear" || cmd === "cls") { term.innerHTML = ""; term.appendChild(cursor); return; }
+      if (cmd === "exit" || cmd === "logout" || cmd === "quit") { closeShell(""); return; }
+
+      if (cmd === "pwd") { printLineToTerm(cwd, "dim"); return; }
+      if (cmd === "ls" || cmd === "dir") { listDir(); return; }
+      if (cmd === "cd") { changeDir(arg); return; }
+      if (cmd === "cat") { catFile(arg); return; }
+
+      if (cmd === "echo") { printLineToTerm(rest, "dim"); return; }
+      if (cmd === "date" || cmd === "time") { printLineToTerm(new Date().toString(), "dim"); return; }
+      if (cmd === "info") { showDeviceInfoCommand(); return; }
+      if (cmd === "facts") { showFacts(); return; }
+      if (cmd === "matrix") { toggleMatrix(); printLineToTerm("[MATRIX] " + (matrixOn ? "ON" : "OFF"), "muted"); return; }
+
+      if (cmd === "update") {
+        if (!postUltraStarted) {
+          printLineToTerm("[SYSTEM] Update prompt locked. Exit Ultra first.", "warn");
+          return;
+        }
+        showUpdatePromptLast();
+        return;
+      }
+
+      if (cmd === "ciel") {
+        printLineToTerm("Ciel:", "ok");
+        printLineToTerm("“Three keys. One door.”", "muted");
+        comboCheck("ciel");
+        return;
+      }
+
+      if (cmd === "scan") {
+        const mode = (arg || "").toLowerCase();
+        if (mode === "ports") {
+          printLineToTerm("[SCAN] localhost (sim)", "muted");
+          printLineToTerm("  22/tcp  open   ssh", "ok");
+          printLineToTerm("  80/tcp  open   http", "ok");
+          printLineToTerm("  443/tcp open   https", "ok");
+          printLineToTerm("  31337/tcp filtered ???", "warn");
+          comboCheck("scan");
+        } else if (mode === "wifi") {
+          printLineToTerm("[SCAN] wifi sweep", "muted");
+          printLineToTerm("  TWINKLE_NET   WPA2  -47dBm", "ok");
+          printLineToTerm("  LEMON_LAB     WPA2  -63dBm", "ok");
+          printLineToTerm("  GUEST_SHADOW  OPEN  -81dBm", "warn");
+          comboCheck("scan");
+        } else if (mode === "mem") {
+          printLineToTerm("[SCAN] memory map (sim)", "muted");
+          printLineToTerm("  heap: stable", "ok");
+          printLineToTerm("  buffers: noisy (visual only)", "warn");
+        } else {
+          printLineToTerm("Usage: scan wifi|ports|mem", "warn");
+        }
+        return;
+      }
+
+      if (cmd === "hash") {
+        if (!rest) { printLineToTerm("Usage: hash <text>", "warn"); return; }
+        printLineToTerm("[HASH] SHA-256 (local only)", "muted");
+        sha256Hex(rest).then(hex => {
+          if (hex) printLineToTerm(hex, "ok");
+          else printLineToTerm("Crypto not available in this browser.", "warn");
+        });
+        comboCheck("hash");
+        return;
+      }
+
+      printLineToTerm(`Unknown command: ${cmd} (type "help")`, "warn");
+    }
+
+    cmdInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      if (cmdInput.disabled) return;
+      const raw = cmdInput.value;
+      cmdInput.value = "";
+      printLineToTerm(cwd + " $ " + raw, "dim");
+      if (!raw.trim()) return;
+      handleCommand(raw);
+    });
+
+    // ===== questions after Ultra exit =====
+    let qCallback = null;
+    function askYesNo(promptText, onYes, onNo) {
+      qPrompt.textContent = promptText;
+      qOverlay.classList.add("visible");
+      qCallback = (answer) => {
+        qOverlay.classList.remove("visible");
+        qCallback = null;
+        if (answer === "yes") onYes && onYes();
+        else onNo && onNo();
+      };
+    }
+    qYes.addEventListener("click", () => qCallback && qCallback("yes"));
+    qNo.addEventListener("click", () => qCallback && qCallback("no"));
+
+    function startPostUltraFlow() {
+      if (postUltraStarted) return;
+      postUltraStarted = true;
+
+      printLineToTerm("", "dim");
+      printLineToTerm("[ULTRA] Exit confirmed. Continuing…", "warn");
+
+      askYesNo(
+        "ENABLE LIVE TELEMETRY MIRROR? (YES / NO)",
+        () => {
+          telemetryEnabled = true;
+          printLineToTerm("[MIRROR] Enabled (simulated).", "ok");
+          let count = 0;
+          stopTelemetry();
+          telemetryTimer = setInterval(() => {
+            count++;
+            printLineToTerm(
+              `[MIRROR] tick=${count} cpu=${(12+Math.random()*8).toFixed(1)}% net=${(3+Math.random()*6).toFixed(1)}kb/s`,
+              "muted"
+            );
+            if (count >= 8) stopTelemetry();
+          }, 550);
+          setTimeout(q2Snapshot, 800);
+        },
+        () => {
+          telemetryEnabled = false;
+          printLineToTerm("[MIRROR] Disabled by user.", "warn");
+          setTimeout(q2Snapshot, 400);
+        }
+      );
+    }
+
+    function q2Snapshot() {
+      askYesNo(
+        "STORE LOCAL SESSION SNAPSHOT? (YES / NO)",
+        () => {
+          snapshotStored = true;
+          printLineToTerm("[SNAPSHOT] Flagged for storage* (simulation).", "warn");
+          try { localStorage.setItem("zp_snapshot", JSON.stringify({ at: Date.now(), tz, deviceType })); } catch (e) {}
+          setTimeout(q3Override, 500);
+        },
+        () => {
+          snapshotStored = false;
+          printLineToTerm("[SNAPSHOT] Discarded.", "ok");
+          setTimeout(q3Override, 500);
+        }
+      );
+    }
+
+    function q3Override() {
+      askYesNo(
+        "ELEVATE TO FULL DEVICE OVERRIDE? (YES / NO)",
+        () => {
+          overrideAnswer = "yes";
+          printLineToTerm("[CONTROL] Override requested* (simulation).", "danger");
+          setTimeout(showUpdatePromptLast, 450);
+        },
+        () => {
+          overrideAnswer = "no";
+          printLineToTerm("[CONTROL] Override blocked by user.", "ok");
+          setTimeout(showUpdatePromptLast, 450);
+        }
+      );
+    }
+
+    // ===== LAST: update question =====
+    function showUpdatePromptLast() {
+      choicePromptUpdate.textContent = "INSTALL " + updateName.toUpperCase() + " UPDATE? (YES / NO)";
+      choiceOverlayUpdate.classList.add("visible");
+    }
+
+    function showFakeUpdateThenFinish() {
+      updateAnswer = "no"; // NO triggers update in this story
+      updateScreen.classList.add("visible");
+
+      if (deviceType === "iOS DEVICE") {
+        updateScreen.style.background = "#000";
+        updateContent.innerHTML = `
+          <div>
+            <div class="ios-logo"></div>
+            <div class="ios-bar"><div class="ios-bar-inner" id="updateBarInner"></div></div>
+            <div class="ios-update-text">Updating to ${updateName}...</div>
+          </div>
+        `;
+      } else {
+        updateScreen.style.background = "radial-gradient(circle at top, #001738 0, #000410 70%)";
+        updateContent.innerHTML = `
+          <div>
+            <div class="win-logo">
+              <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
+              <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
+            </div>
+            <div class="win-update-title">Updating to ${updateName}...</div>
+            <div class="win-update-sub">Do not turn off your computer.</div>
+            <div class="win-bar"><div class="win-bar-inner" id="updateBarInner"></div></div>
+            <div class="win-percent" id="updatePercent">0%</div>
+            <div class="win-update-sub" style="margin-top:10px; opacity:0.8;">Installing update 3 of 17...</div>
+          </div>
+        `;
+      }
+
+      const barInner = document.getElementById("updateBarInner");
+      const percentEl = document.getElementById("updatePercent");
+      const start = performance.now();
+
+      function easeInOut(t){ return t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t; }
+
+      function step(ts) {
+        const elapsed = ts - start;
+        const ratio = Math.min(1, elapsed / UPDATE_DURATION);
+        const progress = Math.round(easeInOut(ratio) * 100);
+        if (barInner) barInner.style.width = progress + "%";
+        if (percentEl) percentEl.textContent = progress + "%";
+        if (elapsed < UPDATE_DURATION) requestAnimationFrame(step);
+        else {
+          updateScreen.classList.remove("visible");
+          finishFinalReveal();
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    function handleUpdateChoice(answer) {
+      choiceOverlayUpdate.classList.remove("visible");
+
+      if (answer === "no") {
+        // NO -> forced update
+        printLineToTerm("[SYSTEM] Decline detected. Update forced by policy.", "warn");
+        showFakeUpdateThenFinish();
+        return;
+      }
+
+      // YES -> Ultra L2 (different place)
+      updateAnswer = "yes";
+      printLineToTerm("[SYSTEM] Update accepted. Redirecting…", "ok");
+      enterUltra2("update.YES");
+    }
+
+    yesBtnUpdate.addEventListener("click", () => handleUpdateChoice("yes"));
+    noBtnUpdate.addEventListener("click", () => handleUpdateChoice("no"));
+
+    // ===== Ultra 1 =====
+    function ultraPrint(line) {
+      const d = document.createElement("div");
+      d.textContent = line;
+      ultraTerm.appendChild(d);
+      ultraTerm.scrollTop = ultraTerm.scrollHeight;
+    }
+
+    function enterUltra1(source) {
+      stopTelemetry();
+      qOverlay.classList.remove("visible");
+      choiceOverlayUpdate.classList.remove("visible");
+      updateScreen.classList.remove("visible");
+      factsView.classList.remove("visible");
+      finalReveal.classList.remove("visible");
+
+      screen.style.display = "none";
+      ultraSecret.classList.add("visible");
+
+      ultraTerm.innerHTML = "";
+      ultraPrint("[ULTRA] Handshake accepted.");
+      ultraPrint("[ULTRA] NODE-7 opened.");
+      ultraPrint("[ULTRA] Source: " + (source || "unknown"));
+      ultraPrint("");
+      ultraPrint("Type: help");
+
+      ultraInput.value = "";
+      setTimeout(() => ultraInput.focus(), 20);
+
+      toggleMatrix(true);
+    }
+
+    function exitUltra1() {
+      ultraSecret.classList.remove("visible");
+      screen.style.display = "flex";
+      toggleMatrix(false);
+      startPostUltraFlow();
+    }
+
+    ultraBackBtn.addEventListener("click", exitUltra1);
+    ultraFactsBtn.addEventListener("click", showFacts);
+
+    ultraInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const raw = ultraInput.value.trim();
+      ultraInput.value = "";
+      if (!raw) return;
+
+      ultraPrint("ultra:/ $ " + raw);
+
+      const parts = raw.split(/\s+/);
+      const cmd = (parts[0] || "").toLowerCase();
+      const rest = parts.slice(1).join(" ");
+
+      if (cmd === "help") {
+        ultraPrint("Commands:");
+        ultraPrint("  help, clear, exit");
+        ultraPrint("  vault, route, facts");
+        ultraPrint("  say <text>");
+      } else if (cmd === "clear") {
+        ultraTerm.innerHTML = "";
+      } else if (cmd === "exit" || cmd === "back") {
+        exitUltra1();
+      } else if (cmd === "vault") {
+        ultraPrint("[VAULT] /ultra/vault (sim)");
+        ultraPrint("  ciel.msg");
+        ultraPrint("  operators.txt");
+        ultraPrint("  node-map.bin");
+      } else if (cmd === "route") {
+        ultraPrint("[ROUTE] base -> combo -> ULTRA-1 -> questions -> override -> update");
+      } else if (cmd === "facts") {
+        showFacts();
+      } else if (cmd === "say") {
+        ultraPrint(rest || "(empty)");
+      } else {
+        ultraPrint("Unknown command.");
+      }
+    });
+
+    // ===== Ultra 2 =====
+    function ultra2Print(line) {
+      const d = document.createElement("div");
+      d.textContent = line;
+      ultra2Term.appendChild(d);
+      ultra2Term.scrollTop = ultra2Term.scrollHeight;
+    }
+
+    function enterUltra2(source) {
+      stopTelemetry();
+
+      qOverlay.classList.remove("visible");
+      choiceOverlayUpdate.classList.remove("visible");
+      updateScreen.classList.remove("visible");
+      factsView.classList.remove("visible");
+      finalReveal.classList.remove("visible");
+
+      screen.style.display = "none";
+      ultraSecret2.classList.add("visible");
+
+      ultra2Term.innerHTML = "";
+      ultra2Print("[GOLD] Archive handshake accepted.");
+      ultra2Print("[GOLD] Permissions: READ-ONLY (sim).");
+      ultra2Print("[GOLD] Source: " + (source || "unknown"));
+      ultra2Print("");
+      ultra2Print("Type: help");
+
+      ultra2Input.value = "";
+      setTimeout(() => ultra2Input.focus(), 20);
+
+      toggleMatrix(true);
+    }
+
+    function exitUltra2() {
+      ultraSecret2.classList.remove("visible");
+      toggleMatrix(false);
+      finishFinalReveal();
+    }
+
+    ultra2ExitBtn.addEventListener("click", exitUltra2);
+    ultra2FactsBtn.addEventListener("click", showFacts);
+
+    ultra2Input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const raw = ultra2Input.value.trim();
+      ultra2Input.value = "";
+      if (!raw) return;
+
+      ultra2Print("gold:/ $ " + raw);
+
+      const parts = raw.split(/\s+/);
+      const cmd = (parts[0] || "").toLowerCase();
+      const rest = parts.slice(1).join(" ");
+
+      if (cmd === "help") {
+        ultra2Print("Commands:");
+        ultra2Print("  help, clear, exit");
+        ultra2Print("  decrypt <text> (fake), map, facts");
+      } else if (cmd === "clear") {
+        ultra2Term.innerHTML = "";
+      } else if (cmd === "exit" || cmd === "back") {
+        exitUltra2();
+      } else if (cmd === "facts") {
+        showFacts();
+      } else if (cmd === "map") {
+        ultra2Print("[MAP] Ultra layers:");
+        ultra2Print("  ULTRA-1 (purple) -> questions");
+        ultra2Print("  ULTRA-2 (gold) -> final");
+      } else if (cmd === "decrypt") {
+        ultra2Print("[DECRYPT] " + (rest ? "success (sim)" : "usage: decrypt <text>"));
+      } else {
+        ultra2Print("Unknown command.");
+      }
+    });
+
+    // ===== final reveal =====
+    function finishFinalReveal() {
+      stopTelemetry();
+
+      qOverlay.classList.remove("visible");
+      choiceOverlayUpdate.classList.remove("visible");
+      updateScreen.classList.remove("visible");
+      factsView.classList.remove("visible");
+
+      screen.style.display = "none";
+      ultraSecret.classList.remove("visible");
+      ultraSecret2.classList.remove("visible");
+
+      finalReveal.classList.add("visible");
+
+      if (overrideAnswer === "no") {
+        finalTitle.textContent = "OVERRIDE BLOCKED";
+        finalText1.textContent = "Good choice. This was only a simulation inside your browser.";
+      } else if (overrideAnswer === "yes") {
+        finalTitle.textContent = "OVERRIDE ENABLED*";
+        finalText1.textContent = "Only inside the simulation. No real device control happened.";
+      } else {
+        finalTitle.textContent = "SESSION COMPLETE";
+        finalText1.textContent = "Simulation ended.";
+      }
+
+      const t = telemetryEnabled === true ? "YES" : telemetryEnabled === false ? "NO" : "N/A";
+      const s = snapshotStored === true ? "YES" : snapshotStored === false ? "NO" : "N/A";
+      const u = updateAnswer === "yes" ? "YES (Ultra L2)" : updateAnswer === "no" ? "NO (Forced update)" : "N/A";
+
+      finalText2.textContent = `Summary: Telemetry=${t}, Snapshot=${s}, Update=${u}.`;
+      finalRevealCredit.textContent = "Made by Siwoo";
+    }
+
+    // ===== Admin =====
+    adminLink.addEventListener("click", () => {
+      adminLogin.style.display = "flex";
+      adminPass.value = "";
+      setTimeout(() => adminPass.focus(), 10);
+    });
+
+    adminSubmit.addEventListener("click", () => {
+      if (adminPass.value === adminPassword) {
+        adminLogin.style.display = "none";
+        adminPanel.style.display = "flex";
+      } else alert("Wrong passcode.");
+    });
+
+    adminPass.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") adminSubmit.click();
+    });
+
+    btnAdminClose.addEventListener("click", () => adminPanel.style.display = "none");
+
+    function restartConsole() {
+      stopTelemetry();
+      cancelAllTyping = true;
+      typingPaused = false;
+      linkLost = false;
+      shellOpen = false;
+      shellLocked = false;
+      cwd = "/";
+
+      telemetryEnabled = null;
+      snapshotStored = null;
+      overrideAnswer = null;
+      updateAnswer = null;
+      postUltraStarted = false;
+
+      combo = { scan:false, hash:false, ciel:false, unlocked:false };
+
+      screen.style.display = "flex";
+      ultraSecret.classList.remove("visible");
+      ultraSecret2.classList.remove("visible");
+      finalReveal.classList.remove("visible");
+      factsView.classList.remove("visible");
+      qOverlay.classList.remove("visible");
+      choiceOverlayUpdate.classList.remove("visible");
+      updateScreen.classList.remove("visible");
+      adminPanel.style.display = "none";
+
+      toggleMatrix(false);
+
+      term.innerHTML = "";
+      term.appendChild(cursor);
+
+      baseLineIndex = 0;
+      baseCharIndex = 0;
+
+      cmdRow.style.display = "none";
+      cursor.style.display = "inline-block";
+      btnLockShell.textContent = "Shell input: UNLOCKED";
+
+      cancelAllTyping = false;
+      updateHeader();
+      setTimeout(typeBase, 350);
+    }
+
+    function togglePause() {
+      typingPaused = !typingPaused;
+      btnPause.textContent = typingPaused ? "Resume typing" : "Pause / resume typing";
+    }
+
+    function cycleSpeed() {
+      typingSpeedModeIndex = (typingSpeedModeIndex + 1) % speedModes.length;
+      typingSpeedFactor = speedModes[typingSpeedModeIndex];
+      btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
+    }
+
+    function toggleTheme() { screen.classList.toggle("altTheme"); }
+
+    function toggleShellLock() {
+      shellLocked = !shellLocked;
+      btnLockShell.textContent = shellLocked ? "Shell input: LOCKED" : "Shell input: UNLOCKED";
+      cmdInput.disabled = shellLocked;
+      cmdInput.style.opacity = shellLocked ? 0.45 : 1;
+      if (!shellLocked) cmdInput.focus();
+    }
+
+    btnRestart.addEventListener("click", restartConsole);
+    btnPause.addEventListener("click", togglePause);
+    btnSpeed.addEventListener("click", cycleSpeed);
+    btnTheme.addEventListener("click", toggleTheme);
+
+    btnEnterUltra1.addEventListener("click", () => enterUltra1("admin.button"));
+    btnStartPostUltra.addEventListener("click", startPostUltraFlow);
+    btnShowUpdateLast.addEventListener("click", showUpdatePromptLast);
+    btnEnterUltra2.addEventListener("click", () => enterUltra2("admin.button"));
+    btnShowFinal.addEventListener("click", finishFinalReveal);
+
+    btnMatrix.addEventListener("click", () => toggleMatrix());
+    btnLockShell.addEventListener("click", toggleShellLock);
+
+    btnForceIOS.addEventListener("click", () => {
+      deviceType = "iOS DEVICE";
+      updateName = "iOS 7";
+      printLineToTerm("[ADMIN] Forced iOS UI.", "muted");
+    });
+    btnForceWin.addEventListener("click", () => {
+      deviceType = "DESKTOP/OTHER";
+      updateName = "Windows 7";
+      printLineToTerm("[ADMIN] Forced Windows UI.", "muted");
+    });
+
+    btnDumpState.addEventListener("click", () => {
+      console.log({
+        deviceType, updateName,
+        telemetryEnabled, snapshotStored, overrideAnswer, updateAnswer,
+        postUltraStarted, combo
+      });
+      printLineToTerm("[ADMIN] State dumped to DevTools.", "muted");
+    });
+
+    btnOpenFacts.addEventListener("click", showFacts);
+    btnAddFact.addEventListener("click", () => {
+      const f = prompt("Add an offline history fact:");
+      if (!f) return;
+      PRELOADED_FACTS.push(f);
+      printLineToTerm("[ADMIN] Added 1 fact.", "muted");
+    });
+    btnExportFacts.addEventListener("click", () => {
+      const text = PRELOADED_FACTS.map((f,i)=>`${i+1}. ${f}`).join("\n");
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "history-facts-offline.txt";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    // ===== Update question is LAST, so only show it after Ultra exit flow =====
+    function showUpdatePromptLast() {
+      choicePromptUpdate.textContent = "INSTALL " + updateName.toUpperCase() + " UPDATE? (YES / NO)";
+      choiceOverlayUpdate.classList.add("visible");
+    }
+
+    // ===== start =====
+    // ===== secret message "Jean Jun" =====
+    updateHeader();
+    btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
+    setTimeout(typeBase, 500);
+  })();
+  </script>
+</body>
 </html>
