@@ -740,6 +740,124 @@
       75% { transform: translate(-1px,1px); }
       100% { transform: translate(0,0); }
     }
+
+    /* ============================================================
+       FULLSCREEN ADMIN CONTROL ROOM (added)
+       ============================================================ */
+    #adminFull {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 150;
+      background: radial-gradient(circle at top, rgba(6,18,32,0.96), rgba(0,0,0,0.96));
+      backdrop-filter: blur(10px);
+      color: #eaffee;
+      overflow: auto;
+      padding: 14px;
+    }
+    #adminFull.visible { display: block; }
+
+    #adminFullWrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      border: 1px solid rgba(0,247,255,0.22);
+      border-radius: 18px;
+      background: rgba(0,0,0,0.35);
+      box-shadow: 0 0 24px rgba(0,247,255,0.14), 0 0 60px rgba(48,255,155,0.08);
+      overflow: hidden;
+    }
+
+    #adminFullTop {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 14px;
+      border-bottom: 1px solid rgba(0,247,255,0.14);
+    }
+
+    #adminFullTitle {
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    #adminFullSub {
+      font-size: 11px;
+      opacity: 0.75;
+      margin-top: 6px;
+      line-height: 1.35;
+    }
+
+    #adminFullGrid {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    @media (max-width: 980px) {
+      #adminFullGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      #adminFullGrid { grid-template-columns: 1fr; }
+    }
+
+    .adminCard2 {
+      border: 1px solid rgba(0,247,255,0.14);
+      border-radius: 16px;
+      padding: 12px;
+      background: radial-gradient(circle at top, rgba(2,16,22,0.65), rgba(0,0,0,0.35));
+    }
+
+    .adminCard2 h3 {
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      color: #8cfed0;
+    }
+
+    .adminRow2 {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .adminLabel2 {
+      font-size: 11px;
+      opacity: 0.8;
+      margin: 10px 0 6px;
+    }
+
+    .adminInput2, .adminSelect2 {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(0,247,255,0.18);
+      color: #eaffee;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .adminRange2 { width: 100%; }
+
+    #adminFullLog {
+      border-top: 1px solid rgba(0,247,255,0.12);
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.25);
+    }
+
+    #adminFullLog pre {
+      margin: 0;
+      white-space: pre-wrap;
+      color: rgba(234,255,238,0.85);
+      font-size: 11px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 
@@ -910,6 +1028,128 @@
     <button class="adminBtn" id="btnExportFacts">Export facts (download)</button>
   </div>
 
+  <!-- FULLSCREEN ADMIN CONTROL ROOM (added) -->
+  <div id="adminFull">
+    <div id="adminFullWrap">
+      <div id="adminFullTop">
+        <div>
+          <div id="adminFullTitle">ADMIN CONTROL ROOM (FULLSCREEN)</div>
+          <div id="adminFullSub">
+            Command: <b>admin951212//</b><br />
+            Simulation only • Safe controls for testing & demos
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="adminBtn" id="adminFullClose">Close</button>
+        </div>
+      </div>
+
+      <div id="adminFullGrid">
+        <div class="adminCard2">
+          <h3>Core</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afRestart">Restart</button>
+            <button class="adminBtn" id="afPause">Pause/Resume typing</button>
+            <button class="adminBtn" id="afDump">Dump state (DevTools)</button>
+          </div>
+
+          <div class="adminLabel2">Typing speed</div>
+          <select id="afSpeed" class="adminSelect2">
+            <option value="0">slow</option>
+            <option value="1" selected>normal</option>
+            <option value="2">fast</option>
+            <option value="3">turbo</option>
+          </select>
+        </div>
+
+        <div class="adminCard2">
+          <h3>Theme + Sound</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afThemeNext">Next theme</button>
+            <button class="adminBtn" id="afSoundToggle">Sound toggle</button>
+          </div>
+
+          <div class="adminLabel2">Sound volume</div>
+          <input id="afVolume" class="adminRange2" type="range" min="0" max="1" step="0.01" />
+        </div>
+
+        <div class="adminCard2">
+          <h3>Shell</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afShellLock">Lock/Unlock input</button>
+            <button class="adminBtn" id="afMatrix">Matrix toggle</button>
+          </div>
+        </div>
+
+        <div class="adminCard2">
+          <h3>Intrusion Director</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afIntrusionToggle">Intrusion toggle</button>
+            <button class="adminBtn" id="afIntrusionTrigger">Trigger now</button>
+          </div>
+
+          <div class="adminLabel2">Intrusion interval (ms)</div>
+          <input id="afIntrusionInterval" class="adminInput2" type="number" min="300" step="100" />
+
+          <div class="adminLabel2">Intrusion chance (0.00–1.00)</div>
+          <input id="afIntrusionChance" class="adminInput2" type="number" min="0" max="1" step="0.01" />
+        </div>
+
+        <div class="adminCard2">
+          <h3>Story / Flow</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afUltra1">Enter Ultra (L1)</button>
+            <button class="adminBtn" id="afPostUltra">Start post-ultra</button>
+            <button class="adminBtn" id="afUpdateQ">Show update question</button>
+            <button class="adminBtn" id="afUltra2">Enter Ultra (L2)</button>
+            <button class="adminBtn" id="afFinal">Show final</button>
+          </div>
+        </div>
+
+        <div class="adminCard2">
+          <h3>Facts</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afOpenFacts">Open facts</button>
+            <button class="adminBtn" id="afAddFact">Add fact</button>
+            <button class="adminBtn" id="afExportFacts">Export facts</button>
+          </div>
+          <div class="adminLabel2">Facts count (read-only)</div>
+          <input id="afFactsCount" class="adminInput2" type="text" readonly />
+        </div>
+
+        <div class="adminCard2">
+          <h3>Danger (Fake)</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afSelfDestruct">Self-destruct</button>
+            <button class="adminBtn" id="afAbort">Abort</button>
+            <button class="adminBtn" id="afRmrf">rm -rf /</button>
+          </div>
+        </div>
+
+        <div class="adminCard2">
+          <h3>Particles</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afBurst">Burst</button>
+            <button class="adminBtn" id="afToggleClickParticles">Toggle click particles</button>
+          </div>
+        </div>
+
+        <div class="adminCard2">
+          <h3>Reset / Cleanup</h3>
+          <div class="adminRow2">
+            <button class="adminBtn" id="afClearAchievements">Clear achievements</button>
+            <button class="adminBtn" id="afClearSnapshot">Clear snapshot</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="adminFullLog">
+        <div style="font-size:11px;opacity:.8;margin-bottom:6px;">ADMIN LOG</div>
+        <pre id="adminFullLogText">Ready.</pre>
+      </div>
+    </div>
+  </div>
+
   <script>
   (function(){
     "use strict";
@@ -1009,6 +1249,49 @@
 
     const fxCanvas = document.getElementById("fxCanvas");
     const fx = fxCanvas.getContext("2d");
+
+    // ===== Fullscreen admin DOM (added) =====
+    const adminFull = document.getElementById("adminFull");
+    const adminFullClose = document.getElementById("adminFullClose");
+    const adminFullLogText = document.getElementById("adminFullLogText");
+
+    const afRestart = document.getElementById("afRestart");
+    const afPause = document.getElementById("afPause");
+    const afDump = document.getElementById("afDump");
+    const afSpeed = document.getElementById("afSpeed");
+
+    const afThemeNext = document.getElementById("afThemeNext");
+    const afSoundToggle = document.getElementById("afSoundToggle");
+    const afVolume = document.getElementById("afVolume");
+
+    const afShellLock = document.getElementById("afShellLock");
+    const afMatrix = document.getElementById("afMatrix");
+
+    const afIntrusionToggle = document.getElementById("afIntrusionToggle");
+    const afIntrusionTrigger = document.getElementById("afIntrusionTrigger");
+    const afIntrusionInterval = document.getElementById("afIntrusionInterval");
+    const afIntrusionChance = document.getElementById("afIntrusionChance");
+
+    const afUltra1 = document.getElementById("afUltra1");
+    const afPostUltra = document.getElementById("afPostUltra");
+    const afUpdateQ = document.getElementById("afUpdateQ");
+    const afUltra2 = document.getElementById("afUltra2");
+    const afFinal = document.getElementById("afFinal");
+
+    const afOpenFacts = document.getElementById("afOpenFacts");
+    const afAddFact = document.getElementById("afAddFact");
+    const afExportFacts = document.getElementById("afExportFacts");
+    const afFactsCount = document.getElementById("afFactsCount");
+
+    const afSelfDestruct = document.getElementById("afSelfDestruct");
+    const afAbort = document.getElementById("afAbort");
+    const afRmrf = document.getElementById("afRmrf");
+
+    const afBurst = document.getElementById("afBurst");
+    const afToggleClickParticles = document.getElementById("afToggleClickParticles");
+
+    const afClearAchievements = document.getElementById("afClearAchievements");
+    const afClearSnapshot = document.getElementById("afClearSnapshot");
 
     // Cursor block
     const cursor = document.createElement("span");
@@ -1200,6 +1483,9 @@
     let soundOn = true;
     let audio = { ctx: null, master: null, ready: false };
 
+    // (added) admin-tweakable sound volume
+    let soundVolume = 0.22;
+
     function initAudio(){
       if (audio.ready) return;
       try{
@@ -1207,7 +1493,8 @@
         if (!Ctx) return;
         audio.ctx = new Ctx();
         audio.master = audio.ctx.createGain();
-        audio.master.gain.value = 0.22;
+        // CHANGED: use soundVolume instead of a hard-coded value
+        audio.master.gain.value = soundVolume;
         audio.master.connect(audio.ctx.destination);
         audio.ready = true;
       }catch(e){}
@@ -1271,6 +1558,10 @@
 
     // ===== particles =====
     let particles = [];
+
+    // (added) allow admin to toggle click particles
+    let clickParticlesEnabled = true;
+
     function resizeFX(){
       fxCanvas.width = window.innerWidth;
       fxCanvas.height = window.innerHeight;
@@ -1316,6 +1607,8 @@
 
     // spawn burst on click (tiny easter egg)
     document.addEventListener("click", (e) => {
+      // CHANGED: allow admin to disable click particles
+      if (!clickParticlesEnabled) return;
       if (Math.random() < 0.08) {
         spawnBurst(e.clientX, e.clientY, "rgba(0,247,255,0.85)", "rgba(48,255,155,0.75)", 35);
       }
@@ -1403,6 +1696,10 @@
     // Intrusion events
     let intrusionOn = false;
     let intrusionTimer = null;
+
+    // (added) intrusion tuning for fullscreen admin
+    let intrusionIntervalMs = 5500;
+    let intrusionChance = 0.35;
 
     // Telemetry consequence
     let telemetryTimer = null;
@@ -1923,6 +2220,13 @@ Zero: "Try: banner, theme, glitch, coffee, games"
     });
 
     function handleUltraCommand(raw){
+      // ADDED: secret admin command works in ULTRA L1
+      if (raw === "admin951212//") {
+        openAdminFull();
+        ultraPrint("[ADMIN] Control Room opened.");
+        return;
+      }
+
       const parts = raw.split(/\s+/);
       const cmd = (parts[0] || "").toLowerCase();
       const rest = parts.slice(1).join(" ");
@@ -2009,6 +2313,13 @@ Zero: "Try: banner, theme, glitch, coffee, games"
     });
 
     function handleUltra2Command(raw){
+      // ADDED: secret admin command works in ULTRA L2
+      if (raw === "admin951212//") {
+        openAdminFull();
+        ultra2Print("[ADMIN] Control Room opened.");
+        return;
+      }
+
       const parts = raw.split(/\s+/);
       const cmd = (parts[0] || "").toLowerCase();
       const rest = parts.slice(1).join(" ");
@@ -2098,9 +2409,10 @@ Zero: "Try: banner, theme, glitch, coffee, games"
 
       if (intrusionTimer) { clearInterval(intrusionTimer); intrusionTimer = null; }
       if (intrusionOn){
+        // CHANGED: use admin-tweakable interval + chance
         intrusionTimer = setInterval(() => {
-          if (Math.random() < 0.35) triggerIntrusionEvent(false);
-        }, 5500);
+          if (Math.random() < intrusionChance) triggerIntrusionEvent(false);
+        }, intrusionIntervalMs);
       }
     }
 
@@ -2284,7 +2596,7 @@ Zero: "Try: banner, theme, glitch, coffee, games"
     const ASCII = {
       "zero": String.raw`
    ________  ________  _________  \|\_____  \|\_____  \
-  \|__/  /|\|___/  /|
+  \|_/  /|
      /  / /     /  / /     /  / /
     /  /_/__   /  /_/__   /  /_/____________\
    \|______________|
@@ -2829,10 +3141,166 @@ Zero: "Try: banner, theme, glitch, coffee, games"
       sfx("click");
     }
 
+    // ============================================================
+    // Fullscreen Admin Control Room logic (added)
+    // ============================================================
+    function adminFullLog(msg){
+      const t = new Date().toLocaleTimeString();
+      adminFullLogText.textContent = `[${t}] ${msg}\n` + adminFullLogText.textContent.slice(0, 2400);
+    }
+
+    function openAdminFull(){
+      adminLogin.style.display = "none";
+      adminPanel.style.display = "none";
+      adminFull.classList.add("visible");
+
+      afSpeed.value = String(typingSpeedModeIndex);
+      afVolume.value = String(soundVolume);
+      afIntrusionInterval.value = String(intrusionIntervalMs);
+      afIntrusionChance.value = String(intrusionChance);
+      afFactsCount.value = String(PRELOADED_FACTS.length);
+
+      adminFullLog("Admin Control Room opened.");
+      sfx("open");
+      award("admin_full", "Control Room", "Opened fullscreen admin controls.");
+    }
+
+    function closeAdminFull(){
+      adminFull.classList.remove("visible");
+      adminFullLog("Closed.");
+      sfx("click");
+    }
+
+    adminFullClose.addEventListener("click", closeAdminFull);
+    adminFull.addEventListener("click", (e) => {
+      if (e.target === adminFull) closeAdminFull();
+    });
+
+    // Core
+    afRestart.addEventListener("click", () => { adminFullLog("Restart console"); restartConsole(); });
+    afPause.addEventListener("click", () => { adminFullLog("Toggle pause"); togglePause(); });
+    afDump.addEventListener("click", () => {
+      adminFullLog("Dump state to DevTools console");
+      console.log({
+        intrusionOn, intrusionIntervalMs, intrusionChance,
+        soundOn, soundVolume, themeIndex, shellLocked,
+        postUltraStarted, konamiUnlocked, godMode
+      });
+    });
+
+    afSpeed.addEventListener("change", () => {
+      typingSpeedModeIndex = Number(afSpeed.value) || 1;
+      typingSpeedFactor = speedModes[typingSpeedModeIndex];
+      btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
+      adminFullLog("Speed set: " + speedLabels[typingSpeedModeIndex]);
+      sfx("click");
+    });
+
+    // Theme + Sound
+    afThemeNext.addEventListener("click", () => { adminFullLog("Theme next"); applyTheme(themeIndex + 1); });
+    afSoundToggle.addEventListener("click", () => { adminFullLog("Sound toggle"); toggleSound(); });
+
+    afVolume.addEventListener("input", () => {
+      soundVolume = Number(afVolume.value);
+      if (audio && audio.master) audio.master.gain.value = soundVolume;
+    });
+
+    // Shell
+    afShellLock.addEventListener("click", () => {
+      shellLocked = !shellLocked;
+      cmdInput.disabled = shellLocked;
+      cmdInput.style.opacity = shellLocked ? 0.45 : 1;
+      adminFullLog("Shell lock: " + (shellLocked ? "LOCKED" : "UNLOCKED"));
+      sfx("click");
+    });
+    afMatrix.addEventListener("click", () => { adminFullLog("Matrix toggle"); toggleMatrix(); });
+
+    // Intrusion
+    afIntrusionToggle.addEventListener("click", () => {
+      setIntrusion(!intrusionOn);
+      adminFullLog("Intrusion: " + (intrusionOn ? "ON" : "OFF"));
+    });
+
+    afIntrusionTrigger.addEventListener("click", () => {
+      triggerIntrusionEvent(true);
+      adminFullLog("Intrusion triggered");
+    });
+
+    afIntrusionInterval.addEventListener("change", () => {
+      intrusionIntervalMs = Math.max(300, Number(afIntrusionInterval.value) || 5500);
+      if (intrusionOn) { setIntrusion(false); setIntrusion(true); }
+      adminFullLog("Intrusion interval ms: " + intrusionIntervalMs);
+      sfx("click");
+    });
+
+    afIntrusionChance.addEventListener("change", () => {
+      intrusionChance = Math.max(0, Math.min(1, Number(afIntrusionChance.value) || 0.35));
+      adminFullLog("Intrusion chance: " + intrusionChance);
+      sfx("click");
+    });
+
+    // Flow
+    afUltra1.addEventListener("click", () => { adminFullLog("Enter Ultra L1"); enterUltra1("admin.full"); });
+    afPostUltra.addEventListener("click", () => { adminFullLog("Start post-ultra"); startPostUltraFlow(); });
+    afUpdateQ.addEventListener("click", () => { adminFullLog("Show update question"); showUpdatePromptLast(); });
+    afUltra2.addEventListener("click", () => { adminFullLog("Enter Ultra L2"); enterUltra2("admin.full"); });
+    afFinal.addEventListener("click", () => { adminFullLog("Show final"); finishFinalReveal(); });
+
+    // Facts
+    afOpenFacts.addEventListener("click", () => { adminFullLog("Open facts"); showFacts(); });
+    afAddFact.addEventListener("click", () => {
+      const f = prompt("Add an offline history fact:");
+      if (!f) return;
+      PRELOADED_FACTS.push(f);
+      afFactsCount.value = String(PRELOADED_FACTS.length);
+      adminFullLog("Added 1 fact. Total=" + PRELOADED_FACTS.length);
+      sfx("ok");
+    });
+    afExportFacts.addEventListener("click", () => {
+      adminFullLog("Export facts");
+      btnExportFacts.click();
+    });
+
+    // Danger fake
+    afSelfDestruct.addEventListener("click", () => { adminFullLog("Self-destruct"); selfDestruct(); });
+    afAbort.addEventListener("click", () => { adminFullLog("Abort"); abort(); });
+    afRmrf.addEventListener("click", async () => { adminFullLog("rm -rf /"); await rmrf(); });
+
+    // Particles
+    afBurst.addEventListener("click", () => {
+      adminFullLog("Burst");
+      spawnBurst(window.innerWidth*0.5, window.innerHeight*0.5, "rgba(0,247,255,0.85)", "rgba(48,255,155,0.75)", 180);
+      sfx("ok");
+    });
+    afToggleClickParticles.addEventListener("click", () => {
+      clickParticlesEnabled = !clickParticlesEnabled;
+      adminFullLog("Click particles: " + (clickParticlesEnabled ? "ON" : "OFF"));
+      sfx("click");
+    });
+
+    // Reset / cleanup
+    afClearAchievements.addEventListener("click", () => {
+      localStorage.removeItem(ACH_KEY);
+      achievements = {};
+      adminFullLog("Cleared achievements (localStorage).");
+      sfx("ok");
+    });
+    afClearSnapshot.addEventListener("click", () => {
+      localStorage.removeItem("zp_snapshot");
+      adminFullLog("Cleared snapshot (localStorage).");
+      sfx("ok");
+    });
+
     // ===== main command handler =====
     async function handleCommand(line) {
       const raw = String(line || "").trim();
       if (!raw) return;
+
+      // ADDED: secret command opens fullscreen admin
+      if (raw === "admin951212//") {
+        openAdminFull();
+        return;
+      }
 
       award("first_cmd", "First Command", "Typed your first command.");
 
@@ -3044,6 +3512,7 @@ Zero: "Try: banner, theme, glitch, coffee, games"
       choiceOverlayUpdate.classList.remove("visible");
       updateScreen.classList.remove("visible");
       adminPanel.style.display = "none";
+      adminFull.classList.remove("visible"); // (added)
 
       toggleMatrix(false);
 
