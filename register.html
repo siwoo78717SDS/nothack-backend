@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>NotHack // Register</title>
+    <link rel="stylesheet" href="/theme.css" />
+  </head>
+
+  <body>
+    <div id="screen">
+      <div id="header">
+        <div id="title">NOTHACK // REGISTER</div>
+        <div id="subtitle">create an account</div>
+
+        <div id="statusBar">
+          <a class="status-pill ok" href="/index.html">HOME</a>
+          <a class="status-pill info" href="/login.html">LOGIN</a>
+        </div>
+      </div>
+
+      <div id="term">
+        <div class="sectionTitle">New account</div>
+        <div class="muted">This calls POST /api/auth/register</div>
+        <div style="height:12px;"></div>
+
+        <label class="muted">Full name</label>
+        <input id="fullName" placeholder="Your name" />
+
+        <div style="height:10px;"></div>
+
+        <label class="muted">Username (3–20: a-z 0-9 _)</label>
+        <input id="username" placeholder="username" autocomplete="username" />
+
+        <div style="height:10px;"></div>
+
+        <label class="muted">Password (min 6 chars)</label>
+        <input id="password" type="password" placeholder="password" autocomplete="new-password" />
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+          <button class="small ok" id="registerBtn">Register</button>
+          <a class="status-pill info" href="/login.html" style="align-self:center;">Already have an account?</a>
+          <span class="muted" id="msg" style="align-self:center;"></span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function getNextUrl() {
+        const url = new URL(location.href);
+        return url.searchParams.get("next") || "/index.html";
+      }
+
+      async function register() {
+        const msg = document.getElementById("msg");
+        msg.textContent = "Registering...";
+
+        const fullName = document.getElementById("fullName").value.trim();
+        const username = document.getElementById("username").value.trim().toLowerCase();
+        const password = document.getElementById("password").value;
+
+        try {
+          const r = await fetch("/api/auth/register", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fullName, username, password })
+          });
+
+          const data = await r.json().catch(() => ({}));
+
+          if (!r.ok || data.ok === false) {
+            msg.textContent = data.error || ("Register failed (" + r.status + ")");
+            return;
+          }
+
+          // Most setups require login after register:
+          // send them to login and prefill username
+          const next = getNextUrl();
+          location.href =
+            "/login.html?next=" + encodeURIComponent(next) +
+            "&username=" + encodeURIComponent(username);
+
+        } catch (e) {
+          msg.textContent = "Network error. Try again.";
+        }
+      }
+
+      document.getElementById("registerBtn").addEventListener("click", register);
+
+      // Enter key submits
+      ["fullName", "username", "password"].forEach(id => {
+        document.getElementById(id).addEventListener("keydown", (e) => {
+          if (e.key === "Enter") register();
+        });
+      });
+    </script>
+  </body>
+</html>
