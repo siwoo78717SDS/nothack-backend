@@ -464,7 +464,9 @@ app.post("/api/control/send", requireRole("admin"), (req, res) => {
 
   res.json({ ok: true });
 });
-
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true });
+});
 // ---- start ----
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
