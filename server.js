@@ -467,6 +467,10 @@ app.post("/api/control/send", requireRole("admin"), (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
+console.log(
+  "Has /api/health route?",
+  app._router.stack.some((l) => l.route && l.route.path === "/api/health")
+);
 // ---- start ----
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
