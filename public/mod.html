@@ -1,155 +1,172 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>NotHack // Mod</title>
-    <link rel="stylesheet" href="/theme.css" />
-  </head>
-  <body>
-    <div id="screen">
-      <div id="header">
-        <div id="title">NOTHACK // MOD</div>
-        <div id="subtitle">submit facts • request bans</div>
-        <div id="statusBar">
-          <span class="status-pill info" id="mePill">Checking login…</span>
-          <a class="status-pill ok" href="/index.html">HOME</a>
-          <a class="status-pill ok" href="/admin.html">ADMIN</a>
-          <button class="small danger" id="logoutBtn">Logout</button>
-        </div>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mod</title>
+  <style>
+    body{margin:0;background:#02060c;color:#eaffee;font-family:ui-monospace,Consolas,monospace}
+    .wrap{max-width:1000px;margin:0 auto;padding:18px}
+    .card{border:1px solid rgba(0,255,160,.35);border-radius:14px;padding:14px;background:rgba(0,0,0,.35);margin:12px 0}
+    h1{margin:0 0 8px;letter-spacing:.14em;text-transform:uppercase;color:#9bffd4}
+    h2{margin:0 0 10px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#7df3ff}
+    input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none}
+    button{padding:10px 14px;border-radius:12px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.55);color:#eaffee;cursor:pointer}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .pill{padding:4px 10px;border-radius:999px;border:1px solid rgba(0,247,255,.35);font-size:12px}
+    .right{margin-left:auto}
+    .muted{opacity:.75}
+    pre{white-space:pre-wrap;margin:0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row">
+      <h1>Mod Panel</h1>
+      <span class="pill" id="authPill">auth: checking…</span>
+      <button class="right" onclick="location.href='/'">Home</button>
+      <button id="logoutBtn">Logout</button>
+    </div>
+
+    <div class="card">
+      <h2>Report a user</h2>
+      <input id="reportTarget" placeholder="Target username (or user id)" />
+      <textarea id="reportReason" rows="3" placeholder="Reason…"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button id="reportBtn">Submit report</button>
       </div>
-
-      <div id="term">
-        <div class="sectionTitle">Submit a fact</div>
-        <div class="muted">Sends to POST /api/facts/submit (admin approves later)</div>
-        <div style="height:10px;"></div>
-
-        <textarea id="factText" placeholder="Type a fact…"></textarea>
-        <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
-          <button class="small ok" id="submitFactBtn">Submit Fact</button>
-          <span class="muted" id="factStatus"></span>
-        </div>
-
-        <hr />
-
-        <div class="sectionTitle">Request a ban</div>
-        <div class="muted">Sends to POST /api/mod/ban/request (admin must approve)</div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:10px;">
-          <div>
-            <label class="muted">Target type</label>
-            <select id="banType">
-              <option value="user">user</option>
-              <option value="ip">ip</option>
-            </select>
-
-            <div style="height:10px;"></div>
-            <label class="muted">User ID (only if user)</label>
-            <input id="banUserId" placeholder="id_..." />
-
-            <div style="height:10px;"></div>
-            <label class="muted">IP (only if ip)</label>
-            <input id="banIp" placeholder="123.45.67.89" />
-          </div>
-
-          <div>
-            <label class="muted">Reason</label>
-            <textarea id="banReason" placeholder="Explain what happened…"></textarea>
-
-            <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
-              <button class="small ok" id="sendBanReqBtn">Send Request</button>
-              <span class="muted" id="banStatus"></span>
-            </div>
-          </div>
-        </div>
+      <div class="muted" style="margin-top:8px">
+        Reports go into the admin audit system.
       </div>
     </div>
 
-    <script>
-      function setText(id, msg) { document.getElementById(id).textContent = msg || ""; }
+    <div class="card">
+      <h2>Warn a user (by username)</h2>
+      <input id="warnTarget" placeholder="Target username" />
+      <input id="warnMsg" placeholder="Warning message" />
+      <button id="warnBtn" style="margin-top:10px">Send warning</button>
+    </div>
 
-      async function api(path, opts = {}) {
-        const r = await fetch(path, {
-          credentials: "include",
-          headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-          ...opts
-        });
+    <div class="card">
+      <h2>Mute a user (by username)</h2>
+      <input id="muteTarget" placeholder="Target username" />
+      <input id="muteMinutes" type="number" min="1" step="1" placeholder="Minutes (e.g. 10)" />
+      <button id="muteBtn" style="margin-top:10px">Mute</button>
+      <div class="muted" style="margin-top:8px">
+        Muted users can still load pages, but you can use this later to block chat/post APIs.
+      </div>
+    </div>
 
-        if (r.status === 401) {
-          location.href = "/login.html?next=" + encodeURIComponent(location.pathname);
-          throw new Error("Not logged in");
-        }
+    <div class="card">
+      <h2>Broadcast mod notice</h2>
+      <input id="modBroadcastMsg" placeholder="Message to everyone online…" />
+      <button id="modBroadcastBtn" style="margin-top:10px">Broadcast</button>
+    </div>
 
-        const data = await r.json().catch(() => ({}));
-        if (r.status === 403) throw new Error(data.error || "Forbidden");
-        if (!r.ok || data.ok === false) throw new Error(data.error || ("Request failed: " + r.status));
-        return data;
-      }
+    <div class="card">
+      <h2>Apply for admin</h2>
+      <textarea id="applyMsg" rows="3" placeholder="Why should you be admin?"></textarea>
+      <button id="applyBtn" style="margin-top:10px">Apply</button>
+      <div class="muted" style="margin-top:8px">
+        Normal users apply for mod on the home page (API: /api/user/apply-mod).
+      </div>
+    </div>
 
-      async function guardMod() {
-        const me = await api("/api/auth/me");
-        if (!me.loggedIn) {
-          location.href = "/login.html?next=/mod.html";
-          return false;
-        }
-        const role = me.user.role;
-        if (role !== "mod" && role !== "admin") {
-          document.getElementById("mePill").textContent = "FORBIDDEN (mod/admin only)";
-          setTimeout(() => (location.href = "/index.html"), 900);
-          return false;
-        }
-        document.getElementById("mePill").textContent =
-          `Logged in: ${me.user.fullName} (@${me.user.username}) [${me.user.role}]`;
-        return true;
-      }
+    <div class="card">
+      <h2>Log</h2>
+      <pre id="log" class="muted">Ready.</pre>
+    </div>
+  </div>
 
-      document.getElementById("logoutBtn").addEventListener("click", async () => {
-        await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-        location.href = "/login.html";
-      });
+<script>
+  const authPill = document.getElementById("authPill");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const logEl = document.getElementById("log");
 
-      document.getElementById("submitFactBtn").addEventListener("click", async () => {
-        const text = document.getElementById("factText").value.trim();
-        if (!text) return setText("factStatus", "Type a fact first.");
-        setText("factStatus", "Submitting…");
-        try {
-          await api("/api/facts/submit", { method: "POST", body: JSON.stringify({ text }) });
-          document.getElementById("factText").value = "";
-          setText("factStatus", "Submitted ✅ waiting for admin approval");
-        } catch (e) {
-          setText("factStatus", e.message || String(e));
-        }
-      });
+  function log(line){
+    const t = new Date().toLocaleTimeString();
+    logEl.textContent = `[${t}] ${line}\n` + logEl.textContent;
+  }
 
-      document.getElementById("sendBanReqBtn").addEventListener("click", async () => {
-        const targetType = document.getElementById("banType").value;
-        const userId = document.getElementById("banUserId").value.trim();
-        const ip = document.getElementById("banIp").value.trim();
-        const reason = document.getElementById("banReason").value.trim();
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      ...opts,
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      credentials: "include"
+    });
+    const data = await res.json().catch(()=>({}));
+    return { res, data };
+  }
 
-        if (!reason) return setText("banStatus", "Reason required.");
-        if (targetType === "user" && !userId) return setText("banStatus", "User ID required.");
-        if (targetType === "ip" && !ip) return setText("banStatus", "IP required.");
+  function setAuth(ok, txt){
+    authPill.textContent = txt;
+    authPill.style.borderColor = ok ? "rgba(48,255,155,.6)" : "rgba(255,180,0,.6)";
+    authPill.style.color = ok ? "#9bffd4" : "#ffd580";
+  }
 
-        setText("banStatus", "Sending…");
-        try {
-          await api("/api/mod/ban/request", {
-            method: "POST",
-            body: JSON.stringify({
-              targetType,
-              userId: targetType === "user" ? userId : null,
-              ip: targetType === "ip" ? ip : null,
-              reason
-            })
-          });
-          document.getElementById("banReason").value = "";
-          setText("banStatus", "Request sent ✅ admin will review");
-        } catch (e) {
-          setText("banStatus", e.message || String(e));
-        }
-      });
+  async function requireModOrAdmin(){
+    const {res, data} = await api("/api/me");
+    if(!res.ok){ location.href="/login"; return null; }
+    if(data.role !== "mod" && data.role !== "admin"){
+      setAuth(false, "auth: forbidden");
+      document.body.innerHTML = "<pre style='padding:18px;color:#ff4c4c'>403 Forbidden (mod/admin only)</pre>";
+      return null;
+    }
+    setAuth(true, `auth: ${data.role} (${data.username})`);
+    return data;
+  }
 
-      (async () => { await guardMod(); })();
-    </script>
-  </body>
+  document.getElementById("reportBtn").onclick = async () => {
+    const target = document.getElementById("reportTarget").value.trim();
+    const reason = document.getElementById("reportReason").value.trim();
+    if(!target || !reason) return alert("Fill target + reason");
+    const {res, data} = await api("/api/mod/report", {method:"POST", body:JSON.stringify({target, reason})});
+    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
+    log("Report submitted: " + target);
+  };
+
+  document.getElementById("warnBtn").onclick = async () => {
+    const target = document.getElementById("warnTarget").value.trim();
+    const message = document.getElementById("warnMsg").value.trim();
+    if(!target || !message) return alert("Fill target + message");
+    const {res, data} = await api("/api/mod/warn", {method:"POST", body:JSON.stringify({target, message})});
+    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
+    log("Warned: " + target);
+  };
+
+  document.getElementById("muteBtn").onclick = async () => {
+    const target = document.getElementById("muteTarget").value.trim();
+    const minutes = Number(document.getElementById("muteMinutes").value);
+    if(!target || !Number.isFinite(minutes) || minutes <= 0) return alert("Fill target + minutes");
+    const {res, data} = await api("/api/mod/mute", {method:"POST", body:JSON.stringify({target, minutes})});
+    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
+    log(`Muted: ${target} for ${minutes}m`);
+  };
+
+  document.getElementById("modBroadcastBtn").onclick = async () => {
+    const message = document.getElementById("modBroadcastMsg").value.trim();
+    if(!message) return;
+    const {res, data} = await api("/api/mod/broadcast", {method:"POST", body:JSON.stringify({message})});
+    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
+    log("Broadcast sent.");
+  };
+
+  document.getElementById("applyBtn").onclick = async () => {
+    const message = document.getElementById("applyMsg").value.trim();
+    const {res, data} = await api("/api/mod/apply-admin", {method:"POST", body:JSON.stringify({message})});
+    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
+    log("Applied for admin.");
+  };
+
+  logoutBtn.onclick = async () => {
+    await api("/api/logout",{method:"POST"});
+    location.href="/login";
+  };
+
+  (async () => {
+    const ok = await requireModOrAdmin();
+    if(ok) log("Ready.");
+  })();
+</script>
+</body>
 </html>
