@@ -1,98 +1,185 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>NotHack // Register</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register</title>
+
+    <!-- If you moved theme.css into /public/theme.css, this will work -->
     <link rel="stylesheet" href="/theme.css" />
+
+    <style>
+      /* Small fallback styling in case theme.css is missing */
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        margin: 0;
+        padding: 2rem;
+        display: grid;
+        place-items: center;
+        background: #0b0b12;
+        color: white;
+      }
+      .card {
+        width: min(420px, 92vw);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        padding: 1.25rem;
+        backdrop-filter: blur(10px);
+      }
+      h1 {
+        margin: 0 0 1rem 0;
+        font-size: 1.5rem;
+      }
+      label {
+        display: block;
+        margin: 0.75rem 0 0.25rem;
+        opacity: 0.9;
+      }
+      input {
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.25);
+        color: white;
+        outline: none;
+      }
+      button {
+        width: 100%;
+        margin-top: 1rem;
+        padding: 0.8rem;
+        border: none;
+        border-radius: 12px;
+        background: #4b9be1;
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .msg {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 12px;
+        display: none;
+      }
+      .msg.ok {
+        display: block;
+        background: rgba(0, 255, 140, 0.12);
+        border: 1px solid rgba(0, 255, 140, 0.25);
+      }
+      .msg.err {
+        display: block;
+        background: rgba(255, 80, 80, 0.12);
+        border: 1px solid rgba(255, 80, 80, 0.25);
+      }
+      .links {
+        margin-top: 1rem;
+        font-size: 0.95rem;
+        opacity: 0.9;
+      }
+      a {
+        color: #9bd0ff;
+      }
+    </style>
   </head>
 
   <body>
-    <div id="screen">
-      <div id="header">
-        <div id="title">NOTHACK // REGISTER</div>
-        <div id="subtitle">create an account</div>
+    <div class="card">
+      <h1>Create your account</h1>
 
-        <div id="statusBar">
-          <a class="status-pill ok" href="/index.html">HOME</a>
-          <a class="status-pill info" href="/login.html">LOGIN</a>
+      <form id="registerForm" autocomplete="on">
+        <label for="username">Username</label>
+        <input id="username" name="username" required minlength="3" />
+
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required />
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required minlength="6" />
+
+        <label for="confirmPassword">Confirm Password</label>
+        <input
+          id="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          required
+          minlength="6"
+        />
+
+        <button id="registerBtn" type="submit">Register</button>
+
+        <div id="msg" class="msg"></div>
+
+        <div class="links">
+          Already have an account? <a href="/login">Login</a>
         </div>
-      </div>
-
-      <div id="term">
-        <div class="sectionTitle">New account</div>
-        <div class="muted">This calls POST /api/auth/register</div>
-        <div style="height:12px;"></div>
-
-        <label class="muted">Full name</label>
-        <input id="fullName" placeholder="Your name" />
-
-        <div style="height:10px;"></div>
-
-        <label class="muted">Username (3–20: a-z 0-9 _)</label>
-        <input id="username" placeholder="username" autocomplete="username" />
-
-        <div style="height:10px;"></div>
-
-        <label class="muted">Password (min 6 chars)</label>
-        <input id="password" type="password" placeholder="password" autocomplete="new-password" />
-
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
-          <button class="small ok" id="registerBtn">Register</button>
-          <a class="status-pill info" href="/login.html" style="align-self:center;">Already have an account?</a>
-          <span class="muted" id="msg" style="align-self:center;"></span>
-        </div>
-      </div>
+      </form>
     </div>
 
     <script>
-      function getNextUrl() {
-        const url = new URL(location.href);
-        return url.searchParams.get("next") || "/index.html";
+      const form = document.getElementById("registerForm");
+      const msg = document.getElementById("msg");
+      const btn = document.getElementById("registerBtn");
+
+      function showMessage(text, type) {
+        msg.className = "msg " + type;
+        msg.textContent = text;
       }
 
-      async function register() {
-        const msg = document.getElementById("msg");
-        msg.textContent = "Registering...";
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        msg.style.display = "none";
+        msg.className = "msg";
+        msg.textContent = "";
 
-        const fullName = document.getElementById("fullName").value.trim();
-        const username = document.getElementById("username").value.trim().toLowerCase();
-        const password = document.getElementById("password").value;
+        const username = form.username.value.trim();
+        const email = form.email.value.trim();
+        const password = form.password.value;
+        const confirmPassword = form.confirmPassword.value;
+
+        if (password !== confirmPassword) {
+          showMessage("Passwords do not match.", "err");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Registering...";
 
         try {
-          const r = await fetch("/api/auth/register", {
+          // CHANGE THIS if your backend route is different:
+          // e.g. "/api/auth/register"
+          const res = await fetch("/api/register", {
             method: "POST",
-            credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fullName, username, password })
+            body: JSON.stringify({ username, email, password })
           });
 
-          const data = await r.json().catch(() => ({}));
+          const data = await res.json().catch(() => ({}));
 
-          if (!r.ok || data.ok === false) {
-            msg.textContent = data.error || ("Register failed (" + r.status + ")");
+          if (!res.ok) {
+            const errorText = data.message || data.error || "Registration failed.";
+            showMessage(errorText, "err");
             return;
           }
 
-          // Most setups require login after register:
-          // send them to login and prefill username
-          const next = getNextUrl();
-          location.href =
-            "/login.html?next=" + encodeURIComponent(next) +
-            "&username=" + encodeURIComponent(username);
+          // Optional: if backend returns a token, you *could* store it:
+          // if (data.token) localStorage.setItem("token", data.token);
 
-        } catch (e) {
-          msg.textContent = "Network error. Try again.";
+          showMessage("Account created! Redirecting to login...", "ok");
+
+          setTimeout(() => {
+            window.location.href = "/login";
+          }, 900);
+        } catch (err) {
+          showMessage("Network error. Try again.", "err");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Register";
         }
-      }
-
-      document.getElementById("registerBtn").addEventListener("click", register);
-
-      // Enter key submits
-      ["fullName", "username", "password"].forEach(id => {
-        document.getElementById(id).addEventListener("keydown", (e) => {
-          if (e.key === "Enter") register();
-        });
       });
     </script>
   </body>
