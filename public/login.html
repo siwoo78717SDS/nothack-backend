@@ -1,132 +1,57 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>NotHack // Login</title>
-    <link rel="stylesheet" href="/theme.css" />
-  </head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login</title>
+  <style>
+    body{margin:0;background:#02060c;color:#eaffee;font-family:ui-monospace,Consolas,monospace}
+    .wrap{max-width:520px;margin:0 auto;padding:18px}
+    .card{border:1px solid rgba(0,255,160,.35);border-radius:14px;padding:14px;background:rgba(0,0,0,.35);margin:12px 0}
+    h1{margin:0 0 10px;letter-spacing:.14em;text-transform:uppercase;color:#7df3ff}
+    input{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none;margin-top:10px}
+    button{padding:10px 14px;border-radius:12px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.55);color:#eaffee;cursor:pointer;margin-top:10px;width:100%}
+    .muted{opacity:.75}
+    a{color:#9bffd4}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Login</h1>
+    <div class="card">
+      <div class="muted">Uses cookie session (<b>connect.sid</b>).</div>
 
-  <body>
-    <div id="screen">
-      <div id="header">
-        <div id="title">NOTHACK // LOGIN</div>
-        <div id="subtitle">authenticate</div>
+      <input id="id" placeholder="Username or Email" />
+      <input id="pw" type="password" placeholder="Password" />
+      <button id="btn">Login</button>
 
-        <div id="statusBar">
-          <a class="status-pill ok" href="/index.html">HOME</a>
-          <a class="status-pill info" href="/register.html">REGISTER</a>
-          <span class="status-pill info" id="mePill">Checking…</span>
-        </div>
+      <div class="muted" style="margin-top:10px">
+        No account? <a href="/register">Register</a>
       </div>
-
-      <div id="term">
-        <div class="sectionTitle">Login</div>
-        <div class="muted">This calls POST /api/auth/login</div>
-        <div style="height:12px;"></div>
-
-        <form id="loginForm">
-          <label class="muted">Username</label>
-          <input id="username" autocomplete="username" placeholder="username" />
-
-          <div style="height:10px;"></div>
-
-          <label class="muted">Password</label>
-          <input id="password" type="password" autocomplete="current-password" placeholder="password" />
-
-          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
-            <button class="small ok" type="submit">Login</button>
-            <a class="status-pill info" href="/register.html" style="align-self:center;">Create account</a>
-            <span class="muted" id="msg" style="align-self:center;"></span>
-          </div>
-        </form>
-      </div>
+      <div class="muted" id="msg" style="margin-top:10px"></div>
     </div>
+  </div>
 
-    <script>
-      function getNextUrl() {
-        const url = new URL(location.href);
-        return url.searchParams.get("next") || "";
-      }
+<script>
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      ...opts,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include"
+    });
+    const data = await res.json().catch(()=>({}));
+    return { res, data };
+  }
 
-      function pickRole(data) {
-        return data?.user?.role || data?.role || "";
-      }
-
-      function setMsg(text) {
-        document.getElementById("msg").textContent = text || "";
-      }
-
-      // Autofill username: /login.html?username=abc
-      (function autofillUsername() {
-        const u = new URL(location.href).searchParams.get("username");
-        if (u) document.getElementById("username").value = u;
-      })();
-
-      // If already logged in, redirect
-      (async function alreadyLoggedInCheck() {
-        try {
-          const r = await fetch("/api/auth/me", { credentials: "include" });
-          const data = await r.json().catch(() => ({}));
-
-          if (data?.loggedIn) {
-            document.getElementById("mePill").textContent =
-              `Logged in: ${data.user?.fullName || ""} (@${data.user?.username || ""}) [${data.user?.role || ""}]`;
-
-            const next = getNextUrl();
-            if (next) {
-              location.href = next;
-            } else {
-              const role = data.user?.role;
-              if (role === "admin") location.href = "/admin.html";
-              else if (role === "mod") location.href = "/mod.html";
-              else location.href = "/index.html";
-            }
-          } else {
-            document.getElementById("mePill").textContent = "Not logged in";
-          }
-        } catch {
-          document.getElementById("mePill").textContent = "Login check failed";
-        }
-      })();
-
-      document.getElementById("loginForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        setMsg("Logging in...");
-
-        const username = document.getElementById("username").value.trim().toLowerCase();
-        const password = document.getElementById("password").value;
-
-        try {
-          const r = await fetch("/api/auth/login", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password })
-          });
-
-          const data = await r.json().catch(() => ({}));
-
-          if (!r.ok || data.ok === false) {
-            setMsg(data.error || ("Login failed (" + r.status + ")"));
-            return;
-          }
-
-          // Redirect priority: next param > role-based > home
-          const next = getNextUrl();
-          if (next) {
-            location.href = next;
-            return;
-          }
-
-          const role = pickRole(data);
-          if (role === "admin") location.href = "/admin.html";
-          else if (role === "mod") location.href = "/mod.html";
-          else location.href = "/index.html";
-        } catch (err) {
-          setMsg("Network error. Try again.");
-        }
-      });
-    </script>
-  </body>
+  document.getElementById("btn").onclick = async () => {
+    const id = document.getElementById("id").value.trim();
+    const password = document.getElementById("pw").value;
+    const msg = document.getElementById("msg");
+    msg.textContent = "…";
+    const {res, data} = await api("/api/login", {method:"POST", body:JSON.stringify({id, password})});
+    if(!res.ok){ msg.textContent = data.message || ("Login failed ("+res.status+")"); return; }
+    location.href = "/";
+  };
+</script>
+</body>
 </html>
