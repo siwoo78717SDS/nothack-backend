@@ -37,6 +37,7 @@
         --btn-text: #eaffee;
         --btn-bg0: rgba(0, 0, 0, 0.68);
         --btn-bg1: rgba(0, 255, 160, 0.12);
+
         --btn-border: rgba(0, 255, 160, 0.55);
         --btn-glow: rgba(0, 255, 160, 0.35);
         --btn-glow2: rgba(0, 247, 255, 0.22);
@@ -193,7 +194,7 @@
         opacity: var(--scan-opacity);
         animation: scan 7s linear infinite;
       }
-      /* Secret message "Amelia"*/
+      /* Secret message "Amelia" */
       @keyframes scan {
         0% {
           transform: translateY(-10%);
@@ -914,8 +915,8 @@
       }
 
       /* ===========================
-       COOL + BIG BUTTONS
-       =========================== */
+      COOL + BIG BUTTONS
+      =========================== */
 
       button,
       .choice-btn,
@@ -1064,6 +1065,16 @@
         box-shadow: none !important;
       }
 
+      /* small variant for status bar buttons (Login/Register) */
+      button.small {
+        padding: 10px 16px !important;
+        min-height: 40px !important;
+        min-width: 120px !important;
+        font-size: 12px !important;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
       .adminBtn {
         border-radius: 12px !important;
         text-transform: none;
@@ -1136,8 +1147,8 @@
       }
 
       /* ============================================================
-       FULLSCREEN ADMIN CONTROL ROOM
-       ============================================================ */
+      FULLSCREEN ADMIN CONTROL ROOM
+      ============================================================ */
       #adminFull {
         position: fixed;
         inset: 0;
@@ -1291,7 +1302,12 @@
           <span class="status-pill info" id="statusMode"
             >MODE: GHOST OBSERVE</span
           >
+
           <span class="status-pill info" id="adminLink">ADMIN</span>
+
+          <!-- ADDED -->
+          <button class="small" id="loginBtn" type="button">Login</button>
+          <button class="small" id="registerBtn" type="button">Register</button>
         </div>
       </div>
 
@@ -1485,12 +1501,11 @@
 
       <div class="adminTitle" style="margin-top: 6px">FACTS</div>
       <button class="adminBtn" id="btnOpenFacts">Open Facts</button>
-      <button class="adminBtn" id="btnAddFact">Add 1 fact (prompt)</button>
+      <!-- REMOVED: btnAddFact -->
       <button class="adminBtn" id="btnExportFacts">
         Export facts (download)
       </button>
     </div>
-
     <!-- FULLSCREEN ADMIN CONTROL ROOM -->
     <div id="adminFull">
       <div id="adminFullWrap">
@@ -1657,7 +1672,7 @@
               <button class="adminBtn" id="afRandomFact">
                 Print random fact
               </button>
-              <button class="adminBtn" id="afAddFact">Add fact</button>
+              <!-- REMOVED: afAddFact -->
               <button class="adminBtn" id="afExportFacts">Export facts</button>
             </div>
             <div class="adminLabel2">Facts count (read-only)</div>
@@ -1798,6 +1813,22 @@
         const adminSubmit = document.getElementById("adminSubmit");
         const adminPanel = document.getElementById("adminPanel");
 
+        // ADDED: Login/Register buttons
+        const loginBtn = document.getElementById("loginBtn");
+        const registerBtn = document.getElementById("registerBtn");
+
+        // Redirects (Replit: you can make /login and /register pages or routes)
+        if (loginBtn)
+          loginBtn.addEventListener(
+            "click",
+            () => (window.location.href = "/login"),
+          );
+        if (registerBtn)
+          registerBtn.addEventListener(
+            "click",
+            () => (window.location.href = "/register"),
+          );
+
         const btnAdminClose = document.getElementById("btnAdminClose");
         const btnRestart = document.getElementById("btnRestart");
         const btnPause = document.getElementById("btnPause");
@@ -1819,7 +1850,7 @@
         const btnParticles = document.getElementById("btnParticles");
 
         const btnOpenFacts = document.getElementById("btnOpenFacts");
-        const btnAddFact = document.getElementById("btnAddFact");
+        // REMOVED: btnAddFact
         const btnExportFacts = document.getElementById("btnExportFacts");
 
         const matrixCanvas = document.getElementById("matrixCanvas");
@@ -1869,7 +1900,7 @@
 
         const afOpenFacts = document.getElementById("afOpenFacts");
         const afRandomFact = document.getElementById("afRandomFact");
-        const afAddFact = document.getElementById("afAddFact");
+        // REMOVED: afAddFact
         const afExportFacts = document.getElementById("afExportFacts");
         const afFactsCount = document.getElementById("afFactsCount");
 
@@ -2043,7 +2074,6 @@
           award("theme", "Theme Switcher", "Changed terminal theme.");
           sfx("click");
         }
-
         // ===== offline facts =====
         const PRELOADED_FACTS = [
           "A famous ~3,700-year-old clay tablet is a customer complaint: Nanni scolds the merchant Ea-nasir for low-quality copper.",
@@ -2073,6 +2103,11 @@
           "A 9th‑century House of Wisdom in Baghdad became a major center for translation and scholarship, helping preserve and expand knowledge.",
           "The first successful powered flight by the Wright brothers happened on December 17, 1903, at Kitty Hawk, North Carolina.",
         ];
+
+        // Make facts read-only (prevents “adding history facts”)
+        try {
+          Object.freeze(PRELOADED_FACTS);
+        } catch (e) {}
 
         function showFacts() {
           factsView.classList.add("visible");
@@ -2104,8 +2139,6 @@
         // ===== sound effects (WebAudio) =====
         let soundOn = true;
         let audio = { ctx: null, master: null, ready: false };
-
-        // admin-tweakable volume
         let soundVolume = 0.22;
 
         function initAudio() {
@@ -2309,7 +2342,6 @@
           return arr[Math.floor(Math.random() * arr.length)];
         }
 
-        /* ===== 5 new feature helpers (minimal) ===== */
         function clamp01(n) {
           return Math.max(0, Math.min(1, n));
         }
@@ -2345,7 +2377,6 @@
             String(clamp01(v)),
           );
         }
-        /* ===== end new feature helpers ===== */
 
         function corruptText(s) {
           const glyphs = "▓▒░█#@$%&*?/\\|<>~";
@@ -2378,7 +2409,6 @@
         let linkLost = false;
         let cwd = "/";
 
-        // Post-ultra answers
         let telemetryEnabled = null;
         let snapshotStored = null;
         let overrideAnswer = null;
@@ -2531,42 +2561,42 @@
           "/system/core.cfg":
             "mode=remote\nprivilege=root-temp\nencryption=AES-256-GCM\npersistence=off\n",
           "/system/device-info.txt": `DEVICE  : ${deviceType}
-PLATFORM: ${platform}
-SCREEN  : ${w} x ${h}
-TOUCH   : ${touch ? "ON" : "OFF"}
-LOCALE  : ${lang}
-TZ      : ${tz}
-`,
+      PLATFORM: ${platform}
+      SCREEN  : ${w} x ${h}
+      TOUCH   : ${touch ? "ON" : "OFF"}
+      LOCALE  : ${lang}
+      TZ      : ${tz}
+      `,
           "/logs/access.log": `[OK] link established
-[OK] auth token granted
-[INFO] recon snapshot captured
-[INFO] simulation flag: true
-`,
+      [OK] auth token granted
+      [INFO] recon snapshot captured
+      [INFO] simulation flag: true
+      `,
           "/logs/intrusion.log": `[WARN] intrusion events are simulated
-[WARN] no real device access is performed
-`,
+      [WARN] no real device access is performed
+      `,
           "/user/readme.txt": `All commands are simulated.
-No real hacking happens.
-Secret combo: scan ports + hash <text> + ciel
-Konami code (↑↑↓↓←→←→BA) unlocks godmode.
-`,
+      No real hacking happens.
+      Secret combo: scan ports + hash <text> + ciel
+      Konami code (↑↑↓↓←→←→BA) unlocks godmode.
+      `,
           "/vault/credits.txt": `CREDITS
-- Siwoo (Lemon78717): Creator / Operator
-- Mikey: Creator of Twinkle + Zero & Ciel
-- Zero: Boy robot assistant
-- Ciel: Little sister AI
-`,
+      - Siwoo (Lemon78717): Creator / Operator
+      - Mikey: Creator of Twinkle + Zero & Ciel
+      - Zero: Boy robot assistant
+      - Ciel: Little sister AI
+      `,
           "/vault/ciel.msg": `Ciel: "Hey! If you type 'hello' I'll answer too."
-Ciel: "Try 'games' if you want mini-games!"
-`,
+      Ciel: "Try 'games' if you want mini-games!"
+      `,
           "/vault/zero.msg": `Zero: "This is a simulation shell. But we can make it feel real."
-Zero: "Try: banner, theme, glitch, coffee, games"
-`,
+      Zero: "Try: banner, theme, glitch, coffee, games"
+      `,
           "/vault/twinkle.txt": `Twinkle Website
-- Community platform created by Mikey
-- Launched: Feb 2016
-- For students & teachers of Twin.kle English academy
-`,
+      - Community platform created by Mikey
+      - Launched: Feb 2016
+      - For students & teachers of Twin.kle English academy
+      `,
         };
 
         function resolvePath(name) {
@@ -2718,7 +2748,6 @@ Zero: "Try: banner, theme, glitch, coffee, games"
           printLineToTerm("[SHELL] Session closed. " + (reason || ""), "warn");
           updateHeader();
         }
-
         // ===== overlays =====
         let qCallback = null;
         function askYesNo(promptText, onYes, onNo) {
@@ -2743,7 +2772,7 @@ Zero: "Try: banner, theme, glitch, coffee, games"
 
           printLineToTerm("", "dim");
           printLineToTerm("[ULTRA] Exit confirmed. Continuing…", "warn");
-          //Secret message Andrew Dobbin
+
           askYesNo(
             "ENABLE LIVE TELEMETRY MIRROR? (YES / NO)",
             () => {
@@ -2754,7 +2783,10 @@ Zero: "Try: banner, theme, glitch, coffee, games"
               telemetryTimer = setInterval(() => {
                 count++;
                 printLineToTerm(
-                  `[MIRROR] tick=${count} cpu=${(12 + Math.random() * 8).toFixed(1)}% net=${(3 + Math.random() * 6).toFixed(1)}kb/s`,
+                  `[MIRROR] tick=${count} cpu=${(
+                    12 +
+                    Math.random() * 8
+                  ).toFixed(1)}% net=${(3 + Math.random() * 6).toFixed(1)}kb/s`,
                   "muted",
                 );
                 if (count >= 8) stopTelemetry();
@@ -2833,28 +2865,28 @@ Zero: "Try: banner, theme, glitch, coffee, games"
           if (style === "ios") {
             updateScreen.style.background = "#000";
             updateContent.innerHTML = `
-          <div>
-            <div class="ios-logo"></div>
-            <div class="ios-bar"><div class="ios-bar-inner" id="updateBarInner"></div></div>
-            <div class="ios-update-text">${opts.subtitle || "Working…"}</div>
-          </div>
-        `;
+            <div>
+              <div class="ios-logo"></div>
+              <div class="ios-bar"><div class="ios-bar-inner" id="updateBarInner"></div></div>
+              <div class="ios-update-text">${opts.subtitle || "Working…"}</div>
+            </div>
+          `;
           } else {
             updateScreen.style.background =
               "radial-gradient(circle at top, #001738 0, #000410 70%)";
             updateContent.innerHTML = `
-          <div>
-            <div class="win-logo">
-              <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
-              <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
+            <div>
+              <div class="win-logo">
+                <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
+                <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
+              </div>
+              <div class="win-update-title">${opts.title || "Processing…"}</div>
+              <div class="win-update-sub">${opts.subtitle || "Please wait."}</div>
+              <div class="win-bar"><div class="win-bar-inner" id="updateBarInner"></div></div>
+              <div class="win-percent" id="updatePercent">0%</div>
+              <div class="win-update-sub" style="margin-top:10px; opacity:0.8;">${opts.endText || "This may take a moment…"}</div>
             </div>
-            <div class="win-update-title">${opts.title || "Processing…"}</div>
-            <div class="win-update-sub">${opts.subtitle || "Please wait."}</div>
-            <div class="win-bar"><div class="win-bar-inner" id="updateBarInner"></div></div>
-            <div class="win-percent" id="updatePercent">0%</div>
-            <div class="win-update-sub" style="margin-top:10px; opacity:0.8;">${opts.endText || "This may take a moment…"}</div>
-          </div>
-        `;
+          `;
           }
 
           const barInner = document.getElementById("updateBarInner");
@@ -3226,7 +3258,7 @@ Zero: "Try: banner, theme, glitch, coffee, games"
           printLineToTerm(
             "  jeanjun  roll [sides]  exportterm  scanlines  glitchfx",
             "dim",
-          ); /* (added minimal) */
+          );
           award("easter", "Egg Hunter", "Found the easter menu.");
           sfx("open");
         }
@@ -3466,7 +3498,9 @@ Zero: "Try: banner, theme, glitch, coffee, games"
           for (let i = 1; i <= hops; i++) {
             await sleep(420 + Math.random() * 260);
             const ms = (12 + Math.random() * 90).toFixed(0);
-            const hop = `10.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+            const hop = `10.${Math.floor(Math.random() * 255)}.${Math.floor(
+              Math.random() * 255,
+            )}.${Math.floor(Math.random() * 255)}`;
             printLineToTerm(`${i}  ${hop}  ${ms}ms`, "dim");
           }
           printLineToTerm(`[TRACE] reached ${t} (sim).`, "muted");
@@ -3547,8 +3581,6 @@ Zero: "Try: banner, theme, glitch, coffee, games"
           printLineToTerm("rm: deleting / …", "danger");
           sfx("warn");
 
-          // Fake delete animation
-          // Secret message "Jean Jun"
           for (let i = 0; i < 18; i++) {
             await sleep(70);
             const bar = "█"
@@ -3873,35 +3905,35 @@ Zero: "Try: banner, theme, glitch, coffee, games"
 
         const ASCII = {
           zero: String.raw`
-   ________  ________  _________  \|\_____  \|\_____  \
-  \|_/  /|
-     /  / /     /  / /     /  / /
-    /  /_/__   /  /_/__   /  /_/____________\
-   \|______________|
+      ________  ________  _________  \|\_____  \|\_____  \
+      \|_/  /|
+      /  / /     /  / /     /  / /
+      /  /_/__   /  /_/__   /  /_/____________\
+      \|______________|
       `,
           lemon: String.raw`
-     .-.
-   .'   '.
-  /  .-.  \
- |  ( 🍋 ) |
-  \  '-'  /
-   '.___.'
+      .-.
+      .'   '.
+      /  .-.  \
+      |  ( 🍋 ) |
+      \  '-'  /
+      '.___.'
       `,
           twinkle: String.raw`
-  _______        _       _    _
- |__   __|      (_)     | |  | |
-    | |_      ___ _ _ __ | | _| | ___
-    | \ \ /\ / / | | '_ \| |/ / |/ _ \
-    | |\ V  V /| | | | | |   <| |  __/
-    |_| \_/\_/ |_|_|_| |_|_|\_\_|\___|
+      _______        _       _    _
+      |__   __|      (_)     | |  | |
+      | |_      ___ _ _ __ | | _| | ___
+      | \ \ /\ / / | | '_ \| |/ / |/ _ \
+      | |\ V  V /| | | | | |   <| |  __/
+      |_| \_/\_/ |_|_|_| |_|_|\_\_|\___|
       `,
           banner: String.raw`
-  ███████╗███████╗██████╗  ██████╗ ██████╗  ██████╗ ██╗███╗   ██╗████████╗
-  ╚══███╔╝██╔════╝██╔══██╗██╔═══██╗██╔══██╗██╔═══██╗██║████╗  ██║╚══██╔══╝
-    ███╔╝ █████╗  ██████╔╝██║   ██║██████╔╝██║   ██║██║██╔██╗ ██║   ██║
-   ███╔╝  ██╔══╝  ██╔══██╗██║   ██║██╔═══╝ ██║   ██║██║██║╚██╗██║   ██║
-  ███████╗███████╗██║  ██║╚██████╔╝██║     ╚██████╔╝██║██║ ╚████║   ██║
-  ╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝      ╚═════╝ ╚═╝╚═╝  ╚═══╝   ╚═╝
+      ███████╗███████╗██████╗  ██████╗ ██████╗  ██████╗ ██╗███╗   ██╗████████╗
+      ╚══███╔╝██╔════╝██╔══██╗██╔═══██╗██╔══██╗██╔═══██╗██║████╗  ██║╚══██╔══╝
+      ███╔╝ █████╗  ██████╔╝██║   ██║██████╔╝██║   ██║██║██╔██╗ ██║   ██║
+      ███╔╝  ██╔══╝  ██╔══██╗██║   ██║██╔═══╝ ██║   ██║██║██║╚██╗██║   ██║
+      ███████╗███████╗██║  ██║╚██████╔╝██║     ╚██████╔╝██║██║ ╚████║   ██║
+      ╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝      ╚═════╝ ╚═╝╚═╝  ╚═══╝   ╚═╝
       `,
         };
 
@@ -3989,9 +4021,7 @@ Zero: "Try: banner, theme, glitch, coffee, games"
           term.innerHTML = "";
           term.appendChild(cursor);
           sfx("click");
-        }
-
-        // ===== Fullscreen Admin Control Room logic =====
+        } // ===== Fullscreen Admin Control Room logic =====
         function adminFullLog(msg) {
           const t = new Date().toLocaleTimeString();
           adminFullLogText.textContent =
@@ -4213,14 +4243,6 @@ Zero: "Try: banner, theme, glitch, coffee, games"
         afRandomFact.addEventListener("click", () => {
           adminFullLog("Random fact");
           factLine();
-        });
-        afAddFact.addEventListener("click", () => {
-          const f = prompt("Add an offline history fact:");
-          if (!f) return;
-          PRELOADED_FACTS.push(f);
-          afFactsCount.value = String(PRELOADED_FACTS.length);
-          adminFullLog("Added 1 fact. Total=" + PRELOADED_FACTS.length);
-          sfx("ok");
         });
         afExportFacts.addEventListener("click", () => {
           adminFullLog("Export facts");
@@ -4734,7 +4756,7 @@ Zero: "Try: banner, theme, glitch, coffee, games"
           await handleCommand(raw);
         });
 
-        // ===== admin =====
+        // ===== admin (small panel) =====
         adminLink.addEventListener("click", () => {
           adminLogin.style.display = "flex";
           adminPass.value = "";
@@ -4893,13 +4915,6 @@ Zero: "Try: banner, theme, glitch, coffee, games"
         });
 
         btnOpenFacts.addEventListener("click", showFacts);
-        btnAddFact.addEventListener("click", () => {
-          const f = prompt("Add an offline history fact:");
-          if (!f) return;
-          PRELOADED_FACTS.push(f);
-          printLineToTerm("[ADMIN] Added 1 fact.", "muted");
-          sfx("ok");
-        });
         btnExportFacts.addEventListener("click", () => {
           const text = PRELOADED_FACTS.map((f, i) => `${i + 1}. ${f}`).join(
             "\n",
