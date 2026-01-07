@@ -6,357 +6,196 @@
   <title>Admin</title>
   <style>
     body{margin:0;background:#02060c;color:#eaffee;font-family:ui-monospace,Consolas,monospace}
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
+    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    .top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
     .card{border:1px solid rgba(0,255,160,.35);border-radius:14px;padding:14px;background:rgba(0,0,0,.35);margin:12px 0}
-    h1{margin:0 0 8px;letter-spacing:.14em;text-transform:uppercase;color:#7df3ff}
-    h2{margin:0 0 10px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#9bffd4}
-    input,select,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none}
+    h1{margin:0 0 10px;letter-spacing:.14em;text-transform:uppercase;color:#7df3ff}
+    h2{margin:0 0 10px;font-size:14px;letter-spacing:.10em;text-transform:uppercase;color:#9bffd4}
     button{padding:10px 14px;border-radius:12px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.55);color:#eaffee;cursor:pointer}
-    button:hover{border-color:rgba(0,247,255,.7)}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .pill{padding:4px 10px;border-radius:999px;border:1px solid rgba(0,247,255,.35);font-size:12px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-bottom:1px solid rgba(0,247,255,.12);padding:8px;text-align:left;font-size:12px;vertical-align:top}
+    select, input{padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none}
     .muted{opacity:.75}
-    .danger{color:#ff4c4c}
-    .ok{color:#30ff9b}
-    .right{margin-left:auto}
-    .small{padding:8px 10px;border-radius:10px;font-size:12px}
-    pre{white-space:pre-wrap;margin:0}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .badge{display:inline-block;min-width:22px;text-align:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,180,0,.6);background:rgba(255,180,0,.12);color:#ffd580;margin-left:8px}
+    .req{border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-top:10px}
+    .reqTitle{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .pill{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.35)}
+    textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none;margin-top:10px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="row">
-      <h1>Admin Panel</h1>
-      <span class="pill" id="authPill">auth: checking…</span>
-      <button class="small right" onclick="location.href='/'">Home</button>
-      <button class="small" id="logoutBtn">Logout</button>
-    </div>
-
-    <div class="card">
-      <h2>Broadcast log to everyone online</h2>
+    <div class="top">
+      <h1>Admin Panel <span id="pendingBadge" class="badge" style="display:none">0</span></h1>
       <div class="row">
-        <input id="broadcastMsg" placeholder="Message to all online sessions…" />
-        <button id="broadcastBtn">Broadcast</button>
-      </div>
-      <div class="muted" style="margin-top:8px">
-        This uses SSE connections (a “device” here means a browser tab connected to your site).
+        <button id="homeBtn">Back to Home</button>
+        <button id="accountBtn">My Account</button>
+        <button id="logoutBtn">Logout</button>
       </div>
     </div>
 
     <div class="card">
-      <h2>Send to a specific device/session</h2>
       <div class="row">
-        <select id="connSelect"></select>
-        <input id="oneMsg" placeholder="Message to selected session…" />
-        <button id="oneBtn">Send</button>
-        <button id="refreshConnBtn">Refresh</button>
-      </div>
-      <div class="muted" style="margin-top:8px">
-        You can message a single connection id (target tab/device).
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Site controls</h2>
-      <div class="row">
-        <button id="maintenanceToggleBtn">Maintenance: …</button>
-        <input id="announcementInput" placeholder="Announcement shown on homepage (optional)" />
-        <button id="announcementBtn">Set announcement</button>
+        <div class="muted">View:</div>
+        <select id="filter">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="all">All</option>
+        </select>
+        <button id="refreshBtn">Refresh</button>
+        <div class="muted" id="msg"></div>
       </div>
     </div>
 
     <div class="card">
-      <h2>Applications (mod/admin)</h2>
-      <button id="loadAppsBtn">Load applications</button>
-      <table style="margin-top:10px">
-        <thead>
-          <tr>
-            <th>ID</th><th>User</th><th>Requested</th><th>Message</th><th>Status</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="appsTbody">
-          <tr><td colspan="6" class="muted">No data.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h2>Users</h2>
-      <div class="row">
-        <input id="search" placeholder="Search username/email/name (optional)" />
-        <button id="loadUsersBtn">Load users</button>
-      </div>
-
-      <table style="margin-top:10px">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Banned</th>
-            <th>Masked IP</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="usersTbody">
-          <tr><td colspan="8" class="muted">No data.</td></tr>
-        </tbody>
-      </table>
-      <div class="muted" style="margin-top:8px">
-        Note: IPs are masked for privacy. Bans are by account (safer + more reliable).
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Audit log</h2>
-      <button id="loadAuditBtn">Load audit</button>
-      <pre id="audit" class="muted" style="margin-top:10px">No data.</pre>
+      <h2>Role Requests</h2>
+      <div id="list" class="muted">Loading…</div>
     </div>
   </div>
 
 <script>
-  const authPill = document.getElementById("authPill");
-  const logoutBtn = document.getElementById("logoutBtn");
-
-  const connSelect = document.getElementById("connSelect");
-  const refreshConnBtn = document.getElementById("refreshConnBtn");
-  const broadcastMsg = document.getElementById("broadcastMsg");
-  const broadcastBtn = document.getElementById("broadcastBtn");
-  const oneMsg = document.getElementById("oneMsg");
-  const oneBtn = document.getElementById("oneBtn");
-
-  const maintenanceToggleBtn = document.getElementById("maintenanceToggleBtn");
-  const announcementInput = document.getElementById("announcementInput");
-  const announcementBtn = document.getElementById("announcementBtn");
-
-  const loadUsersBtn = document.getElementById("loadUsersBtn");
-  const usersTbody = document.getElementById("usersTbody");
-  const search = document.getElementById("search");
-
-  const loadAppsBtn = document.getElementById("loadAppsBtn");
-  const appsTbody = document.getElementById("appsTbody");
-
-  const loadAuditBtn = document.getElementById("loadAuditBtn");
-  const audit = document.getElementById("audit");
-
   async function api(path, opts = {}) {
     const res = await fetch(path, {
       ...opts,
-      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      headers: { "Content-Type": "application/json" },
       credentials: "include"
     });
     const data = await res.json().catch(()=>({}));
     return { res, data };
   }
 
-  function setAuth(ok, txt){
-    authPill.textContent = txt;
-    authPill.style.borderColor = ok ? "rgba(48,255,155,.6)" : "rgba(255,180,0,.6)";
-    authPill.style.color = ok ? "#9bffd4" : "#ffd580";
-  }
+  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
 
-  async function requireAdmin(){
-    const {res, data} = await api("/api/me");
-    if(!res.ok){ location.href="/login"; return null; }
-    if(data.role !== "admin"){
-      setAuth(false, "auth: forbidden");
-      document.body.innerHTML = "<pre style='padding:18px;color:#ff4c4c'>403 Forbidden (admin only)</pre>";
-      return null;
-    }
-    setAuth(true, `auth: admin (${data.username})`);
-    return data;
-  }
-
-  function esc(s){ return String(s??"").replaceAll("&","&amp;").replaceAll("<","<").replaceAll(">",">"); }
-
-  async function refreshConnections(){
-    const {res, data} = await api("/api/admin/online");
-    if(!res.ok){ alert("Failed to load online list"); return; }
-    const list = data.connections || [];
-    connSelect.innerHTML = list.length
-      ? list.map(c => `<option value="${esc(c.id)}">${esc(c.id)} — ${esc(c.userLabel)} — ${esc(c.uaShort)}</option>`).join("")
-      : `<option value="">(no online sessions)</option>`;
-  }
-
-  async function refreshSettings(){
-    const {res, data} = await api("/api/settings");
-    if(res.ok){
-      maintenanceToggleBtn.textContent = "Maintenance: " + (data.maintenance ? "ON" : "OFF");
-      announcementInput.value = data.announcement || "";
-    }
-  }
-
-  async function loadUsers(){
-    usersTbody.innerHTML = `<tr><td colspan="8" class="muted">Loading…</td></tr>`;
-    const q = search.value.trim();
-    const {res, data} = await api("/api/admin/users" + (q ? `?search=${encodeURIComponent(q)}` : ""));
-    if(!res.ok){
-      usersTbody.innerHTML = `<tr><td colspan="8" class="danger">Error ${res.status}</td></tr>`;
-      return;
-    }
-    const users = data.users || [];
-    if(!users.length){
-      usersTbody.innerHTML = `<tr><td colspan="8" class="muted">No users.</td></tr>`;
-      return;
-    }
-    usersTbody.innerHTML = users.map(u => `
-      <tr>
-        <td>${esc(u.id)}</td>
-        <td>${esc(u.name)}</td>
-        <td>${esc(u.email)}</td>
-        <td>${esc(u.username)}</td>
-        <td>${esc(u.role)}</td>
-        <td>${u.banned ? '<span class="danger">YES</span>' : '<span class="ok">NO</span>'}</td>
-        <td class="muted">${esc(u.maskedIp || "")}</td>
-        <td>
-          <div class="row">
-            <button class="small" data-act="ban" data-id="${esc(u.id)}">Ban</button>
-            <button class="small" data-act="unban" data-id="${esc(u.id)}">Unban</button>
-            <button class="small" data-act="logout" data-id="${esc(u.id)}">Force logout</button>
-            <button class="small" data-act="role" data-id="${esc(u.id)}" data-role="user">Role user</button>
-            <button class="small" data-act="role" data-id="${esc(u.id)}" data-role="mod">Role mod</button>
-            <button class="small" data-act="role" data-id="${esc(u.id)}" data-role="admin">Role admin</button>
-          </div>
-        </td>
-      </tr>
-    `).join("");
-  }
-
-  usersTbody.addEventListener("click", async (e) => {
-    const b = e.target.closest("button[data-act]");
-    if(!b) return;
-    const act = b.dataset.act;
-    const userId = b.dataset.id;
-
-    if(act === "ban"){
-      const reason = prompt("Ban reason (optional):") || "";
-      const {res, data} = await api("/api/admin/ban",{method:"POST", body:JSON.stringify({userId, reason})});
-      if(!res.ok) alert(data.message || `Ban failed (${res.status})`);
-      await loadUsers();
-    }
-    if(act === "unban"){
-      const {res, data} = await api("/api/admin/unban",{method:"POST", body:JSON.stringify({userId})});
-      if(!res.ok) alert(data.message || `Unban failed (${res.status})`);
-      await loadUsers();
-    }
-    if(act === "logout"){
-      const {res, data} = await api("/api/admin/force-logout",{method:"POST", body:JSON.stringify({userId})});
-      if(!res.ok) alert(data.message || `Force logout failed (${res.status})`);
-      else alert("Forced logout (user will be kicked on next request).");
-    }
-    if(act === "role"){
-      const role = b.dataset.role;
-      if(!confirm(`Set role to ${role}?`)) return;
-      const {res, data} = await api("/api/admin/set-role",{method:"POST", body:JSON.stringify({userId, role})});
-      if(!res.ok) alert(data.message || `Set-role failed (${res.status})`);
-      await loadUsers();
-    }
-  });
-
-  async function loadApps(){
-    appsTbody.innerHTML = `<tr><td colspan="6" class="muted">Loading…</td></tr>`;
-    const {res, data} = await api("/api/admin/applications");
-    if(!res.ok){
-      appsTbody.innerHTML = `<tr><td colspan="6" class="danger">Error ${res.status}</td></tr>`;
-      return;
-    }
-    const items = data.items || [];
-    if(!items.length){
-      appsTbody.innerHTML = `<tr><td colspan="6" class="muted">No applications.</td></tr>`;
-      return;
-    }
-    appsTbody.innerHTML = items.map(a => `
-      <tr>
-        <td>${esc(a.id)}</td>
-        <td>${esc(a.username)} (#${esc(a.userId)})</td>
-        <td>${esc(a.requestedRole)}</td>
-        <td class="muted">${esc(a.message || "")}</td>
-        <td>${esc(a.status)}</td>
-        <td>
-          <div class="row">
-            <button class="small" data-app="${esc(a.id)}" data-decision="approve">Approve</button>
-            <button class="small" data-app="${esc(a.id)}" data-decision="deny">Deny</button>
-          </div>
-        </td>
-      </tr>
-    `).join("");
-  }
-
-  appsTbody.addEventListener("click", async (e) => {
-    const b = e.target.closest("button[data-app]");
-    if(!b) return;
-    const appId = b.dataset.app;
-    const decision = b.dataset.decision;
-    const {res, data} = await api("/api/admin/applications/decide", {
-      method:"POST",
-      body: JSON.stringify({ appId, decision })
-    });
-    if(!res.ok) alert(data.message || `Decision failed (${res.status})`);
-    await loadApps();
-    await loadUsers();
-  });
-
-  async function loadAudit(){
-    const {res, data} = await api("/api/admin/audit");
-    if(!res.ok){ audit.textContent = `Error ${res.status}`; return; }
-    const lines = data.lines || [];
-    audit.textContent = lines.length ? lines.join("\n") : "No audit yet.";
-  }
-
-  broadcastBtn.onclick = async () => {
-    const message = broadcastMsg.value.trim();
-    if(!message) return;
-    broadcastMsg.value = "";
-    const {res, data} = await api("/api/admin/broadcast",{method:"POST", body:JSON.stringify({message})});
-    if(!res.ok) alert(data.message || `Broadcast failed (${res.status})`);
-  };
-
-  oneBtn.onclick = async () => {
-    const connId = connSelect.value;
-    const message = oneMsg.value.trim();
-    if(!connId || !message) return;
-    oneMsg.value = "";
-    const {res, data} = await api("/api/admin/message",{method:"POST", body:JSON.stringify({connId, message})});
-    if(!res.ok) alert(data.message || `Message failed (${res.status})`);
-  };
-
-  refreshConnBtn.onclick = refreshConnections;
-
-  maintenanceToggleBtn.onclick = async () => {
-    const {res:curRes, data:cur} = await api("/api/settings");
-    if(!curRes.ok) return;
-    const enabled = !cur.maintenance;
-    const {res, data} = await api("/api/admin/maintenance",{method:"POST", body:JSON.stringify({enabled})});
-    if(!res.ok) alert(data.message || `Failed (${res.status})`);
-    await refreshSettings();
-  };
-
-  announcementBtn.onclick = async () => {
-    const message = announcementInput.value.trim();
-    const {res, data} = await api("/api/admin/announcement",{method:"POST", body:JSON.stringify({message})});
-    if(!res.ok) alert(data.message || `Failed (${res.status})`);
-    await refreshSettings();
-  };
-
-  loadUsersBtn.onclick = loadUsers;
-  loadAppsBtn.onclick = loadApps;
-  loadAuditBtn.onclick = loadAudit;
-
-  logoutBtn.onclick = async () => {
-    await api("/api/logout",{method:"POST"});
+  document.getElementById("homeBtn").onclick = () => location.href="/";
+  document.getElementById("accountBtn").onclick = () => location.href="/account";
+  document.getElementById("logoutBtn").onclick = async () => {
+    await api("/api/auth/logout", { method:"POST" });
     location.href="/login";
   };
 
-  (async () => {
-    const me = await requireAdmin();
-    if(!me) return;
-    await refreshConnections();
-    await refreshSettings();
-    await loadUsers();
+  async function ensureAdmin(){
+    const { data } = await api("/api/auth/me");
+    if (!data.loggedIn) { location.href="/login"; return false; }
+    if (!data.user || data.user.role !== "admin") {
+      document.body.innerHTML = "<div style='padding:20px;font-family:ui-monospace,Consolas,monospace'>Forbidden</div>";
+      return false;
+    }
+    return true;
+  }
+
+  function fmt(ts){ return ts ? new Date(ts).toLocaleString() : ""; }
+
+  async function loadPendingCount(){
+    const { res, data } = await api("/api/admin/role-requests/pending-count");
+    if (!res.ok) return;
+    const n = Number(data.pendingCount || 0);
+    const badge = document.getElementById("pendingBadge");
+    if (n > 0) { badge.style.display="inline-block"; badge.textContent=String(n); }
+    else { badge.style.display="none"; }
+  }
+
+  async function loadRequests(){
+    const status = document.getElementById("filter").value;
+    setMsg("…");
+    const { res, data } = await api("/api/admin/role-requests?status=" + encodeURIComponent(status));
+    if (!res.ok) { setMsg(data.error || data.message || "Failed"); return; }
+    setMsg("");
+
+    const list = document.getElementById("list");
+    const reqs = data.requests || [];
+    if (!reqs.length) { list.textContent = "(none)"; return; }
+
+    list.innerHTML = "";
+    reqs.forEach(r => {
+      const div = document.createElement("div");
+      div.className = "req";
+
+      const userLine = `${r.user.fullName} (@${r.user.username})`;
+      const title = document.createElement("div");
+      title.className = "reqTitle";
+      title.innerHTML = `
+        <div>
+          <b>${userLine}</b>
+          <div class="muted" style="margin-top:6px">Request: <span class="pill">${r.fromRole} -> ${r.toRole}</span> • status: <b>${r.status}</b></div>
+          <div class="muted" style="margin-top:6px">Created: ${fmt(r.createdAt)} ${r.decidedAt ? ("• Decided: "+fmt(r.decidedAt)) : ""}</div>
+        </div>
+      `;
+      div.appendChild(title);
+
+      if (r.reason) {
+        const pre = document.createElement("div");
+        pre.className = "muted";
+        pre.style.marginTop = "10px";
+        pre.textContent = "Reason: " + r.reason;
+        div.appendChild(pre);
+      }
+
+      if (r.status === "pending") {
+        const note = document.createElement("textarea");
+        note.placeholder = "Optional note to the user (shown in history)";
+        note.rows = 2;
+
+        const actions = document.createElement("div");
+        actions.className = "row";
+        actions.style.marginTop = "10px";
+        actions.innerHTML = `
+          <button class="approve">Approve</button>
+          <button class="reject" style="border-color:rgba(255,76,76,.7)">Reject</button>
+        `;
+        div.appendChild(note);
+        div.appendChild(actions);
+
+        actions.querySelector(".approve").onclick = async () => {
+          await decide(r.id, "approve", note.value.trim());
+        };
+        actions.querySelector(".reject").onclick = async () => {
+          await decide(r.id, "reject", note.value.trim());
+        };
+      } else if (r.decisionNote) {
+        const dn = document.createElement("div");
+        dn.className = "muted";
+        dn.style.marginTop = "10px";
+        dn.textContent = "Decision note: " + r.decisionNote;
+        div.appendChild(dn);
+      }
+
+      list.appendChild(div);
+    });
+  }
+
+  async function decide(id, decision, note){
+    setMsg("Saving…");
+    const { res, data } = await api("/api/admin/role-requests/" + encodeURIComponent(id) + "/decide", {
+      method:"POST",
+      body: JSON.stringify({ decision, note })
+    });
+    if (!res.ok) { setMsg(data.error || data.message || "Failed"); return; }
+    setMsg("Saved.");
+    await loadPendingCount();
+    await loadRequests();
+    setTimeout(()=>setMsg(""), 900);
+  }
+
+  document.getElementById("refreshBtn").onclick = async () => {
+    await loadPendingCount();
+    await loadRequests();
+  };
+
+  document.getElementById("filter").onchange = loadRequests;
+
+  (async function init(){
+    const ok = await ensureAdmin();
+    if (!ok) return;
+    await loadPendingCount();
+    await loadRequests();
+
+    // Auto-refresh badge & list every 10 seconds
+    setInterval(async () => {
+      await loadPendingCount();
+      if (document.getElementById("filter").value === "pending") {
+        await loadRequests();
+      }
+    }, 10000);
   })();
 </script>
 </body>
