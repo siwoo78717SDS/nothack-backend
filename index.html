@@ -1305,9 +1305,15 @@
 
           <span class="status-pill info" id="adminLink">ADMIN</span>
 
-          <!-- ADDED -->
           <button class="small" id="loginBtn" type="button">Login</button>
           <button class="small" id="registerBtn" type="button">Register</button>
+
+          <!-- NEW (auth) -->
+          <button class="small" id="accountBtn" type="button" style="display:none">My Account</button>
+          <button class="small" id="logoutBtn" type="button" style="display:none">Logout</button>
+
+          <!-- NEW (intro skip) -->
+          <button class="small" id="skipIntroBtn" type="button" title="Skip the boot typing (Shift+Click = skip forever)">Skip intro</button>
         </div>
       </div>
 
@@ -1813,21 +1819,65 @@
         const adminSubmit = document.getElementById("adminSubmit");
         const adminPanel = document.getElementById("adminPanel");
 
-        // ADDED: Login/Register buttons
+        // Auth buttons
         const loginBtn = document.getElementById("loginBtn");
         const registerBtn = document.getElementById("registerBtn");
+        const accountBtn = document.getElementById("accountBtn");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const skipIntroBtn = document.getElementById("skipIntroBtn");
 
-        // Redirects (Replit: you can make /login and /register pages or routes)
-        if (loginBtn)
-          loginBtn.addEventListener(
-            "click",
-            () => (window.location.href = "/login"),
-          );
-        if (registerBtn)
-          registerBtn.addEventListener(
-            "click",
-            () => (window.location.href = "/register"),
-          );
+        if (loginBtn) loginBtn.addEventListener("click", () => (window.location.href = "/login"));
+        if (registerBtn) registerBtn.addEventListener("click", () => (window.location.href = "/register"));
+        if (accountBtn) accountBtn.addEventListener("click", () => (window.location.href = "/account"));
+
+        // ===== auth state =====
+        let authUser = null; // {id, username, fullName, role}
+        function isRealAdmin() {
+          return authUser && authUser.role === "admin";
+        }
+
+        async function api(path, opts = {}) {
+          const res = await fetch(path, {
+            ...opts,
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          });
+          const data = await res.json().catch(() => ({}));
+          return { res, data };
+        }
+
+        async function doLogout() {
+          await api("/api/auth/logout", { method: "POST" });
+          window.location.href = "/login";
+        }
+
+        if (logoutBtn) logoutBtn.addEventListener("click", doLogout);
+
+        async function syncAuthUI() {
+          const { data } = await api("/api/auth/me");
+          if (!data || !data.loggedIn) {
+            authUser = null;
+            if (loginBtn) loginBtn.style.display = "";
+            if (registerBtn) registerBtn.style.display = "";
+            if (accountBtn) accountBtn.style.display = "none";
+            if (logoutBtn) logoutBtn.style.display = "none";
+            return;
+          }
+
+          authUser = data.user;
+
+          // Hide login/register when logged in
+          if (loginBtn) loginBtn.style.display = "none";
+          if (registerBtn) registerBtn.style.display = "none";
+
+          // Show account/logout
+          if (accountBtn) accountBtn.style.display = "";
+          if (logoutBtn) logoutBtn.style.display = "";
+
+          // (optional) show username in status pill when shell opens
+        }
+
+        // ===== rest of your original file (unchanged) =====
 
         const btnAdminClose = document.getElementById("btnAdminClose");
         const btnRestart = document.getElementById("btnRestart");
@@ -2078,7 +2128,7 @@
         const PRELOADED_FACTS = [
           "A famous ~3,700-year-old clay tablet is a customer complaint: Nanni scolds the merchant Ea-nasir for low-quality copper.",
           "The Antikythera mechanism (ancient Greek) used gears to model astronomy and predict eclipses—basically a hand-powered analog computer.",
-          "One of the oldest known notated songs is the Hurrian Hymn from Ugarit (c. 1400 BCE).",
+          " One of the oldest known notated songs is the Hurrian Hymn from Ugarit (c. 1400 BCE).",
           "The Treaty of Kadesh (Egypt–Hittites, c. 1259 BCE) is one of the earliest surviving peace treaties.",
           "Vindolanda tablets from Roman Britain include everyday letters—like requests for socks and invitations to birthday parties.",
           "Korea’s 'Jikji' (1377) is the oldest extant book printed with movable metal type.",
@@ -2723,8 +2773,60 @@
           setTimeout(typeBase, delay);
         }
 
+        
+        // ===== intro skip (NEW) =====
+        function renderBaseInstant() {
+          // Clear and print the boot text instantly (no typing)
+          term.innerHTML = "";
+          term.appendChild(cursor);
+          for (let i = 0; i < baseLines.length; i++) {
+            const lineEl = document.createElement("div");
+            lineEl.id = "base-" + i;
+            lineEl.textContent = baseLines[i];
+            term.insertBefore(lineEl, cursor);
+          }
+          term.scrollTop = term.scrollHeight;
+        }
+
+        function skipIntro(persistForever) {
+          if (shellOpen) return;
+          cancelAllTyping = true;
+          baseLineIndex = baseLines.length;
+          baseCharIndex = 0;
+
+          if (persistForever) {
+            try { localStorage.setItem("zp_skip_intro", "1"); } catch (e) {}
+          }
+
+          if (skipIntroBtn) skipIntroBtn.style.display = "none";
+          renderBaseInstant();
+          setTimeout(openShell, 0);
+        }
+
+        if (skipIntroBtn) {
+          skipIntroBtn.addEventListener("click", (e) => {
+            // Shift+Click = skip forever
+            skipIntro(!!(e && e.shiftKey));
+          });
+        }
+
+        window.addEventListener("keydown", (e) => {
+          const tag = ((e.target && e.target.tagName) || "").toLowerCase();
+          const typing =
+            tag === "input" || tag === "textarea" || e.target.isContentEditable;
+          if (typing) return;
+
+          // Esc skips the intro (Shift+Esc = skip forever)
+          if (e.key === "Escape" && !shellOpen) {
+            e.preventDefault();
+            skipIntro(!!e.shiftKey);
+          }
+        });
+
+
         // ===== shell =====
         function openShell() {
+          if (skipIntroBtn) skipIntroBtn.style.display = "none";
           shellOpen = true;
           cwd = "/";
           updatePrompt();
@@ -4021,7 +4123,9 @@
           term.innerHTML = "";
           term.appendChild(cursor);
           sfx("click");
-        } // ===== Fullscreen Admin Control Room logic =====
+        }
+
+        // ===== Fullscreen Admin Control Room logic =====
         function adminFullLog(msg) {
           const t = new Date().toLocaleTimeString();
           adminFullLogText.textContent =
@@ -4486,7 +4590,11 @@
             clearTerm();
             return;
           }
-          if (cmd === "exit" || cmd === "logout" || cmd === "quit") {
+          if (cmd === "logout") {
+            await doLogout();
+            return;
+          }
+          if (cmd === "exit" || cmd === "quit") {
             closeShell("");
             return;
           }
@@ -4757,14 +4865,21 @@
         });
 
         // ===== admin (small panel) =====
-        adminLink.addEventListener("click", () => {
+        adminLink.addEventListener("click", async () => {
+          // Logged-in admins go to the real admin page
+          if (isRealAdmin()) {
+            window.location.href = "/admin";
+            return;
+          }
+
+          // Everyone else keeps the simulation passcode popup
           adminLogin.style.display = "flex";
           adminPass.value = "";
           setTimeout(() => adminPass.focus(), 10);
           sfx("open");
         });
 
-        adminSubmit.addEventListener("click", () => {
+adminSubmit.addEventListener("click", () => {
           initAudio();
           if (adminPass.value === adminPassword) {
             adminLogin.style.display = "none";
@@ -4853,7 +4968,15 @@
           cancelAllTyping = false;
           updateHeader();
           sfx("click");
-          setTimeout(typeBase, 300);
+          // Show skip button again (only if user didn't choose "skip forever")
+          const skip = (() => {
+            try { return localStorage.getItem("zp_skip_intro") === "1"; } catch (e) { return false; }
+          })();
+
+          if (skipIntroBtn) skipIntroBtn.style.display = skip ? "none" : "";
+
+          if (skip) skipIntro(false);
+          else setTimeout(typeBase, 300);
         }
 
         function togglePause() {
@@ -5024,7 +5147,20 @@
         btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
         btnSoundToggle.textContent = "Sound: " + (soundOn ? "ON" : "OFF");
         btnIntrusionToggle.textContent = "Intrusion: OFF";
-        setTimeout(typeBase, 500);
+        (async () => {
+          await syncAuthUI();
+
+          // If you previously chose "skip forever"
+          const skip = (() => {
+            try { return localStorage.getItem("zp_skip_intro") === "1"; } catch (e) { return false; }
+          })();
+
+          if (skip) {
+            skipIntro(false);
+          } else {
+            setTimeout(typeBase, 500);
+          }
+        })();
       })();
     </script>
   </body>
