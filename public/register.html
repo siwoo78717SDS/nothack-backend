@@ -19,12 +19,8 @@
   <div class="wrap">
     <h1>Register</h1>
     <div class="card">
-      <div class="muted">
-        
-      </div>
-
       <input id="name" placeholder="Full name" autocomplete="name" />
-      <input id="email" placeholder="Email" autocomplete="email" />
+      <input id="email" placeholder="Email (optional)" autocomplete="email" />
       <input id="username" placeholder="Username" autocomplete="username" />
       <input id="pw" type="password" placeholder="Password" autocomplete="new-password" />
       <button id="btn">Create account</button>
@@ -47,6 +43,14 @@
     const data = await res.json().catch(()=>({}));
     return { res, data };
   }
+
+  (async function boot(){
+    const { data } = await api("/api/auth/me");
+    if (data && data.loggedIn) {
+      if (data.user && data.user.role === "admin") location.href = "/admin";
+      else location.href = "/";
+    }
+  })();
 
   document.getElementById("btn").onclick = async () => {
     const fullName = document.getElementById("name").value.trim();
