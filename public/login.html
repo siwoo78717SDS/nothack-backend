@@ -21,8 +21,8 @@
     <div class="card">
       <div class="muted">Uses cookie session (<b>connect.sid</b>).</div>
 
-      <input id="id" placeholder="Username or Email" />
-      <input id="pw" type="password" placeholder="Password" />
+      <input id="id" placeholder="Username or Email" autocomplete="username" />
+      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" />
       <button id="btn">Login</button>
 
       <div class="muted" style="margin-top:10px">
@@ -48,8 +48,17 @@
     const password = document.getElementById("pw").value;
     const msg = document.getElementById("msg");
     msg.textContent = "…";
-    const {res, data} = await api("/api/login", {method:"POST", body:JSON.stringify({id, password})});
-    if(!res.ok){ msg.textContent = data.message || ("Login failed ("+res.status+")"); return; }
+
+    const {res, data} = await api("/api/auth/login", {
+      method:"POST",
+      body: JSON.stringify({ id, password })
+    });
+
+    if(!res.ok){
+      msg.textContent = data.error || data.message || ("Login failed ("+res.status+")");
+      return;
+    }
+
     location.href = "/";
   };
 </script>
