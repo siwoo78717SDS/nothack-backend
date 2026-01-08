@@ -30,7 +30,12 @@ function now() {
 }
 
 function safeId() {
-  return "id_" + now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+  return (
+    "id_" +
+    now().toString(36) +
+    "_" +
+    Math.random().toString(36).slice(2, 10)
+  );
 }
 
 function normalizeEmail(email) {
@@ -60,12 +65,11 @@ function readDb() {
   try {
     const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
 
-    // Migrations / defaults
+    // Defaults / migrations
     if (!Array.isArray(db.users)) db.users = [];
     if (!Array.isArray(db.roleRequests)) db.roleRequests = [];
     if (!Array.isArray(db.visits)) db.visits = [];
 
-    // Ensure required user fields exist
     for (const u of db.users) {
       if (typeof u.email !== "string") u.email = "";
       if (!u.role) u.role = "user";
@@ -75,11 +79,7 @@ function readDb() {
 
     return db;
   } catch {
-    return {
-      users: [],
-      roleRequests: [],
-      visits: [],
-    };
+    return { users: [], roleRequests: [], visits: [] };
   }
 }
 
@@ -106,7 +106,9 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      // Good default: secure cookies in production (Render/HTTPS),
+      // but still works on localhost.
+      secure: process.env.NODE_ENV === "production",
       maxAge: 1000 * 60 * 60 * 24 * 14,
     },
   }),
@@ -117,13 +119,15 @@ app.use(
    ============================================================ */
 
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.userId) return jsonError(res, 401, "Not logged in");
+  if (!req.session || !req.session.userId)
+    return jsonError(res, 401, "Not logged in");
   next();
 }
 
 function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.session || !req.session.userId) return jsonError(res, 401, "Not logged in");
+    if (!req.session || !req.session.userId)
+      return jsonError(res, 401, "Not logged in");
     const db = readDb();
     const me = db.users.find((u) => u.id === req.session.userId);
     if (!me) return jsonError(res, 401, "Not logged in");
@@ -178,20 +182,30 @@ app.use((req, res, next) => {
    Pages (put BEFORE static)
    ============================================================ */
 
-app.get("/", requireAuth, (req, res) =>
+// Home (requires login; redirects to /login)
+app.get("/", requireRolePage("user", "mod", "admin"), (req, res) =>
   res.sendFile(path.join(__dirname, "public", "index.html")),
 );
 
-app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/login", (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "login.html")),
+);
+
 app.get("/register", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "register.html")),
 );
 
-app.get("/account", requireAuth, (req, res) =>
+// My Page (requires login; redirects to /login)
+app.get("/account", requireRolePage("user", "mod", "admin"), (req, res) =>
   res.sendFile(path.join(__dirname, "public", "account.html")),
 );
 
-// Real admin page (not the simulation in index.html)
+// Moderator page (Option A: mods can view tools, but cannot approve requests)
+app.get("/mod", requireRolePage("mod", "admin"), (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "mod.html")),
+);
+
+// Real admin page (approval dashboard)
 app.get("/admin", requireRolePage("admin"), (req, res) =>
   res.sendFile(path.join(__dirname, "public", "admin.html")),
 );
@@ -214,7 +228,9 @@ function ensureBootstrapAdmin() {
   if (hasAdmin) return;
 
   const fullName = process.env.BOOTSTRAP_ADMIN_FULLNAME || "Site Admin";
-  const username = String(process.env.BOOTSTRAP_ADMIN_USERNAME || "admin").trim().toLowerCase();
+  const username = String(
+    process.env.BOOTSTRAP_ADMIN_USERNAME || "admin",
+  ).trim().toLowerCase();
   const password = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || "951212");
   const email = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || "");
 
@@ -249,7 +265,8 @@ app.post("/api/auth/register", (req, res) => {
   if (email && !isValidEmail(email)) return jsonError(res, 400, "Invalid email");
   if (!/^[a-z0-9_]{3,20}$/.test(username))
     return jsonError(res, 400, "Username must be 3-20 chars: a-z 0-9 _");
-  if (password.length < 6) return jsonError(res, 400, "Password must be at least 6 chars");
+  if (password.length < 6)
+    return jsonError(res, 400, "Password must be at least 6 chars");
 
   const db = readDb();
 
@@ -259,9 +276,11 @@ app.post("/api/auth/register", (req, res) => {
   if (email && db.users.some((u) => normalizeEmail(u.email) === email))
     return jsonError(res, 409, "Email already in use");
 
-  // Optional auto-admin
+  // Optional auto-admin (NOT required; bootstrap handles it anyway)
   const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || "");
-  const adminUsername = String(process.env.ADMIN_USERNAME || "").trim().toLowerCase();
+  const adminUsername = String(process.env.ADMIN_USERNAME || "")
+    .trim()
+    .toLowerCase();
   let role = "user";
   if (adminEmail && email && email === adminEmail) role = "admin";
   if (adminUsername && username && username === adminUsername) role = "admin";
@@ -371,7 +390,8 @@ app.patch("/api/account/password", requireAuth, (req, res) => {
   const newPassword = String(req.body.newPassword || "");
 
   if (!currentPassword) return jsonError(res, 400, "Missing current password");
-  if (newPassword.length < 6) return jsonError(res, 400, "New password must be at least 6 chars");
+  if (newPassword.length < 6)
+    return jsonError(res, 400, "New password must be at least 6 chars");
 
   const db = readDb();
   const me = db.users.find((u) => u.id === req.session.userId);
@@ -400,22 +420,31 @@ function canRequestRole(db, userId) {
   const nowMs = now();
 
   // 1 pending at a time
-  const pending = db.roleRequests.find((r) => r.userId === userId && r.status === "pending");
+  const pending = db.roleRequests.find(
+    (r) => r.userId === userId && r.status === "pending",
+  );
   if (pending) return { ok: false, error: "You already have a pending request." };
 
   // cooldown: 6 hours from last request
   const last = db.roleRequests
     .filter((r) => r.userId === userId)
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+
   if (last && nowMs - (last.createdAt || 0) < 6 * 60 * 60 * 1000) {
-    const mins = Math.ceil((6 * 60 * 60 * 1000 - (nowMs - last.createdAt)) / 60000);
+    const mins = Math.ceil(
+      (6 * 60 * 60 * 1000 - (nowMs - last.createdAt)) / 60000,
+    );
     return { ok: false, error: `Cooldown active. Try again in ~${mins} min.` };
   }
 
   // max 3 requests per 7 days
   const weekAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
-  const weekCount = db.roleRequests.filter((r) => r.userId === userId && (r.createdAt || 0) >= weekAgo).length;
-  if (weekCount >= 3) return { ok: false, error: "Too many requests this week. Try later." };
+  const weekCount = db.roleRequests.filter(
+    (r) => r.userId === userId && (r.createdAt || 0) >= weekAgo,
+  ).length;
+
+  if (weekCount >= 3)
+    return { ok: false, error: "Too many requests this week. Try later." };
 
   return { ok: true };
 }
@@ -445,6 +474,7 @@ app.post("/api/roles/request", requireAuth, (req, res) => {
     decidedBy: null,
     decisionNote: "",
   };
+
   db.roleRequests.unshift(reqObj);
   writeDb(db);
 
@@ -461,6 +491,7 @@ app.get("/api/roles/my-requests", requireAuth, (req, res) => {
 
 /* ============================================================
    API: Admin role requests (approve/reject + history)
+   Option A: admin-only
    ============================================================ */
 
 app.get("/api/admin/role-requests", requireRole("admin"), (req, res) => {
@@ -487,42 +518,53 @@ app.get("/api/admin/role-requests", requireRole("admin"), (req, res) => {
   res.json({ ok: true, requests: out });
 });
 
-app.get("/api/admin/role-requests/pending-count", requireRole("admin"), (req, res) => {
-  const db = readDb();
-  const n = db.roleRequests.filter((r) => r.status === "pending").length;
-  res.json({ ok: true, pendingCount: n });
-});
+app.get(
+  "/api/admin/role-requests/pending-count",
+  requireRole("admin"),
+  (req, res) => {
+    const db = readDb();
+    const n = db.roleRequests.filter((r) => r.status === "pending").length;
+    res.json({ ok: true, pendingCount: n });
+  },
+);
 
-app.post("/api/admin/role-requests/:id/decide", requireRole("admin"), (req, res) => {
-  const decision = String(req.body.decision || "").toLowerCase(); // approve|reject
-  const note = String(req.body.note || "").trim().slice(0, 300);
+app.post(
+  "/api/admin/role-requests/:id/decide",
+  requireRole("admin"),
+  (req, res) => {
+    const decision = String(req.body.decision || "").toLowerCase(); // approve|reject
+    const note = String(req.body.note || "").trim().slice(0, 300);
 
-  if (!["approve", "reject"].includes(decision)) return jsonError(res, 400, "Invalid decision");
+    if (!["approve", "reject"].includes(decision))
+      return jsonError(res, 400, "Invalid decision");
 
-  const db = readDb();
-  const r = db.roleRequests.find((x) => x.id === req.params.id);
-  if (!r) return jsonError(res, 404, "Request not found");
-  if (r.status !== "pending") return jsonError(res, 400, "Request is not pending");
+    const db = readDb();
+    const r = db.roleRequests.find((x) => x.id === req.params.id);
+    if (!r) return jsonError(res, 404, "Request not found");
+    if (r.status !== "pending")
+      return jsonError(res, 400, "Request is not pending");
 
-  const targetUser = db.users.find((u) => u.id === r.userId);
-  if (!targetUser) return jsonError(res, 404, "User not found");
+    const targetUser = db.users.find((u) => u.id === r.userId);
+    if (!targetUser) return jsonError(res, 404, "User not found");
 
-  r.status = decision === "approve" ? "approved" : "rejected";
-  r.decidedAt = now();
-  r.decidedBy = req.me.id;
-  r.decisionNote = note;
+    r.status = decision === "approve" ? "approved" : "rejected";
+    r.decidedAt = now();
+    r.decidedBy = req.me.id;
+    r.decisionNote = note;
 
-  if (decision === "approve") {
-    // Only allow the intended upgrade path
-    const expected = nextRoleFor(targetUser.role);
-    if (expected !== r.toRole) return jsonError(res, 400, "User role changed; request no longer valid.");
+    if (decision === "approve") {
+      // Only allow intended upgrade path
+      const expected = nextRoleFor(targetUser.role);
+      if (expected !== r.toRole)
+        return jsonError(res, 400, "User role changed; request no longer valid.");
 
-    targetUser.role = r.toRole;
-  }
+      targetUser.role = r.toRole;
+    }
 
-  writeDb(db);
-  res.json({ ok: true });
-});
+    writeDb(db);
+    res.json({ ok: true });
+  },
+);
 
 /* ============================================================
    Admin users list (optional)
