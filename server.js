@@ -2,145 +2,88 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const session = require("express-session");
-const FileStore = require("session-file-store")(session);
+const FileStoreFactory = require("session-file-store");
 const bcrypt = require("bcryptjs");
 
-/* ============================================================
-   Helpers
-   ============================================================ */
-
-function loadEnv() {
-  const envPath = path.join(__dirname, ".env");
-  if (!fs.existsSync(envPath)) return;
-  const raw = fs.readFileSync(envPath, "utf8");
-  raw.split(/\r?\n/).forEach((line) => {
-    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (!m) return;
-    const k = m[1];
-    let v = m[2];
-    if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
-    if (v.startsWith("'") && v.endsWith("'")) v = v.slice(1, -1);
-    if (!(k in process.env)) process.env[k] = v;
-  });
-}
-loadEnv();
-
-function now() {
-  return Date.now();
-}
-
-function safeId() {
-  return (
-    "id_" +
-    now().toString(36) +
-    "_" +
-    Math.random().toString(36).slice(2, 10)
-  );
-}
-
-function normalizeEmail(email) {
-  return String(email || "").trim().toLowerCase();
-}
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function jsonError(res, status, msg) {
-  return res.status(status).json({ ok: false, error: msg, message: msg });
-}
+const app = express();
+app.set("trust proxy", 1);
 
 /* ============================================================
-   Storage (db.json)
+   Paths + storage
    ============================================================ */
 
-const DATA_DIR = path.join(__dirname, "data");
-const DB_PATH = path.join(DATA_DIR, "db.json");
-const SESS_DIR = path.join(DATA_DIR, "sessions");
-
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const DATA_PATH = path.join(__dirname, "db.json");
+const SESS_DIR = path.join(__dirname, "sessions");
 if (!fs.existsSync(SESS_DIR)) fs.mkdirSync(SESS_DIR, { recursive: true });
 
-function readDb() {
+function readDB() {
   try {
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-
-    // Defaults / migrations
-    if (!Array.isArray(db.users)) db.users = [];
-    if (!Array.isArray(db.roleRequests)) db.roleRequests = [];
-    if (!Array.isArray(db.visits)) db.visits = [];
-
-    for (const u of db.users) {
-      if (typeof u.email !== "string") u.email = "";
-      if (!u.role) u.role = "user";
-      if (typeof u.banned !== "boolean") u.banned = false;
-      if (!u.createdAt) u.createdAt = now();
-    }
-
+    const raw = fs.readFileSync(DATA_PATH, "utf8");
+    const db = JSON.parse(raw);
+    db.users ||= [];
+    db.roleRequests ||= [];
     return db;
-  } catch {
-    return { users: [], roleRequests: [], visits: [] };
+  } catch (e) {
+    return { users: [], roleRequests: [] };
   }
 }
 
-function writeDb(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+function writeDB(db) {
+  fs.writeFileSync(DATA_PATH, JSON.stringify(db, null, 2), "utf8");
+}
+
+function nowISO() {
+  return new Date().toISOString();
+}
+
+function nextId(prefix = "id") {
+  return (
+    prefix +
+    "_" +
+    Math.random().toString(36).slice(2, 10) +
+    "_" +
+    Date.now().toString(36)
+  );
+}
+
+function normalizeUsername(u) {
+  return String(u || "").trim();
+}
+
+function usernameKey(u) {
+  return normalizeUsername(u).toLowerCase();
+}
+
+function publicUser(u) {
+  return { id: u.id, username: u.username, role: u.role, createdAt: u.createdAt };
 }
 
 /* ============================================================
-   App + Session
-   ============================================================ */
-
-const app = express();
-app.set("trust proxy", true);
-
-app.use(express.json({ limit: "250kb" }));
-app.use(express.urlencoded({ extended: false }));
-
-app.use(
-  session({
-    store: new FileStore({ path: SESS_DIR }),
-    secret: process.env.SESSION_SECRET || "dev-secret-change-me",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      // Good default: secure cookies in production (Render/HTTPS),
-      // but still works on localhost.
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 1000 * 60 * 60 * 24 * 14,
-    },
-  }),
-);
-
-/* ============================================================
-   Auth middleware
+   Auth middleware (API)
    ============================================================ */
 
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.userId)
-    return jsonError(res, 401, "Not logged in");
+  if (!req.session.userId) return res.status(401).json({ error: "Not logged in" });
   next();
 }
 
-function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.session || !req.session.userId)
-      return jsonError(res, 401, "Not logged in");
-    const db = readDb();
-    const me = db.users.find((u) => u.id === req.session.userId);
-    if (!me) return jsonError(res, 401, "Not logged in");
-    if (!roles.includes(me.role)) return jsonError(res, 403, "Forbidden");
-    req.me = me;
-    next();
-  };
+function requireAdmin(req, res, next) {
+  const db = readDB();
+  const u = db.users.find((x) => x.id === req.session.userId);
+  if (!u) return res.status(401).json({ error: "Not logged in" });
+  if (u.role !== "admin") return res.status(403).json({ error: "Admin only" });
+  req.me = u;
+  next();
 }
 
-function requireRolePage(...roles) {
+/* ============================================================
+   Auth middleware (Pages)
+   ============================================================ */
+
+function requireRolePage(roles = []) {
   return (req, res, next) => {
-    if (!req.session || !req.session.userId) return res.redirect("/login");
-    const db = readDb();
+    if (!req.session.userId) return res.redirect("/login");
+    const db = readDB();
     const me = db.users.find((u) => u.id === req.session.userId);
     if (!me) return res.redirect("/login");
     if (!roles.includes(me.role)) return res.status(403).send("Forbidden");
@@ -150,265 +93,239 @@ function requireRolePage(...roles) {
 }
 
 /* ============================================================
-   Visit log (optional / harmless)
-   ============================================================ */
-
-function getClientIp(req) {
-  return String(req.ip || "").replace(/^::ffff:/, "");
-}
-
-app.use((req, res, next) => {
-  const p = req.path || "/";
-  if (!req.session._vis) req.session._vis = {};
-  if (req.session._vis[p]) return next();
-  req.session._vis[p] = true;
-
-  const db = readDb();
-  db.visits.unshift({
-    id: safeId(),
-    at: now(),
-    ip: getClientIp(req),
-    userId: req.session.userId || null,
-    path: p,
-    ua: String(req.headers["user-agent"] || "").slice(0, 200),
-  });
-  db.visits = db.visits.slice(0, 2500);
-  writeDb(db);
-
-  next();
-});
-
-/* ============================================================
-   Pages (put BEFORE static)
-   ============================================================ */
-
-// Home (requires login; redirects to /login)
-app.get("/", requireRolePage("user", "mod", "admin"), (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "index.html")),
-);
-
-app.get("/login", (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "login.html")),
-);
-
-app.get("/register", (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "register.html")),
-);
-
-// My Page (requires login; redirects to /login)
-app.get("/account", requireRolePage("user", "mod", "admin"), (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "account.html")),
-);
-
-// Moderator page (Option A: mods can view tools, but cannot approve requests)
-app.get("/mod", requireRolePage("mod", "admin"), (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "mod.html")),
-);
-
-// Real admin page (approval dashboard)
-app.get("/admin", requireRolePage("admin"), (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "admin.html")),
-);
-
-// Static files
-app.use(
-  express.static(path.join(__dirname, "public"), {
-    extensions: ["html"],
-    index: false,
-  }),
-);
-
-/* ============================================================
-   Bootstrap admin (creates an admin if none exists)
+   Bootstrap admin
    ============================================================ */
 
 function ensureBootstrapAdmin() {
-  const db = readDb();
+  const db = readDB();
+  const adminUsername = process.env.BOOTSTRAP_ADMIN_USERNAME || "admin";
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || "951212";
+
   const hasAdmin = db.users.some((u) => u.role === "admin");
   if (hasAdmin) return;
 
-  const fullName = process.env.BOOTSTRAP_ADMIN_FULLNAME || "Site Admin";
-  const username = String(
-    process.env.BOOTSTRAP_ADMIN_USERNAME || "admin",
-  ).trim().toLowerCase();
-  const password = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || "951212");
-  const email = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || "");
+  const username = normalizeUsername(adminUsername);
+  const key = usernameKey(username);
 
-  const passHash = bcrypt.hashSync(password, 10);
-  db.users.push({
-    id: safeId(),
-    fullName,
-    email,
+  if (!username || adminPassword.length < 6) {
+    console.warn("[bootstrap] Missing/weak BOOTSTRAP admin credentials; skipping.");
+    return;
+  }
+
+  // Upgrade existing user if same username exists
+  const existing = db.users.find((u) => usernameKey(u.username) === key);
+  if (existing) {
+    existing.role = "admin";
+    writeDB(db);
+    console.log("[bootstrap] Upgraded existing user to admin:", existing.username);
+    return;
+  }
+
+  const passHash = bcrypt.hashSync(adminPassword, 10);
+  const u = {
+    id: nextId("u"),
     username,
     passHash,
     role: "admin",
-    createdAt: now(),
-    banned: false,
-  });
-  writeDb(db);
-
-  console.log("[BOOTSTRAP] Created admin:", username);
+    createdAt: nowISO(),
+  };
+  db.users.push(u);
+  writeDB(db);
+  console.log("[bootstrap] Created admin user:", username);
 }
+
+app.use(express.json({ limit: "200kb" }));
+app.use(express.urlencoded({ extended: false }));
+
+const FileStore = FileStoreFactory(session);
+app.use(
+  session({
+    store: new FileStore({
+      path: SESS_DIR,
+      retries: 0,
+    }),
+    secret: process.env.SESSION_SECRET || "dev-secret-change-me",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    },
+  }),
+);
+
 ensureBootstrapAdmin();
+
+/* ============================================================
+   Page routes (BEFORE static so auth cannot be bypassed)
+   ============================================================ */
+
+// Public home page (you can keep it public so people can see it)
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/index.html", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
+app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/login.html", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+
+app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
+app.get("/register.html", (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "register.html")),
+);
+
+// Protected pages (also protect direct .html access)
+app.get(
+  ["/account", "/account.html"],
+  requireRolePage(["user", "mod", "admin"]),
+  (req, res) => res.sendFile(path.join(__dirname, "public", "account.html")),
+);
+
+app.get(["/admin", "/admin.html"], requireRolePage(["admin"]), (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "admin.html")),
+);
+
+app.get(["/mod", "/mod.html"], requireRolePage(["mod", "admin"]), (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "mod.html")),
+);
+
+/* ============================================================
+   Static assets (AFTER routes)
+   ============================================================ */
+
+app.use(express.static(path.join(__dirname, "public")));
 
 /* ============================================================
    API: Auth
    ============================================================ */
 
+app.get("/api/auth/me", (req, res) => {
+  if (!req.session.userId) return res.status(200).json({ loggedIn: false });
+  const db = readDB();
+  const u = db.users.find((x) => x.id === req.session.userId);
+  if (!u) return res.status(200).json({ loggedIn: false });
+  return res.status(200).json({ loggedIn: true, user: publicUser(u) });
+});
+
 app.post("/api/auth/register", (req, res) => {
-  const fullName = String(req.body.fullName || req.body.name || "").trim();
-  const email = normalizeEmail(req.body.email || "");
-  const username = String(req.body.username || "").trim().toLowerCase();
+  const username = normalizeUsername(req.body.username);
   const password = String(req.body.password || "");
 
-  if (fullName.length < 2) return jsonError(res, 400, "Full name too short");
-  if (email && !isValidEmail(email)) return jsonError(res, 400, "Invalid email");
-  if (!/^[a-z0-9_]{3,20}$/.test(username))
-    return jsonError(res, 400, "Username must be 3-20 chars: a-z 0-9 _");
-  if (password.length < 6)
-    return jsonError(res, 400, "Password must be at least 6 chars");
+  if (!username || username.length < 3 || username.length > 24) {
+    return res.status(400).json({ error: "Username must be 3-24 characters." });
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return res
+      .status(400)
+      .json({ error: "Username can only use letters, numbers, underscore." });
+  }
+  if (password.length < 6 || password.length > 128) {
+    return res.status(400).json({ error: "Password must be 6-128 characters." });
+  }
 
-  const db = readDb();
-
-  if (db.users.some((u) => u.username === username))
-    return jsonError(res, 409, "Username already taken");
-
-  if (email && db.users.some((u) => normalizeEmail(u.email) === email))
-    return jsonError(res, 409, "Email already in use");
-
-  // Optional auto-admin (NOT required; bootstrap handles it anyway)
-  const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || "");
-  const adminUsername = String(process.env.ADMIN_USERNAME || "")
-    .trim()
-    .toLowerCase();
-  let role = "user";
-  if (adminEmail && email && email === adminEmail) role = "admin";
-  if (adminUsername && username && username === adminUsername) role = "admin";
+  const db = readDB();
+  const key = usernameKey(username);
+  if (db.users.some((u) => usernameKey(u.username) === key)) {
+    return res.status(409).json({ error: "Username already taken." });
+  }
 
   const passHash = bcrypt.hashSync(password, 10);
-  db.users.push({
-    id: safeId(),
-    fullName,
-    email,
-    username,
-    passHash,
-    role,
-    createdAt: now(),
-    banned: false,
-  });
-  writeDb(db);
+  const u = { id: nextId("u"), username, passHash, role: "user", createdAt: nowISO() };
+  db.users.push(u);
+  writeDB(db);
 
-  res.json({ ok: true, role });
+  req.session.userId = u.id;
+  return res.status(201).json({ ok: true, user: publicUser(u) });
 });
 
 app.post("/api/auth/login", (req, res) => {
-  const rawId = String(req.body.username || req.body.id || req.body.email || "").trim();
+  const username = normalizeUsername(req.body.username);
   const password = String(req.body.password || "");
 
-  if (!rawId) return jsonError(res, 400, "Missing username/email");
-  if (!password) return jsonError(res, 400, "Missing password");
+  const db = readDB();
+  const u = db.users.find((x) => usernameKey(x.username) === usernameKey(username));
+  if (!u) return res.status(401).json({ error: "Invalid username or password." });
 
-  const db = readDb();
-  const idLower = rawId.toLowerCase();
-  const idAsEmail = normalizeEmail(rawId);
+  const ok = bcrypt.compareSync(password, u.passHash);
+  if (!ok) return res.status(401).json({ error: "Invalid username or password." });
 
-  const user = db.users.find(
-    (u) => u.username === idLower || (u.email && normalizeEmail(u.email) === idAsEmail),
-  );
-  if (!user) return jsonError(res, 401, "Invalid login");
-  if (user.banned) return jsonError(res, 403, "Account is banned");
-
-  const ok = bcrypt.compareSync(password, user.passHash);
-  if (!ok) return jsonError(res, 401, "Invalid login");
-
-  req.session.userId = user.id;
-
-  res.json({
-    ok: true,
-    role: user.role,
-    username: user.username,
-    fullName: user.fullName,
-  });
+  req.session.userId = u.id;
+  return res.status(200).json({ ok: true, user: publicUser(u) });
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
-});
-
-app.get("/api/auth/me", (req, res) => {
-  if (!req.session.userId) return res.json({ ok: true, loggedIn: false });
-  const db = readDb();
-  const me = db.users.find((u) => u.id === req.session.userId);
-  if (!me) return res.json({ ok: true, loggedIn: false });
-  res.json({
-    ok: true,
-    loggedIn: true,
-    user: {
-      id: me.id,
-      username: me.username,
-      fullName: me.fullName,
-      email: me.email || "",
-      role: me.role,
-    },
+  req.session.destroy(() => {
+    res.clearCookie("connect.sid");
+    res.json({ ok: true });
   });
 });
 
-// Legacy aliases (so old frontends still work)
-app.post("/api/register", (req, res) => res.redirect(307, "/api/auth/register"));
-app.post("/api/login", (req, res) => res.redirect(307, "/api/auth/login"));
-
 /* ============================================================
-   API: Account (change username / password)
+   API: Account
    ============================================================ */
 
-app.patch("/api/account/username", requireAuth, (req, res) => {
-  const newUsername = String(req.body.username || "").trim().toLowerCase();
+app.post("/api/account/change-username", requireAuth, (req, res) => {
+  const newUsername = normalizeUsername(req.body.newUsername);
   const currentPassword = String(req.body.currentPassword || "");
 
-  if (!/^[a-z0-9_]{3,20}$/.test(newUsername))
-    return jsonError(res, 400, "Username must be 3-20 chars: a-z 0-9 _");
-  if (!currentPassword) return jsonError(res, 400, "Missing current password");
+  if (!newUsername || newUsername.length < 3 || newUsername.length > 24) {
+    return res.status(400).json({ error: "Username must be 3-24 characters." });
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
+    return res
+      .status(400)
+      .json({ error: "Username can only use letters, numbers, underscore." });
+  }
 
-  const db = readDb();
-  const me = db.users.find((u) => u.id === req.session.userId);
-  if (!me) return jsonError(res, 401, "Not logged in");
+  const db = readDB();
+  const u = db.users.find((x) => x.id === req.session.userId);
+  if (!u) return res.status(401).json({ error: "Not logged in" });
 
-  if (!bcrypt.compareSync(currentPassword, me.passHash))
-    return jsonError(res, 401, "Wrong password");
+  const ok = bcrypt.compareSync(currentPassword, u.passHash);
+  if (!ok) return res.status(401).json({ error: "Wrong current password." });
 
-  if (db.users.some((u) => u.username === newUsername && u.id !== me.id))
-    return jsonError(res, 409, "Username already taken");
+  const key = usernameKey(newUsername);
+  if (db.users.some((x) => x.id !== u.id && usernameKey(x.username) === key)) {
+    return res.status(409).json({ error: "Username already taken." });
+  }
 
-  me.username = newUsername;
-  writeDb(db);
-
-  res.json({ ok: true, username: me.username });
+  u.username = newUsername;
+  writeDB(db);
+  return res.status(200).json({ ok: true, user: publicUser(u) });
 });
 
-app.patch("/api/account/password", requireAuth, (req, res) => {
+app.post("/api/account/change-password", requireAuth, (req, res) => {
   const currentPassword = String(req.body.currentPassword || "");
   const newPassword = String(req.body.newPassword || "");
 
-  if (!currentPassword) return jsonError(res, 400, "Missing current password");
-  if (newPassword.length < 6)
-    return jsonError(res, 400, "New password must be at least 6 chars");
+  if (newPassword.length < 6 || newPassword.length > 128) {
+    return res.status(400).json({ error: "New password must be 6-128 characters." });
+  }
 
-  const db = readDb();
-  const me = db.users.find((u) => u.id === req.session.userId);
-  if (!me) return jsonError(res, 401, "Not logged in");
+  const db = readDB();
+  const u = db.users.find((x) => x.id === req.session.userId);
+  if (!u) return res.status(401).json({ error: "Not logged in" });
 
-  if (!bcrypt.compareSync(currentPassword, me.passHash))
-    return jsonError(res, 401, "Wrong password");
+  const ok = bcrypt.compareSync(currentPassword, u.passHash);
+  if (!ok) return res.status(401).json({ error: "Wrong current password." });
 
-  me.passHash = bcrypt.hashSync(newPassword, 10);
-  writeDb(db);
-
-  res.json({ ok: true });
+  u.passHash = bcrypt.hashSync(newPassword, 10);
+  writeDB(db);
+  return res.status(200).json({ ok: true });
 });
 
 /* ============================================================
-   API: Role Requests (user->mod, mod->admin)
+   Role requests (Option A approvals: admin only)
+   Upgrade path only:
+     user -> mod
+     mod  -> admin
    ============================================================ */
+
+function roleRank(role) {
+  if (role === "user") return 0;
+  if (role === "mod") return 1;
+  if (role === "admin") return 2;
+  return -1;
+}
 
 function nextRoleFor(role) {
   if (role === "user") return "mod";
@@ -416,171 +333,151 @@ function nextRoleFor(role) {
   return null;
 }
 
-function canRequestRole(db, userId) {
-  const nowMs = now();
+app.post("/api/requests/role", requireAuth, (req, res) => {
+  const db = readDB();
+  const u = db.users.find((x) => x.id === req.session.userId);
+  if (!u) return res.status(401).json({ error: "Not logged in" });
 
-  // 1 pending at a time
-  const pending = db.roleRequests.find(
-    (r) => r.userId === userId && r.status === "pending",
-  );
-  if (pending) return { ok: false, error: "You already have a pending request." };
+  const requestedRole = String(req.body.role || "").toLowerCase();
+  const expected = nextRoleFor(u.role);
 
-  // cooldown: 6 hours from last request
-  const last = db.roleRequests
-    .filter((r) => r.userId === userId)
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-
-  if (last && nowMs - (last.createdAt || 0) < 6 * 60 * 60 * 1000) {
-    const mins = Math.ceil(
-      (6 * 60 * 60 * 1000 - (nowMs - last.createdAt)) / 60000,
-    );
-    return { ok: false, error: `Cooldown active. Try again in ~${mins} min.` };
+  // Enforce upgrade path only
+  if (!expected) {
+    return res.status(400).json({ error: "You cannot request a higher role." });
+  }
+  if (requestedRole !== expected) {
+    return res
+      .status(400)
+      .json({ error: `You can only request: ${expected}` });
   }
 
-  // max 3 requests per 7 days
-  const weekAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
-  const weekCount = db.roleRequests.filter(
-    (r) => r.userId === userId && (r.createdAt || 0) >= weekAgo,
+  const now = Date.now();
+
+  // Only 1 pending at a time
+  const pending = db.roleRequests.find((r) => r.userId === u.id && r.status === "pending");
+  if (pending) return res.status(409).json({ error: "You already have a pending request." });
+
+  // Cooldown: 6 hours
+  const last = db.roleRequests
+    .filter((r) => r.userId === u.id)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+  if (last) {
+    const lastTime = new Date(last.createdAt).getTime();
+    const cooldownMs = 6 * 60 * 60 * 1000;
+    if (now - lastTime < cooldownMs) {
+      const mins = Math.ceil((cooldownMs - (now - lastTime)) / 60000);
+      return res
+        .status(429)
+        .json({ error: `Please wait ${mins} more minutes before requesting again.` });
+    }
+  }
+
+  // Weekly limit: max 3 per 7 days
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const recentCount = db.roleRequests.filter(
+    (r) => r.userId === u.id && now - new Date(r.createdAt).getTime() < weekMs,
   ).length;
-
-  if (weekCount >= 3)
-    return { ok: false, error: "Too many requests this week. Try later." };
-
-  return { ok: true };
-}
-
-app.post("/api/roles/request", requireAuth, (req, res) => {
-  const reason = String(req.body.reason || "").trim().slice(0, 500);
-
-  const db = readDb();
-  const me = db.users.find((u) => u.id === req.session.userId);
-  if (!me) return jsonError(res, 401, "Not logged in");
-
-  const toRole = nextRoleFor(me.role);
-  if (!toRole) return jsonError(res, 400, "You cannot request a higher role.");
-
-  const ok = canRequestRole(db, me.id);
-  if (!ok.ok) return jsonError(res, 429, ok.error);
+  if (recentCount >= 3) {
+    return res.status(429).json({ error: "Too many requests. Try again later." });
+  }
 
   const reqObj = {
-    id: safeId(),
-    userId: me.id,
-    fromRole: me.role,
-    toRole,
-    reason,
-    status: "pending", // pending | approved | rejected
-    createdAt: now(),
+    id: nextId("req"),
+    userId: u.id,
+    usernameAtTime: u.username,
+    requestedRole,
+    status: "pending",
+    createdAt: nowISO(),
     decidedAt: null,
     decidedBy: null,
-    decisionNote: "",
+    reason: null,
   };
 
-  db.roleRequests.unshift(reqObj);
-  writeDb(db);
-
-  res.json({ ok: true, request: reqObj });
+  db.roleRequests.push(reqObj);
+  writeDB(db);
+  return res.status(201).json({ ok: true, request: reqObj });
 });
 
-app.get("/api/roles/my-requests", requireAuth, (req, res) => {
-  const db = readDb();
+// (Optional but useful) user can see their own requests
+app.get("/api/requests/my", requireAuth, (req, res) => {
+  const db = readDB();
   const list = db.roleRequests
     .filter((r) => r.userId === req.session.userId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 50);
-  res.json({ ok: true, requests: list });
+  return res.json({ ok: true, requests: list });
 });
 
 /* ============================================================
-   API: Admin role requests (approve/reject + history)
-   Option A: admin-only
+   Admin request listing + decisions (admin only)
    ============================================================ */
 
-app.get("/api/admin/role-requests", requireRole("admin"), (req, res) => {
-  const status = String(req.query.status || "pending").toLowerCase(); // pending|approved|rejected|all
-  const db = readDb();
+app.get("/api/admin/requests", requireAdmin, (req, res) => {
+  const status = String(req.query.status || "pending").toLowerCase();
+  const db = readDB();
 
-  let list = db.roleRequests;
-  if (status !== "all") list = list.filter((r) => r.status === status);
-
-  const usersById = Object.fromEntries(db.users.map((u) => [u.id, u]));
-  const out = list.slice(0, 200).map((r) => {
-    const u = usersById[r.userId] || {};
-    return {
-      ...r,
-      user: {
-        id: u.id || r.userId,
-        username: u.username || "(unknown)",
-        fullName: u.fullName || "(unknown)",
-        role: u.role || r.fromRole,
-      },
-    };
-  });
-
-  res.json({ ok: true, requests: out });
+  let list = db.roleRequests.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  if (["pending", "approved", "rejected"].includes(status)) {
+    list = list.filter((r) => r.status === status);
+  }
+  return res.json({ ok: true, requests: list });
 });
 
-app.get(
-  "/api/admin/role-requests/pending-count",
-  requireRole("admin"),
-  (req, res) => {
-    const db = readDb();
-    const n = db.roleRequests.filter((r) => r.status === "pending").length;
-    res.json({ ok: true, pendingCount: n });
-  },
-);
+app.get("/api/admin/requests/pending-count", requireAdmin, (req, res) => {
+  const db = readDB();
+  const n = db.roleRequests.filter((r) => r.status === "pending").length;
+  return res.json({ ok: true, pendingCount: n });
+});
 
-app.post(
-  "/api/admin/role-requests/:id/decide",
-  requireRole("admin"),
-  (req, res) => {
-    const decision = String(req.body.decision || "").toLowerCase(); // approve|reject
-    const note = String(req.body.note || "").trim().slice(0, 300);
+app.post("/api/admin/requests/:id/approve", requireAdmin, (req, res) => {
+  const id = req.params.id;
+  const db = readDB();
 
-    if (!["approve", "reject"].includes(decision))
-      return jsonError(res, 400, "Invalid decision");
+  const adminUser = db.users.find((u) => u.id === req.session.userId);
+  const r = db.roleRequests.find((x) => x.id === id);
+  if (!r) return res.status(404).json({ error: "Not found" });
+  if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
 
-    const db = readDb();
-    const r = db.roleRequests.find((x) => x.id === req.params.id);
-    if (!r) return jsonError(res, 404, "Request not found");
-    if (r.status !== "pending")
-      return jsonError(res, 400, "Request is not pending");
+  const u = db.users.find((x) => x.id === r.userId);
+  if (!u) return res.status(404).json({ error: "User not found" });
 
-    const targetUser = db.users.find((u) => u.id === r.userId);
-    if (!targetUser) return jsonError(res, 404, "User not found");
+  // If user already has role/higher, approve but don't change role
+  if (roleRank(r.requestedRole) <= roleRank(u.role)) {
+    r.status = "approved";
+    r.decidedAt = nowISO();
+    r.decidedBy = adminUser ? adminUser.username : "admin";
+    r.reason = "Auto-approved (already had role/higher).";
+    writeDB(db);
+    return res.json({ ok: true, request: r, user: publicUser(u) });
+  }
 
-    r.status = decision === "approve" ? "approved" : "rejected";
-    r.decidedAt = now();
-    r.decidedBy = req.me.id;
-    r.decisionNote = note;
+  u.role = r.requestedRole;
+  r.status = "approved";
+  r.decidedAt = nowISO();
+  r.decidedBy = adminUser ? adminUser.username : "admin";
+  r.reason = String(req.body.reason || "") || null;
 
-    if (decision === "approve") {
-      // Only allow intended upgrade path
-      const expected = nextRoleFor(targetUser.role);
-      if (expected !== r.toRole)
-        return jsonError(res, 400, "User role changed; request no longer valid.");
+  writeDB(db);
+  return res.json({ ok: true, request: r, user: publicUser(u) });
+});
 
-      targetUser.role = r.toRole;
-    }
+app.post("/api/admin/requests/:id/reject", requireAdmin, (req, res) => {
+  const id = req.params.id;
+  const db = readDB();
 
-    writeDb(db);
-    res.json({ ok: true });
-  },
-);
+  const adminUser = db.users.find((u) => u.id === req.session.userId);
+  const r = db.roleRequests.find((x) => x.id === id);
+  if (!r) return res.status(404).json({ error: "Not found" });
+  if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
 
-/* ============================================================
-   Admin users list (optional)
-   ============================================================ */
+  r.status = "rejected";
+  r.decidedAt = nowISO();
+  r.decidedBy = adminUser ? adminUser.username : "admin";
+  r.reason = String(req.body.reason || "") || null;
 
-app.get("/api/admin/users", requireRole("admin"), (req, res) => {
-  const db = readDb();
-  const users = db.users.map((u) => ({
-    id: u.id,
-    fullName: u.fullName,
-    email: u.email || "",
-    username: u.username,
-    role: u.role,
-    createdAt: u.createdAt,
-  }));
-  res.json({ ok: true, users });
+  writeDB(db);
+  return res.json({ ok: true, request: r });
 });
 
 /* ============================================================
@@ -589,7 +486,7 @@ app.get("/api/admin/users", requireRole("admin"), (req, res) => {
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-const port = Number(process.env.PORT || 3000);
-app.listen(port, () => {
-  console.log("Server running on http://localhost:" + port);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("ZeroPoint server listening on port", PORT);
 });
