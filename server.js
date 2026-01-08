@@ -9,12 +9,22 @@ const app = express();
 app.set("trust proxy", 1);
 
 /* ============================================================
-   Paths + storage
+   Persistent data paths (Render-friendly)
+   - On Render, set:
+       DATA_DIR=/var/data
+     and add a Persistent Disk mounted at /var/data
    ============================================================ */
 
-const DATA_PATH = path.join(__dirname, "db.json");
-const SESS_DIR = path.join(__dirname, "sessions");
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const DATA_PATH = path.join(DATA_DIR, "db.json");
+const SESS_DIR = path.join(DATA_DIR, "sessions");
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(SESS_DIR)) fs.mkdirSync(SESS_DIR, { recursive: true });
+
+/* ============================================================
+   DB helpers
+   ============================================================ */
 
 function readDB() {
   try {
@@ -59,7 +69,24 @@ function publicUser(u) {
 }
 
 /* ============================================================
-   Auth middleware (API)
+   Roles
+   ============================================================ */
+
+function roleRank(role) {
+  if (role === "user") return 0;
+  if (role === "mod") return 1;
+  if (role === "admin") return 2;
+  return -1;
+}
+
+function nextRoleFor(role) {
+  if (role === "user") return "mod";
+  if (role === "mod") return "admin";
+  return null;
+}
+
+/* ============================================================
+   Middleware (API)
    ============================================================ */
 
 function requireAuth(req, res, next) {
@@ -77,7 +104,8 @@ function requireAdmin(req, res, next) {
 }
 
 /* ============================================================
-   Auth middleware (Pages)
+   Middleware (Pages)
+   - Used to protect /account /admin /mod and also their .html routes
    ============================================================ */
 
 function requireRolePage(roles = []) {
@@ -107,12 +135,11 @@ function ensureBootstrapAdmin() {
   const username = normalizeUsername(adminUsername);
   const key = usernameKey(username);
 
-  if (!username || adminPassword.length < 6) {
+  if (!username || String(adminPassword || "").length < 6) {
     console.warn("[bootstrap] Missing/weak BOOTSTRAP admin credentials; skipping.");
     return;
   }
 
-  // Upgrade existing user if same username exists
   const existing = db.users.find((u) => usernameKey(u.username) === key);
   if (existing) {
     existing.role = "admin";
@@ -133,6 +160,10 @@ function ensureBootstrapAdmin() {
   writeDB(db);
   console.log("[bootstrap] Created admin user:", username);
 }
+
+/* ============================================================
+   Express setup
+   ============================================================ */
 
 app.use(express.json({ limit: "200kb" }));
 app.use(express.urlencoded({ extended: false }));
@@ -158,17 +189,23 @@ app.use(
 ensureBootstrapAdmin();
 
 /* ============================================================
-   Page routes (BEFORE static so auth cannot be bypassed)
+   Page routes (BEFORE static, so auth can't be bypassed)
    ============================================================ */
 
-// Public home page (you can keep it public so people can see it)
+// Public pages
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
-app.get("/index.html", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/index.html", (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "index.html")),
+);
 
 app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/login.html", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+app.get("/login.html", (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "login.html")),
+);
 
-app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
+app.get("/register", (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "register.html")),
+);
 app.get("/register.html", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "register.html")),
 );
@@ -180,19 +217,24 @@ app.get(
   (req, res) => res.sendFile(path.join(__dirname, "public", "account.html")),
 );
 
-app.get(["/admin", "/admin.html"], requireRolePage(["admin"]), (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "admin.html")),
+app.get(
+  ["/admin", "/admin.html"],
+  requireRolePage(["admin"]),
+  (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")),
 );
 
-app.get(["/mod", "/mod.html"], requireRolePage(["mod", "admin"]), (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "mod.html")),
+// NEW: Moderator page
+app.get(
+  ["/mod", "/mod.html"],
+  requireRolePage(["mod", "admin"]),
+  (req, res) => res.sendFile(path.join(__dirname, "public", "mod.html")),
 );
 
 /* ============================================================
-   Static assets (AFTER routes)
+   Static files (AFTER routes)
    ============================================================ */
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"] }));
 
 /* ============================================================
    API: Auth
@@ -214,9 +256,9 @@ app.post("/api/auth/register", (req, res) => {
     return res.status(400).json({ error: "Username must be 3-24 characters." });
   }
   if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    return res
-      .status(400)
-      .json({ error: "Username can only use letters, numbers, underscore." });
+    return res.status(400).json({
+      error: "Username can only use letters, numbers, underscore.",
+    });
   }
   if (password.length < 6 || password.length > 128) {
     return res.status(400).json({ error: "Password must be 6-128 characters." });
@@ -271,9 +313,9 @@ app.post("/api/account/change-username", requireAuth, (req, res) => {
     return res.status(400).json({ error: "Username must be 3-24 characters." });
   }
   if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
-    return res
-      .status(400)
-      .json({ error: "Username can only use letters, numbers, underscore." });
+    return res.status(400).json({
+      error: "Username can only use letters, numbers, underscore.",
+    });
   }
 
   const db = readDB();
@@ -314,24 +356,11 @@ app.post("/api/account/change-password", requireAuth, (req, res) => {
 });
 
 /* ============================================================
-   Role requests (Option A approvals: admin only)
-   Upgrade path only:
-     user -> mod
-     mod  -> admin
+   API: Role requests
+   - Upgrade path only:
+       user -> mod
+       mod  -> admin
    ============================================================ */
-
-function roleRank(role) {
-  if (role === "user") return 0;
-  if (role === "mod") return 1;
-  if (role === "admin") return 2;
-  return -1;
-}
-
-function nextRoleFor(role) {
-  if (role === "user") return "mod";
-  if (role === "mod") return "admin";
-  return null;
-}
 
 app.post("/api/requests/role", requireAuth, (req, res) => {
   const db = readDB();
@@ -341,23 +370,22 @@ app.post("/api/requests/role", requireAuth, (req, res) => {
   const requestedRole = String(req.body.role || "").toLowerCase();
   const expected = nextRoleFor(u.role);
 
-  // Enforce upgrade path only
   if (!expected) {
     return res.status(400).json({ error: "You cannot request a higher role." });
   }
   if (requestedRole !== expected) {
-    return res
-      .status(400)
-      .json({ error: `You can only request: ${expected}` });
+    return res.status(400).json({ error: `You can only request: ${expected}` });
   }
 
   const now = Date.now();
 
   // Only 1 pending at a time
   const pending = db.roleRequests.find((r) => r.userId === u.id && r.status === "pending");
-  if (pending) return res.status(409).json({ error: "You already have a pending request." });
+  if (pending) {
+    return res.status(409).json({ error: "You already have a pending request." });
+  }
 
-  // Cooldown: 6 hours
+  // Cooldown: 6 hours between creating requests
   const last = db.roleRequests
     .filter((r) => r.userId === u.id)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -378,6 +406,7 @@ app.post("/api/requests/role", requireAuth, (req, res) => {
   const recentCount = db.roleRequests.filter(
     (r) => r.userId === u.id && now - new Date(r.createdAt).getTime() < weekMs,
   ).length;
+
   if (recentCount >= 3) {
     return res.status(429).json({ error: "Too many requests. Try again later." });
   }
@@ -399,18 +428,20 @@ app.post("/api/requests/role", requireAuth, (req, res) => {
   return res.status(201).json({ ok: true, request: reqObj });
 });
 
-// (Optional but useful) user can see their own requests
+// Optional: user can view their own requests
 app.get("/api/requests/my", requireAuth, (req, res) => {
   const db = readDB();
   const list = db.roleRequests
     .filter((r) => r.userId === req.session.userId)
+    .slice()
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 50);
+
   return res.json({ ok: true, requests: list });
 });
 
 /* ============================================================
-   Admin request listing + decisions (admin only)
+   API: Admin role requests (Option A: admin-only)
    ============================================================ */
 
 app.get("/api/admin/requests", requireAdmin, (req, res) => {
@@ -435,6 +466,7 @@ app.post("/api/admin/requests/:id/approve", requireAdmin, (req, res) => {
   const db = readDB();
 
   const adminUser = db.users.find((u) => u.id === req.session.userId);
+
   const r = db.roleRequests.find((x) => x.id === id);
   if (!r) return res.status(404).json({ error: "Not found" });
   if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
@@ -442,14 +474,15 @@ app.post("/api/admin/requests/:id/approve", requireAdmin, (req, res) => {
   const u = db.users.find((x) => x.id === r.userId);
   if (!u) return res.status(404).json({ error: "User not found" });
 
-  // If user already has role/higher, approve but don't change role
-  if (roleRank(r.requestedRole) <= roleRank(u.role)) {
-    r.status = "approved";
+  // Still enforce upgrade path when approving (extra safety)
+  const expected = nextRoleFor(u.role);
+  if (expected !== r.requestedRole) {
+    r.status = "rejected";
     r.decidedAt = nowISO();
     r.decidedBy = adminUser ? adminUser.username : "admin";
-    r.reason = "Auto-approved (already had role/higher).";
+    r.reason = "Rejected (role changed / request no longer valid).";
     writeDB(db);
-    return res.json({ ok: true, request: r, user: publicUser(u) });
+    return res.status(400).json({ error: "User role changed; request no longer valid." });
   }
 
   u.role = r.requestedRole;
@@ -467,6 +500,7 @@ app.post("/api/admin/requests/:id/reject", requireAdmin, (req, res) => {
   const db = readDB();
 
   const adminUser = db.users.find((u) => u.id === req.session.userId);
+
   const r = db.roleRequests.find((x) => x.id === id);
   if (!r) return res.status(404).json({ error: "Not found" });
   if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
