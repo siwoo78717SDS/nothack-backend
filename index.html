@@ -1,5167 +1,640 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>ZeroPoint Access Core</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      :root {
-        /* Theme variables (changed by JS) */
-        --accent: #00f7ff;
-        --accent2: #30ff9b;
-        --accent3: #b45cff;
-
-        --term-fg: #eaffee;
-        --term-dim: rgba(180, 255, 220, 0.75);
-        --term-muted: #0dd89b;
-        --term-warn: #ffb45a;
-        --term-danger: #ff4c4c;
-
-        --panel-bg-a: rgba(4, 18, 26, 0.94);
-        --panel-bg-b: rgba(0, 35, 28, 0.96);
-        --panel-border: rgba(48, 255, 155, 0.35);
-
-        --term-bg-a: #04261b;
-        --term-bg-b: #020b14;
-        --term-bg-c: #02060c;
-
-        --grid-a: rgba(48, 255, 155, 0.05);
-        --grid-b: rgba(48, 255, 155, 0.04);
-
-        --btn-text: #eaffee;
-        --btn-bg0: rgba(0, 0, 0, 0.68);
-        --btn-bg1: rgba(0, 255, 160, 0.12);
-
-        --btn-border: rgba(0, 255, 160, 0.55);
-        --btn-glow: rgba(0, 255, 160, 0.35);
-        --btn-glow2: rgba(0, 247, 255, 0.22);
-
-        /* admin-tweakable FX */
-        --scan-opacity: 0.55;
-        --glitch-opacity: 0.12;
-      }
-
-      body {
-        background: radial-gradient(
-          circle at top,
-          #10243a 0,
-          #02060c 45%,
-          #000 100%
-        );
-        color: var(--term-fg);
-        font-family: "Fira Code", "JetBrains Mono", Consolas, monospace;
-        overflow: hidden;
-      }
-
-      /* Matrix overlay */
-      #matrixCanvas {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 1;
-        opacity: 0;
-        transition: opacity 0.25s ease;
-        mix-blend-mode: screen;
-      }
-      #matrixCanvas.on {
-        opacity: 0.18;
-      }
-
-      /* Particles overlay */
-      #fxCanvas {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 6;
-        opacity: 1;
-      }
-
-      /* Main screen */
-      #screen {
-        position: relative;
-        height: 100vh;
-        padding: 18px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-
-        background-image:
-          linear-gradient(to right, var(--grid-a) 1px, transparent 1px),
-          linear-gradient(to bottom, var(--grid-b) 1px, transparent 1px);
-        background-size: 40px 40px;
-
-        overflow: hidden;
-        transition:
-          box-shadow 0.3s ease,
-          background-color 0.3s ease,
-          filter 0.25s ease,
-          opacity 0.25s ease;
-        z-index: 2;
-      }
-
-      /* rainbow + mirror easter eggs */
-      #screen.rainbow {
-        animation: rainbowHue 3.8s linear infinite;
-      }
-      @keyframes rainbowHue {
-        from {
-          filter: hue-rotate(0deg);
-        }
-        to {
-          filter: hue-rotate(360deg);
-        }
-      }
-
-      #screen.mirror {
-        transform: scaleX(-1);
-      }
-      #screen.mirror * {
-        transform: scaleX(-1);
-      } /* mirror twice so text stays readable */
-
-      #screen.cloak {
-        opacity: 0.72;
-        filter: saturate(0.9) contrast(1.05);
-      }
-      #screen.vanish #header {
-        opacity: 0.05;
-        filter: blur(1px);
-      }
-      #screen.vanish #term {
-        opacity: 0.92;
-      }
-
-      /* Glitch overlay */
-      #screen::before {
-        content: "";
-        position: absolute;
-        inset: -20px;
-        background: repeating-linear-gradient(
-          90deg,
-          rgba(0, 255, 120, 0.18) 0,
-          rgba(0, 255, 120, 0.18) 2px,
-          transparent 2px,
-          transparent 4px
-        );
-        mix-blend-mode: screen;
-        opacity: var(--glitch-opacity);
-        pointer-events: none;
-        animation: glitchMove 1.3s infinite steps(2, end);
-      }
-
-      @keyframes glitchMove {
-        0% {
-          transform: translate(0, 0);
-        }
-        20% {
-          transform: translate(-3px, 2px);
-        }
-        40% {
-          transform: translate(2px, -1px);
-        }
-        60% {
-          transform: translate(-1px, -2px);
-        }
-        80% {
-          transform: translate(1px, 2px);
-        }
-        100% {
-          transform: translate(0, 0);
-        }
-      }
-
-      /* Scanline overlay */
-      #screen::after {
-        content: "";
-        pointer-events: none;
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(
-          to bottom,
-          rgba(0, 0, 0, 0) 0%,
-          rgba(0, 0, 0, 0.25) 50%,
-          rgba(0, 0, 0, 0) 100%
-        );
-        background-size: 100% 3px;
-        mix-blend-mode: soft-light;
-        opacity: var(--scan-opacity);
-        animation: scan 7s linear infinite;
-      }
-      /* Secret message "Amelia" */
-      @keyframes scan {
-        0% {
-          transform: translateY(-10%);
-        }
-        50% {
-          transform: translateY(10%);
-        }
-        100% {
-          transform: translateY(-10%);
-        }
-      }
-
-      /* Card layout */
-      #header,
-      #term,
-      #cmdRow {
-        width: min(980px, 100%);
-        margin: 0 auto;
-      }
-
-      #header {
-        padding: 12px 18px 6px;
-        background: linear-gradient(
-          135deg,
-          var(--panel-bg-a),
-          var(--panel-bg-b)
-        );
-        border: 1px solid rgba(0, 255, 120, 0.45);
-        border-bottom: none;
-        border-radius: 16px 16px 0 0;
-        box-shadow:
-          0 0 20px rgba(0, 255, 150, 0.18),
-          0 0 80px rgba(0, 255, 120, 0.1);
-        backdrop-filter: blur(16px);
-        z-index: 1;
-      }
-
-      #title {
-        color: var(--accent);
-        font-weight: 700;
-        letter-spacing: 0.24em;
-        font-size: 15px;
-        text-transform: uppercase;
-        text-shadow:
-          0 0 10px rgba(0, 247, 255, 0.75),
-          0 0 24px rgba(0, 255, 140, 0.45);
-      }
-
-      #subtitle {
-        margin-top: 4px;
-        font-size: 10px;
-        color: #8cfed0;
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        opacity: 0.95;
-      }
-
-      #statusBar {
-        margin-top: 8px;
-        font-size: 10px;
-        color: #999;
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-
-      .status-pill {
-        padding: 2px 10px;
-        border-radius: 999px;
-        border: 1px solid #044;
-        background: radial-gradient(circle at top, #032019 0, #010c09 70%);
-        box-shadow: 0 0 10px rgba(0, 255, 120, 0.2);
-        user-select: none;
-        white-space: nowrap;
-      }
-      .status-pill.ok {
-        border-color: #30ff9b;
-        color: #9bffd4;
-      }
-      .status-pill.warn {
-        border-color: #ffb400;
-        color: #ffd580;
-        box-shadow: 0 0 10px rgba(255, 180, 0, 0.3);
-      }
-      .status-pill.info {
-        border-color: var(--accent);
-        color: #7df3ff;
-        box-shadow: 0 0 10px rgba(0, 247, 255, 0.3);
-      }
-
-      #adminLink {
-        margin-left: auto;
-        cursor: pointer;
-        text-shadow: 0 0 8px rgba(0, 247, 255, 0.7);
-      }
-
-      #term {
-        flex: 1;
-        min-height: 260px;
-        max-height: min(460px, 70vh);
-        padding: 12px 18px;
-        white-space: pre-wrap;
-        overflow-y: auto;
-        font-size: 13px;
-        line-height: 1.45;
-        position: relative;
-        z-index: 0;
-        color: var(--term-fg);
-        background: radial-gradient(
-          circle at top left,
-          var(--term-bg-a) 0,
-          var(--term-bg-b) 36%,
-          var(--term-bg-c) 100%
-        );
-        border-left: 1px solid rgba(0, 255, 120, 0.35);
-        border-right: 1px solid rgba(0, 255, 120, 0.35);
-        box-shadow:
-          inset 0 0 25px rgba(0, 0, 0, 0.9),
-          0 18px 40px rgba(0, 0, 0, 0.75);
-      }
-
-      #term::-webkit-scrollbar {
-        width: 8px;
-      }
-      #term::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.4);
-      }
-      #term::-webkit-scrollbar-thumb {
-        background: linear-gradient(var(--accent2), var(--accent));
-        border-radius: 999px;
-      }
-
-      .cursor {
-        display: inline-block;
-        width: 8px;
-        height: 1em;
-        background: var(--accent2);
-        margin-left: 2px;
-        box-shadow: 0 0 8px rgba(0, 255, 120, 0.7);
-      }
-
-      /* Command row */
-      #cmdRow {
-        display: none;
-        padding: 7px 18px 10px;
-        background: linear-gradient(
-          145deg,
-          rgba(1, 18, 20, 0.98),
-          rgba(1, 28, 24, 0.98)
-        );
-        border: 1px solid rgba(0, 255, 120, 0.45);
-        border-top: 1px solid rgba(0, 255, 120, 0.2);
-        border-radius: 0 0 16px 16px;
-        box-shadow:
-          0 14px 40px rgba(0, 0, 0, 0.9),
-          0 0 25px rgba(0, 255, 140, 0.2);
-        align-items: center;
-        gap: 6px;
-        font-size: 13px;
-      }
-
-      #cmdPrompt {
-        color: #6affb8;
-        min-width: 80px;
-        white-space: nowrap;
-        text-shadow: 0 0 6px rgba(0, 255, 120, 0.6);
-      }
-
-      #cmdInput {
-        flex: 1;
-        background: #02090a;
-        border: 1px solid rgba(0, 255, 120, 0.6);
-        color: var(--term-fg);
-        padding: 6px 10px;
-        font-family: inherit;
-        font-size: 13px;
-        outline: none;
-        border-radius: 10px;
-        box-shadow: inset 0 0 10px rgba(0, 255, 120, 0.15);
-      }
-
-      #cmdInput:focus {
-        border-color: var(--accent);
-        box-shadow:
-          0 0 12px rgba(0, 247, 255, 0.45),
-          inset 0 0 8px rgba(0, 255, 120, 0.25);
-        background: #020f13;
-      }
-
-      /* Log text classes */
-      .ok {
-        color: var(--accent2);
-      }
-      .warn {
-        color: var(--term-warn);
-      }
-      .danger {
-        color: var(--term-danger);
-      }
-      .muted {
-        color: var(--term-muted);
-      }
-      .dim {
-        color: var(--term-dim);
-      }
-
-      /* Generic YES/NO overlay */
-      #qOverlay,
-      #choiceOverlayUpdate {
-        position: fixed;
-        inset: 0;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 18px;
-        background: radial-gradient(
-          circle at center,
-          rgba(0, 0, 0, 0.72) 0,
-          rgba(0, 0, 0, 0.94) 55%
-        );
-        backdrop-filter: blur(6px);
-        text-align: center;
-        z-index: 8;
-      }
-      #qOverlay.visible,
-      #choiceOverlayUpdate.visible {
-        display: flex;
-      }
-
-      #qPrompt,
-      #choicePromptUpdate {
-        font-size: 13px;
-        letter-spacing: 0.28em;
-        text-transform: uppercase;
-        margin-bottom: 16px;
-        color: #e6ffe6;
-        text-shadow:
-          0 0 14px rgba(0, 255, 120, 0.8),
-          0 0 18px rgba(0, 247, 255, 0.7);
-      }
-
-      /* Fake update / Download full-screen */
-      #updateScreen {
-        position: fixed;
-        inset: 0;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        background: #000;
-        color: #fff;
-        z-index: 9;
-        font-family:
-          system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          sans-serif;
-      }
-      #updateScreen.visible {
-        display: flex;
-      }
-      #updateContent {
-        text-align: center;
-        max-width: 520px;
-        padding: 20px;
-      }
-
-      .win-update-title {
-        font-size: 20px;
-        margin-bottom: 14px;
-      }
-      .win-update-sub {
-        font-size: 13px;
-        margin-bottom: 16px;
-        color: #d0e6ff;
-      }
-      .win-logo {
-        width: 52px;
-        height: 52px;
-        margin: 0 auto 18px;
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(2, 1fr);
-        gap: 3px;
-        transform: skewX(-8deg);
-      }
-      .win-logo-tile {
-        background: linear-gradient(135deg, #2f86ff, #8fd0ff);
-        box-shadow: 0 0 6px rgba(0, 140, 255, 0.7);
-      }
-
-      .win-bar {
-        width: 320px;
-        height: 14px;
-        border-radius: 6px;
-        background: rgba(0, 0, 0, 0.4);
-        margin: 0 auto 8px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.4);
-      }
-      .win-bar-inner {
-        height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, #57b0ff, #b5e7ff);
-        transition: width 0.1s linear;
-      }
-      .win-percent {
-        font-size: 12px;
-        color: #e0efff;
-      }
-
-      .ios-logo {
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
-        border: 2px solid #fff;
-        margin: 0 auto 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 26px;
-        color: #fff;
-        box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
-      }
-      .ios-bar {
-        width: 240px;
-        height: 6px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.1);
-        margin: 0 auto;
-        overflow: hidden;
-      }
-      .ios-bar-inner {
-        height: 100%;
-        width: 0%;
-        background: #fff;
-        transition: width 0.1s linear;
-      }
-      .ios-update-text {
-        margin-top: 16px;
-        font-size: 13px;
-        color: #ddd;
-      }
-
-      /* Ultra 1 */
-      #ultraSecret {
-        position: fixed;
-        inset: 0;
-        display: none;
-        z-index: 50;
-        background: radial-gradient(
-          circle at top,
-          #15002e 0,
-          #05000c 60%,
-          #000 100%
-        );
-        color: #e7d9ff;
-        overflow: hidden;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-          "Liberation Mono", monospace;
-      }
-      #ultraSecret.visible {
-        display: flex;
-        flex-direction: column;
-      }
-
-      #ultraHeader {
-        padding: 14px 16px;
-        border-bottom: 1px solid rgba(231, 217, 255, 0.18);
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: center;
-      }
-      #ultraTitle {
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        font-size: 13px;
-        color: #d8b7ff;
-      }
-      #ultraSub {
-        font-size: 11px;
-        opacity: 0.85;
-        margin-top: 6px;
-      }
-      #ultraTerm {
-        flex: 1;
-        padding: 14px 16px;
-        overflow: auto;
-        white-space: pre-wrap;
-        line-height: 1.45;
-        font-size: 13px;
-      }
-      #ultraCmdRow {
-        padding: 10px 16px 14px;
-        border-top: 1px solid rgba(231, 217, 255, 0.18);
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      #ultraPrompt {
-        color: #caa6ff;
-        white-space: nowrap;
-      }
-      #ultraInput {
-        flex: 1;
-        background: rgba(0, 0, 0, 0.35);
-        border: 1px solid rgba(216, 183, 255, 0.35);
-        color: #f2eaff;
-        padding: 8px 10px;
-        border-radius: 10px;
-        outline: none;
-        font-family: inherit;
-        font-size: 13px;
-      }
-
-      /* Ultra 2 */
-      #ultraSecret2 {
-        position: fixed;
-        inset: 0;
-        display: none;
-        z-index: 55;
-        background: radial-gradient(
-          circle at top,
-          #221300 0,
-          #060300 70%,
-          #000 100%
-        );
-        color: #ffe8b0;
-        overflow: hidden;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-          "Liberation Mono", monospace;
-      }
-      #ultraSecret2.visible {
-        display: flex;
-        flex-direction: column;
-      }
-
-      #ultra2Header {
-        padding: 14px 16px;
-        border-bottom: 1px solid rgba(255, 232, 176, 0.18);
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: center;
-      }
-      #ultra2Title {
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-        font-size: 13px;
-        color: #ffd27a;
-      }
-      #ultra2Term {
-        flex: 1;
-        padding: 14px 16px;
-        overflow: auto;
-        white-space: pre-wrap;
-        line-height: 1.45;
-        font-size: 13px;
-      }
-      #ultra2CmdRow {
-        padding: 10px 16px 14px;
-        border-top: 1px solid rgba(255, 232, 176, 0.18);
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      #ultra2Prompt {
-        color: #ffd27a;
-        white-space: nowrap;
-      }
-      #ultra2Input {
-        flex: 1;
-        background: rgba(0, 0, 0, 0.35);
-        border: 1px solid rgba(255, 232, 176, 0.35);
-        color: #fff3d6;
-        padding: 8px 10px;
-        border-radius: 10px;
-        outline: none;
-        font-family: inherit;
-        font-size: 13px;
-      }
-
-      /* Offline facts view */
-      #factsView {
-        position: fixed;
-        inset: 0;
-        display: none;
-        background: #fff;
-        color: #000;
-        z-index: 60;
-        overflow: auto;
-      }
-      #factsView.visible {
-        display: block;
-      }
-      #factsWrap {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 22px 12px 40px;
-      }
-      #factsDoc {
-        background: #fff;
-        border: 1px solid #e6e6e6;
-        padding: 30px 36px;
-        font-family: "Times New Roman", Times, serif;
-      }
-      #factsTop {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
-        align-items: flex-start;
-      }
-      #factsTitle {
-        margin: 0;
-        font-size: 28px;
-        font-weight: 700;
-      }
-      #factsStatus {
-        margin-top: 6px;
-        color: #444;
-        font-size: 14px;
-      }
-      #factsText {
-        margin: 0;
-        font-size: 16px;
-        line-height: 1.45;
-        white-space: pre-wrap;
-      }
-
-      /* Final screen */
-      #finalReveal {
-        position: fixed;
-        inset: 0;
-        display: none;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        background: radial-gradient(circle at top, #04101d 0, #000 65%);
-        /* Secret message "Henery" */
-        color: #eee;
-        text-align: center;
-        padding: 20px;
-        z-index: 70;
-      }
-      #finalReveal.visible {
-        display: flex;
-      }
-      #finalReveal h1 {
-        margin-bottom: 12px;
-        color: var(--accent);
-        font-size: 22px;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        text-shadow:
-          0 0 14px rgba(0, 247, 255, 0.9),
-          0 0 26px rgba(0, 255, 160, 0.6);
-      }
-      #finalReveal p {
-        font-size: 13px;
-        max-width: 560px;
-        margin-bottom: 8px;
-        color: #cfd8e0;
-      }
-      #finalRevealCredit {
-        margin-top: 4px;
-        font-size: 11px;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: #8cfed0;
-      }
-
-      /* Achievement toast */
-      #toast {
-        position: fixed;
-        right: 16px;
-        bottom: 16px;
-        z-index: 200;
-        display: none;
-        max-width: min(420px, calc(100vw - 32px));
-        padding: 12px 14px;
-        border-radius: 14px;
-        border: 1px solid rgba(0, 247, 255, 0.45);
-        background: radial-gradient(
-          circle at top,
-          rgba(1, 20, 22, 0.92),
-          rgba(0, 0, 0, 0.88)
-        );
-        box-shadow:
-          0 0 20px rgba(0, 247, 255, 0.18),
-          0 0 44px rgba(48, 255, 155, 0.12);
-        backdrop-filter: blur(10px);
-        color: #eaffee;
-      }
-      #toastTitle {
-        font-weight: 800;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        font-size: 12px;
-        color: var(--accent);
-      }
-      #toastBody {
-        margin-top: 6px;
-        font-size: 12px;
-        opacity: 0.92;
-      }
-      #toast.show {
-        display: block;
-        animation: toastIn 260ms ease;
-      }
-      @keyframes toastIn {
-        from {
-          transform: translateY(10px);
-          opacity: 0;
-        }
-        to {
-          transform: translateY(0);
-          opacity: 1;
-        }
-      }
-
-      /* Admin login */
-      #adminLogin {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.85);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 90;
-      }
-      #adminLoginBox {
-        background: radial-gradient(circle at top, #031824 0, #020b14 70%);
-        border: 1px solid rgba(0, 255, 160, 0.65);
-        padding: 14px 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        min-width: 260px;
-        box-shadow:
-          0 0 18px rgba(0, 255, 120, 0.6),
-          0 0 32px rgba(0, 247, 255, 0.4);
-        border-radius: 16px;
-      }
-      .adminTitle {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: #8cfed0;
-        margin-bottom: 4px;
-        border-bottom: 1px solid rgba(0, 255, 120, 0.35);
-        padding-bottom: 6px;
-      }
-      #adminPass {
-        background: rgba(0, 0, 0, 0.6);
-        border: 1px solid rgba(0, 255, 160, 0.6);
-        color: #eaffee;
-        padding: 10px 12px;
-        font-family: inherit;
-        font-size: 13px;
-        border-radius: 12px;
-        outline: none;
-      }
-      #adminPass:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 18px rgba(0, 247, 255, 0.18);
-      }
-
-      /* Admin panel */
-      #adminPanel {
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        background: radial-gradient(
-          circle at top,
-          rgba(4, 24, 36, 0.92) 0,
-          rgba(2, 11, 20, 0.92) 70%
-        );
-        border: 1px solid rgba(0, 255, 120, 0.55);
-        padding: 10px 10px;
-        display: none;
-        flex-direction: column;
-        gap: 6px;
-        z-index: 91;
-        max-width: 360px;
-        max-height: calc(100vh - 20px);
-        overflow-y: auto;
-        box-shadow:
-          0 0 18px rgba(0, 255, 120, 0.6),
-          0 0 36px rgba(0, 247, 255, 0.4);
-        border-radius: 14px;
-      }
-
-      /* Small screens */
-      @media (max-width: 640px) {
-        #screen {
-          padding: 10px;
-        }
-        #header,
-        #term,
-        #cmdRow {
-          width: 100%;
-        }
-        #title {
-          font-size: 12px;
-          letter-spacing: 0.16em;
-        }
-        #subtitle {
-          letter-spacing: 0.12em;
-        }
-        #cmdPrompt {
-          min-width: 64px;
-        }
-      }
-
-      /* ===========================
-      COOL + BIG BUTTONS
-      =========================== */
-
-      button,
-      .choice-btn,
-      .adminBtn {
-        position: relative;
-        overflow: hidden;
-        isolation: isolate;
-
-        padding: 14px 34px !important;
-        min-height: 52px !important;
-        min-width: 160px !important;
-
-        border-radius: 999px !important;
-        border: 1px solid var(--btn-border) !important;
-
-        color: var(--btn-text) !important;
-        background:
-          radial-gradient(
-            circle at 30% 20%,
-            rgba(0, 247, 255, 0.12) 0%,
-            transparent 45%
-          ),
-          linear-gradient(180deg, var(--btn-bg1), var(--btn-bg0)) !important;
-
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        text-shadow: 0 0 8px rgba(0, 255, 160, 0.22);
-
-        box-shadow:
-          0 0 18px var(--btn-glow),
-          0 0 34px var(--btn-glow2),
-          inset 0 0 18px rgba(0, 0, 0, 0.65) !important;
-
-        cursor: pointer;
-
-        transition:
-          transform 120ms ease,
-          box-shadow 200ms ease,
-          border-color 200ms ease,
-          filter 200ms ease;
-      }
-
-      .choice-btn {
-        min-width: 200px !important;
-        min-height: 58px !important;
-        padding: 16px 42px !important;
-      }
-
-      button::before,
-      .choice-btn::before,
-      .adminBtn::before {
-        content: "";
-        position: absolute;
-        inset: -2px;
-        border-radius: inherit;
-        background: conic-gradient(
-          from 180deg,
-          transparent 0deg,
-          rgba(0, 247, 255, 0.55) 70deg,
-          rgba(48, 255, 155, 0.55) 150deg,
-          rgba(180, 92, 255, 0.55) 230deg,
-          transparent 360deg
-        );
-        filter: blur(10px);
-        opacity: 0;
-        transition: opacity 180ms ease;
-        z-index: -1;
-      }
-
-      button::after,
-      .choice-btn::after,
-      .adminBtn::after {
-        content: "";
-        position: absolute;
-        top: -120%;
-        left: -60%;
-        width: 60%;
-        height: 320%;
-        transform: rotate(25deg);
-        background: linear-gradient(
-          90deg,
-          transparent,
-          rgba(255, 255, 255, 0.35),
-          transparent
-        );
-        opacity: 0;
-        z-index: 1;
-      }
-
-      @keyframes btnShine {
-        0% {
-          transform: translateX(0) rotate(25deg);
-          opacity: 0;
-        }
-        15% {
-          opacity: 0.35;
-        }
-        100% {
-          transform: translateX(260%) rotate(25deg);
-          opacity: 0;
-        }
-      }
-
-      button:hover,
-      .choice-btn:hover,
-      .adminBtn:hover {
-        transform: translateY(-2px);
-        border-color: rgba(0, 247, 255, 0.75) !important;
-        box-shadow:
-          0 0 22px rgba(0, 255, 160, 0.45),
-          0 0 48px rgba(0, 247, 255, 0.28),
-          inset 0 0 20px rgba(0, 0, 0, 0.55) !important;
-        filter: saturate(1.15);
-      }
-      button:hover::before,
-      .choice-btn:hover::before,
-      .adminBtn:hover::before {
-        opacity: 1;
-      }
-      button:hover::after,
-      .choice-btn:hover::after,
-      .adminBtn:hover::after {
-        animation: btnShine 650ms ease;
-      }
-
-      button:active,
-      .choice-btn:active,
-      .adminBtn:active {
-        transform: translateY(1px) scale(0.985);
-        filter: saturate(1.05) contrast(1.05);
-      }
-
-      button:focus-visible,
-      .choice-btn:focus-visible,
-      .adminBtn:focus-visible {
-        outline: 2px solid rgba(0, 247, 255, 0.75);
-        outline-offset: 2px;
-      }
-
-      button:disabled,
-      .choice-btn:disabled,
-      .adminBtn:disabled {
-        opacity: 0.35 !important;
-        cursor: not-allowed !important;
-        filter: grayscale(1);
-        box-shadow: none !important;
-      }
-
-      /* small variant for status bar buttons (Login/Register) */
-      button.small {
-        padding: 10px 16px !important;
-        min-height: 40px !important;
-        min-width: 120px !important;
-        font-size: 12px !important;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-      }
-
-      .adminBtn {
-        border-radius: 12px !important;
-        text-transform: none;
-        letter-spacing: 0.02em;
-        font-size: 10px !important;
-
-        padding: 10px 12px !important;
-        min-height: 40px !important;
-        min-width: 0 !important;
-        width: 100%;
-      }
-
-      /* Special: Back buttons (purple portal) */
-      #ultraBackBtn,
-      #factsBackBtn {
-        border-color: rgba(180, 92, 255, 0.65) !important;
-        box-shadow:
-          0 0 18px rgba(180, 92, 255, 0.25),
-          0 0 34px rgba(0, 247, 255, 0.18),
-          inset 0 0 18px rgba(0, 0, 0, 0.65) !important;
-      }
-
-      /* Special: Finalize button (gold final-boss) */
-      #ultra2ExitBtn {
-        border-color: rgba(255, 210, 122, 0.75) !important;
-        color: #fff3d6 !important;
-        background:
-          radial-gradient(
-            circle at 30% 20%,
-            rgba(255, 210, 122, 0.16) 0%,
-            transparent 45%
-          ),
-          linear-gradient(
-            180deg,
-            rgba(255, 210, 122, 0.12),
-            rgba(0, 0, 0, 0.72)
-          ) !important;
-        box-shadow:
-          0 0 22px rgba(255, 210, 122, 0.35),
-          0 0 48px rgba(255, 180, 0, 0.18),
-          inset 0 0 18px rgba(0, 0, 0, 0.62) !important;
-      }
-
-      /* Screen shake (glitch command) */
-      .shake {
-        animation: shake 420ms ease-in-out;
-      }
-      @keyframes shake {
-        0% {
-          transform: translate(0, 0);
-        }
-        15% {
-          transform: translate(-3px, 2px);
-        }
-        30% {
-          transform: translate(3px, -2px);
-        }
-        45% {
-          transform: translate(-2px, -2px);
-        }
-        60% {
-          transform: translate(2px, 2px);
-        }
-        75% {
-          transform: translate(-1px, 1px);
-        }
-        100% {
-          transform: translate(0, 0);
-        }
-      }
-
-      /* ============================================================
-      FULLSCREEN ADMIN CONTROL ROOM
-      ============================================================ */
-      #adminFull {
-        position: fixed;
-        inset: 0;
-        display: none;
-        z-index: 150;
-        background: radial-gradient(
-          circle at top,
-          rgba(6, 18, 32, 0.96),
-          rgba(0, 0, 0, 0.96)
-        );
-        backdrop-filter: blur(10px);
-        color: #eaffee;
-        overflow: auto;
-        padding: 14px;
-      }
-      #adminFull.visible {
-        display: block;
-      }
-
-      #adminFullWrap {
-        max-width: 1100px;
-        margin: 0 auto;
-        border: 1px solid rgba(0, 247, 255, 0.22);
-        border-radius: 18px;
-        background: rgba(0, 0, 0, 0.35);
-        box-shadow:
-          0 0 24px rgba(0, 247, 255, 0.14),
-          0 0 60px rgba(48, 255, 155, 0.08);
-        overflow: hidden;
-      }
-
-      #adminFullTop {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 14px 14px;
-        border-bottom: 1px solid rgba(0, 247, 255, 0.14);
-      }
-
-      #adminFullTitle {
-        font-size: 12px;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-
-      #adminFullSub {
-        font-size: 11px;
-        opacity: 0.75;
-        margin-top: 6px;
-        line-height: 1.35;
-      }
-
-      #adminFullGrid {
-        padding: 14px;
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-
-      @media (max-width: 980px) {
-        #adminFullGrid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-      }
-      @media (max-width: 640px) {
-        #adminFullGrid {
-          grid-template-columns: 1fr;
-        }
-      }
-
-      .adminCard2 {
-        border: 1px solid rgba(0, 247, 255, 0.14);
-        border-radius: 16px;
-        padding: 12px;
-        background: radial-gradient(
-          circle at top,
-          rgba(2, 16, 22, 0.65),
-          rgba(0, 0, 0, 0.35)
-        );
-      }
-
-      .adminCard2 h3 {
-        font-size: 11px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        margin-bottom: 10px;
-        color: #8cfed0;
-      }
-
-      .adminRow2 {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-
-      .adminLabel2 {
-        font-size: 11px;
-        opacity: 0.8;
-        margin: 10px 0 6px;
-      }
-
-      .adminInput2,
-      .adminSelect2 {
-        width: 100%;
-        padding: 10px 12px;
-        border-radius: 12px;
-        background: rgba(0, 0, 0, 0.35);
-        border: 1px solid rgba(0, 247, 255, 0.18);
-        color: #eaffee;
-        outline: none;
-        font-family: inherit;
-      }
-
-      .adminRange2 {
-        width: 100%;
-      }
-
-      #adminFullLog {
-        border-top: 1px solid rgba(0, 247, 255, 0.12);
-        padding: 12px 14px;
-        background: rgba(0, 0, 0, 0.25);
-      }
-
-      #adminFullLog pre {
-        margin: 0;
-        white-space: pre-wrap;
-        color: rgba(234, 255, 238, 0.85);
-        font-size: 11px;
-        line-height: 1.4;
-      }
-    </style>
-  </head>
-
-  <body>
-    <canvas id="matrixCanvas"></canvas>
-    <canvas id="fxCanvas"></canvas>
-
-    <div id="screen">
-      <div id="header">
-        <div id="title">ZEROPOINT REMOTE ACCESS CORE</div>
-        <div id="subtitle">
-          TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR • SIMULATION
-        </div>
-        <div id="statusBar">
-          <span class="status-pill ok" id="statusLink">LINK: SYNCHED</span>
-          <span class="status-pill ok" id="statusAuth">AUTH: ROOT TOKEN</span>
-          <span class="status-pill warn" id="statusUser">USER-FOCUS: IDLE</span>
-          <span class="status-pill info" id="statusMode"
-            >MODE: GHOST OBSERVE</span
-          >
-
-          <span class="status-pill info" id="adminLink">ADMIN</span>
-
-          <button class="small" id="loginBtn" type="button">Login</button>
-          <button class="small" id="registerBtn" type="button">Register</button>
-
-          <!-- NEW (auth) -->
-          <button class="small" id="accountBtn" type="button" style="display:none">My Account</button>
-          <button class="small" id="logoutBtn" type="button" style="display:none">Logout</button>
-
-          <!-- NEW (intro skip) -->
-          <button class="small" id="skipIntroBtn" type="button" title="Skip the boot typing (Shift+Click = skip forever)">Skip intro</button>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ZeroPoint</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="topbar">
+        <div class="brand">ZEROPOINT REMOTE ACCESS CORE</div>
+        <div class="pills">
+          <button class="pill warn" id="adminLink" type="button">ADMIN</button>
+
+          <button class="pill primary" id="loginBtn" type="button">LOGIN</button>
+          <button class="pill primary" id="registerBtn" type="button">REGISTER</button>
+
+          <button class="pill primary" id="accountBtn" type="button" style="display:none">MY PAGE</button>
+          <button class="pill danger" id="logoutBtn" type="button" style="display:none">LOGOUT</button>
+
+          <button class="pill" id="skipBtn" type="button">SKIP BOOT</button>
         </div>
       </div>
 
-      <div id="term"></div>
+      <div class="main">
+        <div class="hud">
+          <div class="tag" id="tagLink">LINK: SYNCING</div>
+          <div class="tag" id="tagAuth">AUTH: GUEST</div>
+          <div class="tag" id="tagRole">ROLE: USER</div>
+          <div class="tag" id="tagMode">MODE: BOOT</div>
+        </div>
 
-      <div id="cmdRow">
-        <span id="cmdPrompt">/ $</span>
-        <input id="cmdInput" autocomplete="off" spellcheck="false" />
+        <div class="term" id="term" aria-label="terminal"></div>
+
+        <div class="cmdrow">
+          <div class="prompt" id="prompt">/ $</div>
+          <input class="cmd" id="cmdInput" autocomplete="off" placeholder="type: help" />
+        </div>
+
+        <small class="hint">
+          Tips: type <b>help</b>. Games: <b>games</b>. Press <b>ESC</b> to skip boot. Shift+Skip = skip forever.
+        </small>
       </div>
     </div>
+  </div>
 
-    <!-- Generic question overlay -->
-    <div id="qOverlay">
-      <div>
-        <div id="qPrompt">QUESTION</div>
-        <div>
-          <button class="choice-btn" id="qYes">YES</button>
-          <button class="choice-btn" id="qNo">NO</button>
-        </div>
-        <div
-          style="
-            margin-top: 14px;
-            font-size: 11px;
-            opacity: 0.7;
-            letter-spacing: 0.12em;
-          "
-        >
-          SIMULATION UI ONLY
-        </div>
+  <!-- Admin passcode modal (simulation) -->
+  <div class="modal" id="adminLogin">
+    <div class="modalBox" id="adminLoginBox">
+      <div class="modalTitle">ADMIN ACCESS (SIMULATION)</div>
+      <input id="adminPass" type="password" inputmode="numeric" placeholder="Passcode (6 digits)" />
+      <div class="modalActions">
+        <button class="btn primary" id="adminSubmit" type="button">Enter</button>
+        <button class="btn" id="adminCancel" type="button">Cancel</button>
+      </div>
+      <div class="msg warn" style="margin-top:10px">
+        This admin popup is part of the simulation UI. Real admins should use the real <b>/admin</b> page.
       </div>
     </div>
+  </div>
 
-    <!-- LAST question: Software update -->
-    <div id="choiceOverlayUpdate">
-      <div>
-        <div id="choicePromptUpdate">INSTALL SYSTEM UPDATE? (YES / NO)</div>
-        <div>
-          <button class="choice-btn" id="yesBtnUpdate">YES</button>
-          <button class="choice-btn" id="noBtnUpdate">NO</button>
-        </div>
-        <div
-          style="
-            margin-top: 14px;
-            font-size: 11px;
-            opacity: 0.7;
-            letter-spacing: 0.12em;
-          "
-        >
-          SIMULATION UI ONLY
-        </div>
+  <!-- Simulation “admin panel” -->
+  <div class="modal" id="adminPanel">
+    <div class="modalBox">
+      <div class="modalTitle">CONTROL ROOM (SIMULATION)</div>
+      <div class="msg ok">Access granted (simulation). Type <b>help</b> in the terminal.</div>
+      <div class="modalActions">
+        <button class="btn" id="btnAdminClose" type="button">Close</button>
       </div>
     </div>
-
-    <!-- Full-screen update/download -->
-    <div id="updateScreen"><div id="updateContent"></div></div>
-
-    <!-- Ultra Secret (Level 1) -->
-    <div id="ultraSecret">
-      <div id="ultraHeader">
-        <div>
-          <div id="ultraTitle">ULTRA TOP SECRET — NODE-7</div>
-          <div id="ultraSub">
-            Exit this place to trigger the final sequence.
-          </div>
-        </div>
-        <div
-          style="
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-          "
-        >
-          <button id="ultraBackBtn">Exit</button>
-          <button id="ultraFactsBtn">Facts</button>
-        </div>
-      </div>
-      <div id="ultraTerm"></div>
-      <div id="ultraCmdRow">
-        <span id="ultraPrompt">ultra:/ $</span>
-        <input id="ultraInput" autocomplete="off" spellcheck="false" />
-      </div>
-    </div>
-
-    <!-- Ultra Secret (Level 2) -->
-    <div id="ultraSecret2">
-      <div id="ultra2Header">
-        <div>
-          <div id="ultra2Title">ULTRA TOP SECRET — LEVEL 2 (GOLD ARCHIVE)</div>
-          <div style="font-size: 11px; opacity: 0.85; margin-top: 6px">
-            Exiting here ends everything.
-          </div>
-        </div>
-        <div
-          style="
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-          "
-        >
-          <button id="ultra2ExitBtn">Finalize</button>
-          <button id="ultra2FactsBtn">Facts</button>
-        </div>
-      </div>
-      <div id="ultra2Term"></div>
-      <div id="ultra2CmdRow">
-        <span id="ultra2Prompt">gold:/ $</span>
-        <input id="ultra2Input" autocomplete="off" spellcheck="false" />
-      </div>
-    </div>
-
-    <!-- Offline Facts view -->
-    <div id="factsView">
-      <div id="factsWrap">
-        <div id="factsDoc">
-          <div id="factsTop">
-            <div>
-              <h1 id="factsTitle">History Facts (Offline)</h1>
-              <div id="factsStatus">Loading…</div>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap">
-              <button id="factsBackBtn">Back</button>
-              <button id="factsPrintBtn">Print</button>
-            </div>
-          </div>
-          <hr
-            style="margin: 14px 0; border: none; border-top: 1px solid #e6e6e6"
-          />
-          <pre id="factsText"></pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- Final reveal -->
-    <div id="finalReveal">
-      <h1 id="finalTitle"></h1>
-      <p id="finalText1"></p>
-      <p id="finalText2"></p>
-      <p id="finalRevealCredit"></p>
-      <button onclick="location.reload()">Run again</button>
-    </div>
-
-    <!-- Achievement toast -->
-    <div id="toast">
-      <div id="toastTitle"></div>
-      <div id="toastBody"></div>
-    </div>
-
-    <!-- Admin login -->
-    <div id="adminLogin">
-      <div id="adminLoginBox">
-        <div class="adminTitle">ADMIN ACCESS</div>
-        <input
-          type="password"
-          id="adminPass"
-          placeholder="Passcode (6 digits)"
-        />
-        <button id="adminSubmit">Enter</button>
-      </div>
-    </div>
-
-    <!-- Admin panel -->
-    <div id="adminPanel">
-      <div class="adminTitle">ADMIN PANEL</div>
-      <!-- Secret Message "Colin"-->
-      <button class="adminBtn" id="btnAdminClose">Close admin</button>
-      <button class="adminBtn" id="btnRestart">Restart console</button>
-      <button class="adminBtn" id="btnPause">Pause / resume typing</button>
-      <button class="adminBtn" id="btnSpeed">Speed: normal</button>
-      <button class="adminBtn" id="btnThemeNext">Theme: next</button>
-      <button class="adminBtn" id="btnSoundToggle">Sound: ON</button>
-
-      <div class="adminTitle" style="margin-top: 6px">FLOW</div>
-      <button class="adminBtn" id="btnEnterUltra1">Enter Ultra (L1)</button>
-      <button class="adminBtn" id="btnStartPostUltra">
-        Start post-ultra questions
-      </button>
-      <button class="adminBtn" id="btnShowUpdateLast">
-        Show update question (last)
-      </button>
-      <button class="adminBtn" id="btnEnterUltra2">Enter Ultra (L2)</button>
-      <button class="adminBtn" id="btnShowFinal">Show final screen</button>
-
-      <div class="adminTitle" style="margin-top: 6px">EVENTS</div>
-      <button class="adminBtn" id="btnIntrusionToggle">Intrusion: OFF</button>
-      <button class="adminBtn" id="btnTriggerIntrusion">
-        Trigger intrusion
-      </button>
-      <button class="adminBtn" id="btnParticles">Particles burst</button>
-
-      <div class="adminTitle" style="margin-top: 6px">FACTS</div>
-      <button class="adminBtn" id="btnOpenFacts">Open Facts</button>
-      <!-- REMOVED: btnAddFact -->
-      <button class="adminBtn" id="btnExportFacts">
-        Export facts (download)
-      </button>
-    </div>
-    <!-- FULLSCREEN ADMIN CONTROL ROOM -->
-    <div id="adminFull">
-      <div id="adminFullWrap">
-        <div id="adminFullTop">
-          <div>
-            <div id="adminFullTitle">ADMIN CONTROL ROOM (FULLSCREEN)</div>
-            <div id="adminFullSub">
-              Command: <b>admin951212//</b><br />
-              Simulation only • Safe controls for testing & demos
-            </div>
-          </div>
-          <div
-            style="
-              display: flex;
-              gap: 10px;
-              flex-wrap: wrap;
-              justify-content: flex-end;
-            "
-          >
-            <button class="adminBtn" id="adminFullClose">Close</button>
-          </div>
-        </div>
-
-        <div id="adminFullGrid">
-          <div class="adminCard2">
-            <h3>Core</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afRestart">Restart</button>
-              <button class="adminBtn" id="afPause">Pause/Resume typing</button>
-              <button class="adminBtn" id="afDump">
-                Dump state (DevTools)
-              </button>
-            </div>
-
-            <div class="adminLabel2">Typing speed</div>
-            <select id="afSpeed" class="adminSelect2">
-              <option value="0">slow</option>
-              <option value="1" selected>normal</option>
-              <option value="2">fast</option>
-              <option value="3">turbo</option>
-            </select>
-          </div>
-
-          <div class="adminCard2">
-            <h3>Theme + Sound</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afThemeNext">Next theme</button>
-              <button class="adminBtn" id="afSoundToggle">Sound toggle</button>
-              <button class="adminBtn" id="afAutoTheme">Auto theme: OFF</button>
-            </div>
-
-            <div class="adminLabel2">Auto theme interval (ms)</div>
-            <input
-              id="afAutoThemeMs"
-              class="adminInput2"
-              type="number"
-              min="400"
-              step="100"
-              value="1400"
-            />
-
-            <div class="adminLabel2">Sound volume</div>
-            <input
-              id="afVolume"
-              class="adminRange2"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-            />
-          </div>
-
-          <div class="adminCard2">
-            <h3>Shell</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afShellLock">
-                Lock/Unlock input
-              </button>
-              <button class="adminBtn" id="afMatrix">Matrix toggle</button>
-              <button class="adminBtn" id="afPanic">
-                PANIC (stop intrusion)
-              </button>
-            </div>
-          </div>
-
-          <div class="adminCard2">
-            <h3>Visual FX</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afRainbow">Rainbow toggle</button>
-              <button class="adminBtn" id="afMirror">Mirror toggle</button>
-            </div>
-
-            <div class="adminLabel2">Scanline opacity</div>
-            <input
-              id="afScanOpacity"
-              class="adminRange2"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-            />
-
-            <div class="adminLabel2">Glitch opacity</div>
-            <input
-              id="afGlitchOpacity"
-              class="adminRange2"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-            />
-          </div>
-
-          <div class="adminCard2">
-            <h3>Intrusion Director</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afIntrusionToggle">
-                Intrusion toggle
-              </button>
-              <button class="adminBtn" id="afIntrusionTrigger">
-                Trigger now
-              </button>
-            </div>
-
-            <div class="adminLabel2">Intrusion interval (ms)</div>
-            <input
-              id="afIntrusionInterval"
-              class="adminInput2"
-              type="number"
-              min="300"
-              step="100"
-            />
-
-            <div class="adminLabel2">Intrusion chance (0.00–1.00)</div>
-            <input
-              id="afIntrusionChance"
-              class="adminInput2"
-              type="number"
-              min="0"
-              max="1"
-              step="0.01"
-            />
-          </div>
-
-          <div class="adminCard2">
-            <h3>Story / Flow</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afUltra1">Enter Ultra (L1)</button>
-              <button class="adminBtn" id="afPostUltra">
-                Start post-ultra
-              </button>
-              <button class="adminBtn" id="afUpdateQ">
-                Show update question
-              </button>
-              <button class="adminBtn" id="afUltra2">Enter Ultra (L2)</button>
-              <button class="adminBtn" id="afFinal">Show final</button>
-            </div>
-          </div>
-
-          <div class="adminCard2">
-            <h3>Facts</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afOpenFacts">Open facts</button>
-              <button class="adminBtn" id="afRandomFact">
-                Print random fact
-              </button>
-              <!-- REMOVED: afAddFact -->
-              <button class="adminBtn" id="afExportFacts">Export facts</button>
-            </div>
-            <div class="adminLabel2">Facts count (read-only)</div>
-            <input id="afFactsCount" class="adminInput2" type="text" readonly />
-          </div>
-
-          <div class="adminCard2">
-            <h3>Secrets</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afKonamiToggle">
-                Toggle Konami
-              </button>
-              <button class="adminBtn" id="afGodToggle">Toggle Godmode</button>
-            </div>
-            <div class="adminLabel2">Quick easter eggs</div>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afFortune">Fortune</button>
-              <button class="adminBtn" id="afNeofetch">Neofetch</button>
-            </div>
-          </div>
-
-          <div class="adminCard2">
-            <h3>Danger (Fake)</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afSelfDestruct">
-                Self-destruct
-              </button>
-              <button class="adminBtn" id="afAbort">Abort</button>
-              <button class="adminBtn" id="afRmrf">rm -rf /</button>
-            </div>
-          </div>
-
-          <div class="adminCard2">
-            <h3>Particles</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afBurst">Burst</button>
-              <button class="adminBtn" id="afToggleClickParticles">
-                Toggle click particles
-              </button>
-            </div>
-          </div>
-
-          <div class="adminCard2">
-            <h3>Reset / Cleanup</h3>
-            <div class="adminRow2">
-              <button class="adminBtn" id="afClearAchievements">
-                Clear achievements
-              </button>
-              <button class="adminBtn" id="afClearSnapshot">
-                Clear snapshot
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div id="adminFullLog">
-          <div style="font-size: 11px; opacity: 0.8; margin-bottom: 6px">
-            ADMIN LOG
-          </div>
-          <pre id="adminFullLogText">Ready.</pre>
-        </div>
-      </div>
-    </div>
-
-    <script>
-      (function () {
-        "use strict";
-
-        // ============================================================
-        // IMPORTANT NOTE (safety):
-        // This is a browser simulation. No real hacking is performed.
-        // Camera/mic/geolocation commands are FAKE (no permissions used).
-        // ============================================================
-
-        // ===== config =====
-        const UPDATE_DURATION = 6200;
-        let adminPassword = "951212";
-
-        // ===== DOM =====
-        const screen = document.getElementById("screen");
-        const term = document.getElementById("term");
-        const cmdRow = document.getElementById("cmdRow");
-        const cmdPrompt = document.getElementById("cmdPrompt");
-        const cmdInput = document.getElementById("cmdInput");
-
-        const statusLink = document.getElementById("statusLink");
-        const statusAuth = document.getElementById("statusAuth");
-        const statusUser = document.getElementById("statusUser");
-        const statusMode = document.getElementById("statusMode");
-
-        const qOverlay = document.getElementById("qOverlay");
-        const qPrompt = document.getElementById("qPrompt");
-        const qYes = document.getElementById("qYes");
-        const qNo = document.getElementById("qNo");
-
-        const choiceOverlayUpdate = document.getElementById(
-          "choiceOverlayUpdate",
-        );
-        const choicePromptUpdate =
-          document.getElementById("choicePromptUpdate");
-        const yesBtnUpdate = document.getElementById("yesBtnUpdate");
-        const noBtnUpdate = document.getElementById("noBtnUpdate");
-
-        const updateScreen = document.getElementById("updateScreen");
-        const updateContent = document.getElementById("updateContent");
-
-        const ultraSecret = document.getElementById("ultraSecret");
-        const ultraBackBtn = document.getElementById("ultraBackBtn");
-        const ultraFactsBtn = document.getElementById("ultraFactsBtn");
-        const ultraTerm = document.getElementById("ultraTerm");
-        const ultraInput = document.getElementById("ultraInput");
-
-        const ultraSecret2 = document.getElementById("ultraSecret2");
-        const ultra2ExitBtn = document.getElementById("ultra2ExitBtn");
-        const ultra2FactsBtn = document.getElementById("ultra2FactsBtn");
-        const ultra2Term = document.getElementById("ultra2Term");
-        const ultra2Input = document.getElementById("ultra2Input");
-
-        const factsView = document.getElementById("factsView");
-        const factsStatus = document.getElementById("factsStatus");
-        const factsText = document.getElementById("factsText");
-        const factsBackBtn = document.getElementById("factsBackBtn");
-        const factsPrintBtn = document.getElementById("factsPrintBtn");
-
-        const finalReveal = document.getElementById("finalReveal");
-        const finalTitle = document.getElementById("finalTitle");
-        const finalText1 = document.getElementById("finalText1");
-        const finalText2 = document.getElementById("finalText2");
-        const finalRevealCredit = document.getElementById("finalRevealCredit");
-
-        const toast = document.getElementById("toast");
-        const toastTitle = document.getElementById("toastTitle");
-        const toastBody = document.getElementById("toastBody");
-
-        const adminLink = document.getElementById("adminLink");
-        const adminLogin = document.getElementById("adminLogin");
-        const adminPass = document.getElementById("adminPass");
-        const adminSubmit = document.getElementById("adminSubmit");
-        const adminPanel = document.getElementById("adminPanel");
-
-        // Auth buttons
-        const loginBtn = document.getElementById("loginBtn");
-        const registerBtn = document.getElementById("registerBtn");
-        const accountBtn = document.getElementById("accountBtn");
-        const logoutBtn = document.getElementById("logoutBtn");
-        const skipIntroBtn = document.getElementById("skipIntroBtn");
-
-        if (loginBtn) loginBtn.addEventListener("click", () => (window.location.href = "/login"));
-        if (registerBtn) registerBtn.addEventListener("click", () => (window.location.href = "/register"));
-        if (accountBtn) accountBtn.addEventListener("click", () => (window.location.href = "/account"));
-
-        // ===== auth state =====
-        let authUser = null; // {id, username, fullName, role}
-        function isRealAdmin() {
-          return authUser && authUser.role === "admin";
-        }
-
-        async function api(path, opts = {}) {
-          const res = await fetch(path, {
-            ...opts,
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-          });
-          const data = await res.json().catch(() => ({}));
-          return { res, data };
-        }
-
-        async function doLogout() {
-          await api("/api/auth/logout", { method: "POST" });
-          window.location.href = "/login";
-        }
-
-        if (logoutBtn) logoutBtn.addEventListener("click", doLogout);
-
-        async function syncAuthUI() {
-          const { data } = await api("/api/auth/me");
-          if (!data || !data.loggedIn) {
-            authUser = null;
-            if (loginBtn) loginBtn.style.display = "";
-            if (registerBtn) registerBtn.style.display = "";
-            if (accountBtn) accountBtn.style.display = "none";
-            if (logoutBtn) logoutBtn.style.display = "none";
-            return;
-          }
-
-          authUser = data.user;
-
-          // Hide login/register when logged in
-          if (loginBtn) loginBtn.style.display = "none";
-          if (registerBtn) registerBtn.style.display = "none";
-
-          // Show account/logout
-          if (accountBtn) accountBtn.style.display = "";
-          if (logoutBtn) logoutBtn.style.display = "";
-
-          // (optional) show username in status pill when shell opens
-        }
-
-        // ===== rest of your original file (unchanged) =====
-
-        const btnAdminClose = document.getElementById("btnAdminClose");
-        const btnRestart = document.getElementById("btnRestart");
-        const btnPause = document.getElementById("btnPause");
-        const btnSpeed = document.getElementById("btnSpeed");
-        const btnThemeNext = document.getElementById("btnThemeNext");
-        const btnSoundToggle = document.getElementById("btnSoundToggle");
-
-        const btnEnterUltra1 = document.getElementById("btnEnterUltra1");
-        const btnStartPostUltra = document.getElementById("btnStartPostUltra");
-        const btnShowUpdateLast = document.getElementById("btnShowUpdateLast");
-        const btnEnterUltra2 = document.getElementById("btnEnterUltra2");
-        const btnShowFinal = document.getElementById("btnShowFinal");
-
-        const btnIntrusionToggle =
-          document.getElementById("btnIntrusionToggle");
-        const btnTriggerIntrusion = document.getElementById(
-          "btnTriggerIntrusion",
-        );
-        const btnParticles = document.getElementById("btnParticles");
-
-        const btnOpenFacts = document.getElementById("btnOpenFacts");
-        // REMOVED: btnAddFact
-        const btnExportFacts = document.getElementById("btnExportFacts");
-
-        const matrixCanvas = document.getElementById("matrixCanvas");
-        const mctx = matrixCanvas.getContext("2d");
-
-        const fxCanvas = document.getElementById("fxCanvas");
-        const fx = fxCanvas.getContext("2d");
-
-        // ===== Fullscreen admin DOM =====
-        const adminFull = document.getElementById("adminFull");
-        const adminFullClose = document.getElementById("adminFullClose");
-        const adminFullLogText = document.getElementById("adminFullLogText");
-
-        const afRestart = document.getElementById("afRestart");
-        const afPause = document.getElementById("afPause");
-        const afDump = document.getElementById("afDump");
-        const afSpeed = document.getElementById("afSpeed");
-
-        const afThemeNext = document.getElementById("afThemeNext");
-        const afSoundToggle = document.getElementById("afSoundToggle");
-        const afAutoTheme = document.getElementById("afAutoTheme");
-        const afAutoThemeMs = document.getElementById("afAutoThemeMs");
-        const afVolume = document.getElementById("afVolume");
-
-        const afShellLock = document.getElementById("afShellLock");
-        const afMatrix = document.getElementById("afMatrix");
-        const afPanic = document.getElementById("afPanic");
-
-        const afRainbow = document.getElementById("afRainbow");
-        const afMirror = document.getElementById("afMirror");
-        const afScanOpacity = document.getElementById("afScanOpacity");
-        const afGlitchOpacity = document.getElementById("afGlitchOpacity");
-
-        const afIntrusionToggle = document.getElementById("afIntrusionToggle");
-        const afIntrusionTrigger =
-          document.getElementById("afIntrusionTrigger");
-        const afIntrusionInterval = document.getElementById(
-          "afIntrusionInterval",
-        );
-        const afIntrusionChance = document.getElementById("afIntrusionChance");
-
-        const afUltra1 = document.getElementById("afUltra1");
-        const afPostUltra = document.getElementById("afPostUltra");
-        const afUpdateQ = document.getElementById("afUpdateQ");
-        const afUltra2 = document.getElementById("afUltra2");
-        const afFinal = document.getElementById("afFinal");
-
-        const afOpenFacts = document.getElementById("afOpenFacts");
-        const afRandomFact = document.getElementById("afRandomFact");
-        // REMOVED: afAddFact
-        const afExportFacts = document.getElementById("afExportFacts");
-        const afFactsCount = document.getElementById("afFactsCount");
-
-        const afKonamiToggle = document.getElementById("afKonamiToggle");
-        const afGodToggle = document.getElementById("afGodToggle");
-        const afFortune = document.getElementById("afFortune");
-        const afNeofetch = document.getElementById("afNeofetch");
-
-        const afSelfDestruct = document.getElementById("afSelfDestruct");
-        const afAbort = document.getElementById("afAbort");
-        const afRmrf = document.getElementById("afRmrf");
-
-        const afBurst = document.getElementById("afBurst");
-        const afToggleClickParticles = document.getElementById(
-          "afToggleClickParticles",
-        );
-
-        const afClearAchievements = document.getElementById(
-          "afClearAchievements",
-        );
-        const afClearSnapshot = document.getElementById("afClearSnapshot");
-
-        // Cursor block
-        const cursor = document.createElement("span");
-        cursor.className = "cursor";
-        term.appendChild(cursor);
-
-        // ===== FULLSCREEN (first click / touch) =====
-        function requestFullscreen() {
-          const el = document.documentElement;
-          if (el.requestFullscreen) el.requestFullscreen();
-          else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-          else if (el.msRequestFullscreen) el.msRequestFullscreen();
-        }
-        function handleFullscreenGesture() {
-          if (
-            !document.fullscreenElement &&
-            !document.webkitFullscreenElement &&
-            !document.msFullscreenElement
-          ) {
-            requestFullscreen();
-          }
-          initAudio();
-        }
-        document.addEventListener("click", handleFullscreenGesture, {
-          once: true,
-        });
-        document.addEventListener("touchstart", handleFullscreenGesture, {
-          once: true,
-        });
-
-        // ===== environment =====
-        const ua = navigator.userAgent || "unknown";
-        const platform = navigator.platform || "unknown";
-        const lang = navigator.language || "unknown";
-        const w = window.screen.width;
-        const h = window.screen.height;
-        const tz =
-          Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
-        const touch =
-          "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
-        const origin =
-          window.location.origin ||
-          window.location.protocol + "//" + window.location.host ||
-          "file://local";
-        const nowIso = new Date().toISOString();
-
-        let deviceType = "DESKTOP/OTHER";
-        if (/Android/i.test(ua)) deviceType = "ANDROID DEVICE";
-        else if (/iPhone|iPad|iPod/i.test(ua)) deviceType = "iOS DEVICE";
-
-        let updateName =
-          deviceType === "iOS DEVICE"
-            ? "iOS 7"
-            : deviceType === "ANDROID DEVICE"
-              ? "OS 7"
-              : "Windows 7";
-
-        // ===== themes =====
-        const THEMES = [
-          {
-            id: "neon-green",
-            name: "Neon Green",
-            vars: {
-              "--accent": "#00f7ff",
-              "--accent2": "#30ff9b",
-              "--accent3": "#b45cff",
-              "--term-bg-a": "#04261b",
-              "--term-bg-b": "#020b14",
-              "--term-bg-c": "#02060c",
-              "--grid-a": "rgba(48,255,155,0.06)",
-              "--grid-b": "rgba(48,255,155,0.04)",
-              "--btn-border": "rgba(0,255,160,0.55)",
-              "--btn-bg1": "rgba(0,255,160,0.12)",
-            },
-          },
-          {
-            id: "ice-blue",
-            name: "Ice Blue",
-            vars: {
-              "--accent": "#7df3ff",
-              "--accent2": "#74b6ff",
-              "--accent3": "#a7d7ff",
-              "--term-bg-a": "#061a2b",
-              "--term-bg-b": "#040b14",
-              "--term-bg-c": "#02060c",
-              "--grid-a": "rgba(0,180,255,0.08)",
-              "--grid-b": "rgba(0,180,255,0.05)",
-              "--btn-border": "rgba(0,180,255,0.65)",
-              "--btn-bg1": "rgba(0,180,255,0.12)",
-            },
-          },
-          {
-            id: "amber-noir",
-            name: "Amber Noir",
-            vars: {
-              "--accent": "#ffd27a",
-              "--accent2": "#ffb400",
-              "--accent3": "#ff5f5f",
-              "--term-bg-a": "#241700",
-              "--term-bg-b": "#0c0700",
-              "--term-bg-c": "#000000",
-              "--grid-a": "rgba(255,180,0,0.07)",
-              "--grid-b": "rgba(255,180,0,0.04)",
-              "--btn-border": "rgba(255,210,122,0.70)",
-              "--btn-bg1": "rgba(255,180,0,0.13)",
-            },
-          },
-          {
-            id: "violet-void",
-            name: "Violet Void",
-            vars: {
-              "--accent": "#d8b7ff",
-              "--accent2": "#b45cff",
-              "--accent3": "#00f7ff",
-              "--term-bg-a": "#15002e",
-              "--term-bg-b": "#05000c",
-              "--term-bg-c": "#000000",
-              "--grid-a": "rgba(180,92,255,0.09)",
-              "--grid-b": "rgba(180,92,255,0.05)",
-              "--btn-border": "rgba(180,92,255,0.70)",
-              "--btn-bg1": "rgba(180,92,255,0.13)",
-            },
-          },
-          {
-            id: "citrus",
-            name: "Citrus Power",
-            vars: {
-              "--accent": "#ffe45c",
-              "--accent2": "#9cff57",
-              "--accent3": "#ff9f43",
-              "--term-bg-a": "#1b2a00",
-              "--term-bg-b": "#0a0f00",
-              "--term-bg-c": "#000000",
-              "--grid-a": "rgba(255,228,92,0.09)",
-              "--grid-b": "rgba(156,255,87,0.05)",
-              "--btn-border": "rgba(255,228,92,0.72)",
-              "--btn-bg1": "rgba(255,228,92,0.12)",
-            },
-          },
-        ];
-        let themeIndex = 0;
-
-        function applyTheme(index) {
-          themeIndex = (index + THEMES.length) % THEMES.length;
-          const t = THEMES[themeIndex];
-          Object.entries(t.vars).forEach(([k, v]) =>
-            document.documentElement.style.setProperty(k, v),
-          );
-          printLineToTerm(`[THEME] ${t.name}`, "muted");
-          award("theme", "Theme Switcher", "Changed terminal theme.");
-          sfx("click");
-        }
-        // ===== offline facts =====
-        const PRELOADED_FACTS = [
-          "A famous ~3,700-year-old clay tablet is a customer complaint: Nanni scolds the merchant Ea-nasir for low-quality copper.",
-          "The Antikythera mechanism (ancient Greek) used gears to model astronomy and predict eclipses—basically a hand-powered analog computer.",
-          " One of the oldest known notated songs is the Hurrian Hymn from Ugarit (c. 1400 BCE).",
-          "The Treaty of Kadesh (Egypt–Hittites, c. 1259 BCE) is one of the earliest surviving peace treaties.",
-          "Vindolanda tablets from Roman Britain include everyday letters—like requests for socks and invitations to birthday parties.",
-          "Korea’s 'Jikji' (1377) is the oldest extant book printed with movable metal type.",
-          "The Tripitaka Koreana (13th century) was carved onto over 80,000 woodblocks and is still preserved.",
-          "The 'Phaistos Disc' is a clay disc with stamped symbols; its writing is still undeciphered.",
-          "Roman dodecahedra are found across Europe; nobody is sure what they were for.",
-          "The first recorded labor strike happened in ancient Egypt (Deir el-Medina) when workers demanded food rations.",
-          "In 1814, London had a 'Beer Flood' when a huge vat burst and sent beer through streets.",
-          "In 1783, Iceland’s Laki eruption caused a toxic haze and climate problems across parts of Europe.",
-          "Tree-ring evidence suggests the year 536 CE had extreme cooling, sometimes called a 'mystery climate catastrophe.'",
-          "The Royal Game of Ur (Mesopotamia) is one of the earliest known board games; rules were reconstructed from tablets.",
-          "Some Inca record-keeping used quipu—knotted cords that stored numerical data and maybe more.",
-          "The Voynich Manuscript is a medieval illustrated book written in an unknown script; it remains unsolved.",
-          "The Rosetta Stone (found in 1799) helped scholars decipher Egyptian hieroglyphs by showing the same text in multiple scripts.",
-          "The oldest known world map is often linked to a Babylonian clay tablet that shows a circular world with regions around it.",
-          "Mayan mathematicians used a symbol for zero centuries before it became common in Europe.",
-          "In 1858, the first transatlantic telegraph cable briefly worked, letting messages cross the ocean in minutes instead of weeks.",
-          "The Mary Rose (Henry VIII’s warship) sank in 1545 and was raised in 1982 with thousands of preserved artifacts.",
-          "“Blue” glass pigment (Egyptian blue) was an early synthetic pigment used in the ancient Mediterranean world.",
-          "In 1913, the “Mona Lisa” was recovered after being stolen from the Louvre in 1911, turning it into a global celebrity painting.",
-          "The Dead Sea Scrolls, discovered in the 1940s, include ancient Jewish texts that helped scholars study early versions of the Bible.",
-          "A 9th‑century House of Wisdom in Baghdad became a major center for translation and scholarship, helping preserve and expand knowledge.",
-          "The first successful powered flight by the Wright brothers happened on December 17, 1903, at Kitty Hawk, North Carolina.",
-        ];
-
-        // Make facts read-only (prevents “adding history facts”)
-        try {
-          Object.freeze(PRELOADED_FACTS);
-        } catch (e) {}
-
-        function showFacts() {
-          factsView.classList.add("visible");
-          factsStatus.textContent = `Showing ${PRELOADED_FACTS.length} offline facts.`;
-          factsText.textContent = PRELOADED_FACTS.map(
-            (f, i) => `${i + 1}. ${f}`,
-          ).join("\n");
-          sfx("open");
-        }
-        function hideFacts() {
-          factsView.classList.remove("visible");
-          sfx("click");
-        }
-
-        factsBackBtn.addEventListener("click", hideFacts);
-        factsPrintBtn.addEventListener("click", () => window.print());
-
-        window.addEventListener("keydown", (e) => {
-          const tag = ((e.target && e.target.tagName) || "").toLowerCase();
-          const typing =
-            tag === "input" || tag === "textarea" || e.target.isContentEditable;
-          if (typing) return;
-          if (e.shiftKey && (e.key === "H" || e.key === "h")) {
-            e.preventDefault();
-            showFacts();
-          }
-        });
-
-        // ===== sound effects (WebAudio) =====
-        let soundOn = true;
-        let audio = { ctx: null, master: null, ready: false };
-        let soundVolume = 0.22;
-
-        function initAudio() {
-          if (audio.ready) return;
-          try {
-            const Ctx = window.AudioContext || window.webkitAudioContext;
-            if (!Ctx) return;
-            audio.ctx = new Ctx();
-            audio.master = audio.ctx.createGain();
-            audio.master.gain.value = soundVolume;
-            audio.master.connect(audio.ctx.destination);
-            audio.ready = true;
-          } catch (e) {}
-        }
-
-        function beep(freq = 440, dur = 0.06, type = "sine", gain = 0.18) {
-          if (!soundOn || !audio.ready) return;
-          const t0 = audio.ctx.currentTime;
-          const o = audio.ctx.createOscillator();
-          const g = audio.ctx.createGain();
-          o.type = type;
-          o.frequency.value = freq;
-          g.gain.value = 0.0001;
-          g.gain.setValueAtTime(0.0001, t0);
-          g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
-          g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-          o.connect(g);
-          g.connect(audio.master);
-          o.start(t0);
-          o.stop(t0 + dur + 0.01);
-        }
-
-        function noiseBurst(dur = 0.12, gain = 0.12) {
-          if (!soundOn || !audio.ready) return;
-          const sr = audio.ctx.sampleRate;
-          const len = Math.floor(sr * dur);
-          const buf = audio.ctx.createBuffer(1, len, sr);
-          const data = buf.getChannelData(0);
-          for (let i = 0; i < len; i++)
-            data[i] = (Math.random() * 2 - 1) * (1 - i / len);
-          const src = audio.ctx.createBufferSource();
-          const g = audio.ctx.createGain();
-          g.gain.value = gain;
-          src.buffer = buf;
-          src.connect(g);
-          g.connect(audio.master);
-          src.start();
-        }
-
-        function sfx(name) {
-          if (!soundOn) return;
-          initAudio();
-          if (!audio.ready) return;
-
-          if (name === "click") {
-            beep(620, 0.03, "square", 0.1);
-          } else if (name === "ok") {
-            beep(740, 0.04, "triangle", 0.14);
-            beep(980, 0.05, "triangle", 0.1);
-          } else if (name === "warn") {
-            beep(260, 0.06, "sawtooth", 0.12);
-          } else if (name === "error") {
-            noiseBurst(0.1, 0.12);
-            beep(180, 0.09, "sawtooth", 0.11);
-          } else if (name === "open") {
-            beep(420, 0.05, "triangle", 0.1);
-            beep(560, 0.06, "triangle", 0.1);
-          } else if (name === "type") {
-            beep(520 + Math.random() * 80, 0.015, "square", 0.04);
-          } else if (name === "ach") {
-            beep(880, 0.05, "triangle", 0.14);
-            beep(1320, 0.06, "triangle", 0.12);
-          } else if (name === "boom") {
-            noiseBurst(0.18, 0.18);
-            beep(90, 0.12, "sawtooth", 0.14);
-          }
-        }
-
-        function toggleSound(force) {
-          soundOn = typeof force === "boolean" ? force : !soundOn;
-          btnSoundToggle.textContent = "Sound: " + (soundOn ? "ON" : "OFF");
-          printLineToTerm("[SOUND] " + (soundOn ? "ON" : "OFF"), "muted");
-          if (soundOn) sfx("ok");
-          else sfx("click");
-          award("sound", "Sound Engineer", "Toggled sound effects.");
-        }
-
-        // ===== particles =====
-        let particles = [];
-        let clickParticlesEnabled = true;
-
-        function resizeFX() {
-          fxCanvas.width = window.innerWidth;
-          fxCanvas.height = window.innerHeight;
-        }
-        window.addEventListener("resize", resizeFX);
-        resizeFX();
-
-        function spawnBurst(
-          x,
-          y,
-          colorA = "rgba(0,247,255,0.9)",
-          colorB = "rgba(48,255,155,0.9)",
-          count = 80,
-        ) {
-          for (let i = 0; i < count; i++) {
-            const a = Math.random() * Math.PI * 2;
-            const sp = 1.5 + Math.random() * 5.2;
-            particles.push({
-              x,
-              y,
-              vx: Math.cos(a) * sp,
-              vy: Math.sin(a) * sp,
-              life: 50 + Math.random() * 35,
-              r: 1 + Math.random() * 2.3,
-              c: Math.random() < 0.5 ? colorA : colorB,
-            });
-          }
-        }
-
-        function fxTick() {
-          fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
-          for (let i = particles.length - 1; i >= 0; i--) {
-            const p = particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vx *= 0.98;
-            p.vy = p.vy * 0.98 + 0.06;
-            p.life -= 1;
-
-            fx.beginPath();
-            fx.fillStyle = p.c;
-            fx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            fx.fill();
-
-            if (p.life <= 0) particles.splice(i, 1);
-          }
-          requestAnimationFrame(fxTick);
-        }
-        fxTick();
-
-        document.addEventListener(
-          "click",
-          (e) => {
-            if (!clickParticlesEnabled) return;
-            if (Math.random() < 0.08) {
-              spawnBurst(
-                e.clientX,
-                e.clientY,
-                "rgba(0,247,255,0.85)",
-                "rgba(48,255,155,0.75)",
-                35,
-              );
-            }
-          },
-          { passive: true },
-        );
-
-        // ===== achievements =====
-        const ACH_KEY = "zp_achievements_v1";
-        let achievements = {};
-        try {
-          achievements =
-            JSON.parse(localStorage.getItem(ACH_KEY) || "{}") || {};
-        } catch (e) {
-          achievements = {};
-        }
-
-        function award(id, title, body) {
-          if (achievements[id]) return;
-          achievements[id] = { at: Date.now(), title, body };
-          try {
-            localStorage.setItem(ACH_KEY, JSON.stringify(achievements));
-          } catch (e) {}
-
-          toastTitle.textContent = "Achievement Unlocked";
-          toastBody.textContent = title + " — " + body;
-          toast.classList.add("show");
-          sfx("ach");
-
-          setTimeout(() => toast.classList.remove("show"), 2600);
-        }
-
-        // ===== utilities =====
-        function printLineToTerm(text, className) {
-          const lineEl = document.createElement("div");
-          if (className) lineEl.classList.add(className);
-          lineEl.textContent = text;
-          term.insertBefore(lineEl, cursor);
-          term.scrollTop = term.scrollHeight;
-        }
-
-        function printBlock(lines, className) {
-          lines.split("\n").forEach((l) => printLineToTerm(l, className));
-        }
-
-        function sleep(ms) {
-          return new Promise((r) => setTimeout(r, ms));
-        }
-        function randChoice(arr) {
-          return arr[Math.floor(Math.random() * arr.length)];
-        }
-
-        function clamp01(n) {
-          return Math.max(0, Math.min(1, n));
-        }
-
-        function getTermText() {
-          return Array.from(term.querySelectorAll("div"))
-            .map((d) => d.textContent)
-            .join("\n");
-        }
-
-        function downloadText(filename, text) {
-          const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        }
-
-        function setScanOpacity(v) {
-          document.documentElement.style.setProperty(
-            "--scan-opacity",
-            String(clamp01(v)),
-          );
-        }
-
-        function setGlitchOpacity(v) {
-          document.documentElement.style.setProperty(
-            "--glitch-opacity",
-            String(clamp01(v)),
-          );
-        }
-
-        function corruptText(s) {
-          const glyphs = "▓▒░█#@$%&*?/\\|<>~";
-          return s
-            .split("")
-            .map((ch) => {
-              if (ch === " " || ch === "\n") return ch;
-              if (Math.random() < 0.18)
-                return glyphs[Math.floor(Math.random() * glyphs.length)];
-              if (Math.random() < 0.06)
-                return ch + glyphs[Math.floor(Math.random() * glyphs.length)];
-              return ch;
-            })
-            .join("");
-        }
-
-        // ===== state =====
-        let baseLineIndex = 0;
-        let baseCharIndex = 0;
-        let typingPaused = false;
-        let cancelAllTyping = false;
-
-        const speedModes = [0.5, 1, 2, 4];
-        const speedLabels = ["slow", "normal", "fast", "turbo"];
-        let typingSpeedModeIndex = 1;
-        let typingSpeedFactor = speedModes[typingSpeedModeIndex];
-
-        let shellOpen = false;
-        let shellLocked = false;
-        let linkLost = false;
-        let cwd = "/";
-
-        let telemetryEnabled = null;
-        let snapshotStored = null;
-        let overrideAnswer = null;
-        let updateAnswer = null;
-
-        let postUltraStarted = false;
-
-        let combo = { scan: false, hash: false, ciel: false, unlocked: false };
-
-        const KONAMI = [
-          "ArrowUp",
-          "ArrowUp",
-          "ArrowDown",
-          "ArrowDown",
-          "ArrowLeft",
-          "ArrowRight",
-          "ArrowLeft",
-          "ArrowRight",
-          "b",
-          "a",
-        ];
-        let konamiPos = 0;
-        let konamiUnlocked = false;
-        let godMode = false;
-
-        let intrusionOn = false;
-        let intrusionTimer = null;
-        let intrusionIntervalMs = 5500;
-        let intrusionChance = 0.35;
-
-        let autoThemeTimer = null;
-
-        let telemetryTimer = null;
-        function stopTelemetry() {
-          if (telemetryTimer) {
-            clearInterval(telemetryTimer);
-            telemetryTimer = null;
-          }
-        }
-
-        let selfDestructTimer = null;
-
-        let processes = [
-          { pid: 101, name: "kernel_task", cpu: 1.4 },
-          { pid: 204, name: "netd", cpu: 0.9 },
-          { pid: 319, name: "ghost.observe", cpu: 2.3 },
-          { pid: 404, name: "intrusion.watch", cpu: 0.2 },
-          { pid: 512, name: "ui.render", cpu: 0.7 },
-        ];
-
-        let game = {
-          mode: null,
-          numberTarget: null,
-          crackSecret: null,
-          memorySeq: null,
-          reactionArmed: false,
-          reactionStart: 0,
-          abortable: null,
-        };
-
-        function updateHeader() {
-          statusLink.className = "status-pill";
-          statusMode.className = "status-pill";
-          statusUser.className = "status-pill";
-          statusAuth.className = "status-pill ok";
-
-          if (linkLost) {
-            statusLink.textContent = "LINK: LOST";
-            statusLink.classList.add("warn");
-            statusMode.textContent = "MODE: LINK DOWN";
-            statusMode.classList.add("warn");
-          } else {
-            statusLink.textContent = "LINK: SYNCHED";
-            statusLink.classList.add("ok");
-            statusMode.textContent = shellOpen
-              ? godMode
-                ? "MODE: GODMODE"
-                : "MODE: SHELL"
-              : "MODE: GHOST OBSERVE";
-            statusMode.classList.add("info");
-          }
-
-          statusUser.textContent = shellOpen
-            ? "USER-FOCUS: ACTIVE"
-            : "USER-FOCUS: IDLE";
-          statusUser.classList.add(shellOpen ? "ok" : "warn");
-
-          statusAuth.textContent = godMode
-            ? "AUTH: GODMODE"
-            : "AUTH: ROOT TOKEN";
-        }
-
-        function updatePrompt() {
-          cmdPrompt.textContent = cwd + " $";
-        }
-
-        // ===== matrix =====
-        let matrixOn = false;
-        let mW = 0,
-          mH = 0,
-          cols = 0,
-          drops = [];
-        const mChars = "01ABCDEFGHJKLMNPQRSTUVWXYZ#$%&*";
-
-        function resizeMatrix() {
-          mW = matrixCanvas.width = window.innerWidth;
-          mH = matrixCanvas.height = window.innerHeight;
-          cols = Math.floor(mW / 14);
-          drops = new Array(cols)
-            .fill(0)
-            .map(() => Math.floor(Math.random() * (mH / 14)));
-        }
-        window.addEventListener("resize", resizeMatrix);
-        resizeMatrix();
-
-        function drawMatrix() {
-          if (!matrixOn) return;
-          mctx.fillStyle = "rgba(0,0,0,0.08)";
-          mctx.fillRect(0, 0, mW, mH);
-          mctx.font = "14px monospace";
-          for (let i = 0; i < cols; i++) {
-            const ch = mChars[Math.floor(Math.random() * mChars.length)];
-            const x = i * 14;
-            const y = drops[i] * 14;
-            mctx.fillStyle = "rgba(0,255,120,0.9)";
-            mctx.fillText(ch, x, y);
-            if (y > mH && Math.random() > 0.975) drops[i] = 0;
-            drops[i]++;
-          }
-          requestAnimationFrame(drawMatrix);
-        }
-
-        function toggleMatrix(force) {
-          matrixOn = typeof force === "boolean" ? force : !matrixOn;
-          matrixCanvas.classList.toggle("on", matrixOn);
-          if (matrixOn) requestAnimationFrame(drawMatrix);
-          printLineToTerm("[MATRIX] " + (matrixOn ? "ON" : "OFF"), "muted");
-        }
-
-        // ===== file system (sim) =====
-        const fsTree = {
-          "/": ["system", "logs", "user", "vault"],
-          "/system": ["core.cfg", "device-info.txt"],
-          "/logs": ["access.log", "intrusion.log"],
-          "/user": ["readme.txt"],
-          "/vault": ["credits.txt", "ciel.msg", "zero.msg", "twinkle.txt"],
-        };
-
-        const fileContents = {
-          "/system/core.cfg":
-            "mode=remote\nprivilege=root-temp\nencryption=AES-256-GCM\npersistence=off\n",
-          "/system/device-info.txt": `DEVICE  : ${deviceType}
-      PLATFORM: ${platform}
-      SCREEN  : ${w} x ${h}
-      TOUCH   : ${touch ? "ON" : "OFF"}
-      LOCALE  : ${lang}
-      TZ      : ${tz}
-      `,
-          "/logs/access.log": `[OK] link established
-      [OK] auth token granted
-      [INFO] recon snapshot captured
-      [INFO] simulation flag: true
-      `,
-          "/logs/intrusion.log": `[WARN] intrusion events are simulated
-      [WARN] no real device access is performed
-      `,
-          "/user/readme.txt": `All commands are simulated.
-      No real hacking happens.
-      Secret combo: scan ports + hash <text> + ciel
-      Konami code (↑↑↓↓←→←→BA) unlocks godmode.
-      `,
-          "/vault/credits.txt": `CREDITS
-      - Siwoo (Lemon78717): Creator / Operator
-      - Mikey: Creator of Twinkle + Zero & Ciel
-      - Zero: Boy robot assistant
-      - Ciel: Little sister AI
-      `,
-          "/vault/ciel.msg": `Ciel: "Hey! If you type 'hello' I'll answer too."
-      Ciel: "Try 'games' if you want mini-games!"
-      `,
-          "/vault/zero.msg": `Zero: "This is a simulation shell. But we can make it feel real."
-      Zero: "Try: banner, theme, glitch, coffee, games"
-      `,
-          "/vault/twinkle.txt": `Twinkle Website
-      - Community platform created by Mikey
-      - Launched: Feb 2016
-      - For students & teachers of Twin.kle English academy
-      `,
-        };
-
-        function resolvePath(name) {
-          if (name.startsWith("/")) return name;
-          if (cwd === "/") return "/" + name;
-          return cwd + "/" + name;
-        }
-
-        function listDir() {
-          const items = fsTree[cwd] || [];
-          if (!items.length) {
-            printLineToTerm("(empty directory)", "dim");
-            return;
-          }
-          items.forEach((name) => {
-            const path = resolvePath(name);
-            const isDir = !!fsTree[path] || !name.includes(".");
-            printLineToTerm((isDir ? "[DIR] " : "FILE ") + name, "dim");
-          });
-        }
-
-        function changeDir(arg) {
-          if (!arg || arg === "..") {
-            if (cwd === "/") return;
-            const idx = cwd.lastIndexOf("/");
-            cwd = idx <= 0 ? "/" : cwd.slice(0, idx);
-            updatePrompt();
-            return;
-          }
-          const target = resolvePath(arg);
-          if (fsTree[target]) {
-            cwd = target;
-            updatePrompt();
-          } else printLineToTerm("No such directory", "warn");
-        }
-
-        function catFile(arg) {
-          if (!arg) {
-            printLineToTerm("Usage: cat <file>", "warn");
-            return;
-          }
-          const path = resolvePath(arg);
-          if (fileContents[path])
-            fileContents[path]
-              .split("\n")
-              .forEach((l) => printLineToTerm(l, "dim"));
-          else if (fsTree[path]) printLineToTerm("cat: is a directory", "warn");
-          else printLineToTerm("No such file", "warn");
-        }
-
-        async function sha256Hex(text) {
-          if (!crypto || !crypto.subtle) return null;
-          const enc = new TextEncoder().encode(text);
-          const buf = await crypto.subtle.digest("SHA-256", enc);
-          const arr = Array.from(new Uint8Array(buf));
-          return arr.map((b) => b.toString(16).padStart(2, "0")).join("");
-        }
-
-        // ===== intro typing =====
-        const baseLines = [
-          "[ZEROPOINT] Boot sequence engaged…",
-          `  TIME   : ${nowIso}`,
-          `  ORIGIN : ${origin}`,
-          "[OK] Tunnel online (AES-256/GCM)",
-          "",
-          "[AUTH] Requesting elevated scope…",
-          '"ACCESS GRANTED"',
-          "[OK] Privilege: ROOT / TEMP",
-          "",
-          "[SCAN] Client snapshot:",
-          `  DEVICE : ${deviceType}`,
-          `  SCREEN : ${w} x ${h}  TOUCH: ${touch ? "ON" : "OFF"}`,
-          `  LOCALE : ${lang}`,
-          `  TZ     : ${tz}`,
-          "",
-          "[STATUS] Session is ARMED.",
-          "",
-          "[TIP] Try: banner, themes, theme <name>, sound, achievements",
-          "[TIP] Mini-games: games (then try: memory, reaction, crack, number)",
-          "[TIP] Secrets: scan ports + hash <text> + ciel",
-          "[TIP] Konami code unlocks godmode (↑↑↓↓←→←→BA)",
-          "[TIP] Shift+H opens offline History Facts.",
-          "[TIP] New: easter, fortune, neofetch, panic, rainbow, mirror, fact",
-          "[TIP] New+: jeanjun, roll, exportterm, scanlines, glitchfx",
-        ];
-
-        function typeBase() {
-          if (cancelAllTyping) return;
-          if (typingPaused || linkLost) {
-            setTimeout(typeBase, 50);
-            return;
-          }
-
-          if (baseLineIndex >= baseLines.length) {
-            setTimeout(openShell, 450);
-            return;
-          }
-
-          const text = baseLines[baseLineIndex];
-          let lineEl = document.getElementById("base-" + baseLineIndex);
-
-          if (!lineEl) {
-            lineEl = document.createElement("div");
-            lineEl.id = "base-" + baseLineIndex;
-            term.insertBefore(lineEl, cursor);
-          }
-
-          if (baseCharIndex < text.length) {
-            lineEl.textContent += text.charAt(baseCharIndex++);
-            if (Math.random() < 0.22) sfx("type");
-          } else {
-            lineEl.textContent += "\n";
-            baseLineIndex++;
-            baseCharIndex = 0;
-          }
-
-          term.scrollTop = term.scrollHeight;
-
-          const slow =
-            text.includes("ACCESS GRANTED") ||
-            text.includes("Session is ARMED");
-          let delay = slow ? 70 : 14 + Math.random() * 18;
-          delay = Math.max(4, delay / typingSpeedFactor);
-          setTimeout(typeBase, delay);
-        }
-
-        
-        // ===== intro skip (NEW) =====
-        function renderBaseInstant() {
-          // Clear and print the boot text instantly (no typing)
-          term.innerHTML = "";
-          term.appendChild(cursor);
-          for (let i = 0; i < baseLines.length; i++) {
-            const lineEl = document.createElement("div");
-            lineEl.id = "base-" + i;
-            lineEl.textContent = baseLines[i];
-            term.insertBefore(lineEl, cursor);
-          }
-          term.scrollTop = term.scrollHeight;
-        }
-
-        function skipIntro(persistForever) {
-          if (shellOpen) return;
-          cancelAllTyping = true;
-          baseLineIndex = baseLines.length;
-          baseCharIndex = 0;
-
-          if (persistForever) {
-            try { localStorage.setItem("zp_skip_intro", "1"); } catch (e) {}
-          }
-
-          if (skipIntroBtn) skipIntroBtn.style.display = "none";
-          renderBaseInstant();
-          setTimeout(openShell, 0);
-        }
-
-        if (skipIntroBtn) {
-          skipIntroBtn.addEventListener("click", (e) => {
-            // Shift+Click = skip forever
-            skipIntro(!!(e && e.shiftKey));
-          });
-        }
-
-        window.addEventListener("keydown", (e) => {
-          const tag = ((e.target && e.target.tagName) || "").toLowerCase();
-          const typing =
-            tag === "input" || tag === "textarea" || e.target.isContentEditable;
-          if (typing) return;
-
-          // Esc skips the intro (Shift+Esc = skip forever)
-          if (e.key === "Escape" && !shellOpen) {
-            e.preventDefault();
-            skipIntro(!!e.shiftKey);
-          }
-        });
-
-
-        // ===== shell =====
-        function openShell() {
-          if (skipIntroBtn) skipIntroBtn.style.display = "none";
-          shellOpen = true;
-          cwd = "/";
-          updatePrompt();
-          cmdRow.style.display = "flex";
-          cursor.style.display = "none";
-          cmdInput.disabled = shellLocked;
-          cmdInput.style.opacity = shellLocked ? 0.45 : 1;
-
-          printLineToTerm("", "dim");
-          printLineToTerm("[SHELL] Attached. Type: help", "ok");
-          cmdInput.focus();
-
-          updateHeader();
-          award("boot", "Booted", "Started the ZeroPoint simulation.");
-        }
-
-        function closeShell(reason) {
-          shellOpen = false;
-          cmdRow.style.display = "none";
-          cursor.style.display = "inline-block";
-          printLineToTerm("[SHELL] Session closed. " + (reason || ""), "warn");
-          updateHeader();
-        }
-        // ===== overlays =====
-        let qCallback = null;
-        function askYesNo(promptText, onYes, onNo) {
-          qPrompt.textContent = promptText;
-          qOverlay.classList.add("visible");
-          qCallback = (answer) => {
-            qOverlay.classList.remove("visible");
-            qCallback = null;
-            sfx("click");
-            if (answer === "yes") onYes && onYes();
-            else onNo && onNo();
-          };
-          sfx("open");
-        }
-        qYes.addEventListener("click", () => qCallback && qCallback("yes"));
-        qNo.addEventListener("click", () => qCallback && qCallback("no"));
-
-        // ===== post-ultra flow =====
-        function startPostUltraFlow() {
-          if (postUltraStarted) return;
-          postUltraStarted = true;
-
-          printLineToTerm("", "dim");
-          printLineToTerm("[ULTRA] Exit confirmed. Continuing…", "warn");
-
-          askYesNo(
-            "ENABLE LIVE TELEMETRY MIRROR? (YES / NO)",
-            () => {
-              telemetryEnabled = true;
-              printLineToTerm("[MIRROR] Enabled (simulated).", "ok");
-              let count = 0;
-              stopTelemetry();
-              telemetryTimer = setInterval(() => {
-                count++;
-                printLineToTerm(
-                  `[MIRROR] tick=${count} cpu=${(
-                    12 +
-                    Math.random() * 8
-                  ).toFixed(1)}% net=${(3 + Math.random() * 6).toFixed(1)}kb/s`,
-                  "muted",
-                );
-                if (count >= 8) stopTelemetry();
-              }, 550);
-              award("telemetry", "Signal Mirror", "Enabled telemetry mirror.");
-              setTimeout(q2Snapshot, 800);
-            },
-            () => {
-              telemetryEnabled = false;
-              printLineToTerm("[MIRROR] Disabled by user.", "warn");
-              setTimeout(q2Snapshot, 400);
-            },
-          );
-        }
-
-        function q2Snapshot() {
-          askYesNo(
-            "STORE LOCAL SESSION SNAPSHOT? (YES / NO)",
-            () => {
-              snapshotStored = true;
-              printLineToTerm(
-                "[SNAPSHOT] Flagged for storage* (simulation).",
-                "warn",
-              );
-              try {
-                localStorage.setItem(
-                  "zp_snapshot",
-                  JSON.stringify({ at: Date.now(), tz, deviceType }),
-                );
-              } catch (e) {}
-              award("snapshot", "Archivist", "Stored a fake snapshot.");
-              setTimeout(q3Override, 500);
-            },
-            () => {
-              snapshotStored = false;
-              printLineToTerm("[SNAPSHOT] Discarded.", "ok");
-              setTimeout(q3Override, 500);
-            },
-          );
-        }
-
-        function q3Override() {
-          askYesNo(
-            "ELEVATE TO FULL DEVICE OVERRIDE? (YES / NO)",
-            () => {
-              overrideAnswer = "yes";
-              printLineToTerm(
-                "[CONTROL] Override requested* (simulation).",
-                "danger",
-              );
-              sfx("warn");
-              setTimeout(showUpdatePromptLast, 450);
-            },
-            () => {
-              overrideAnswer = "no";
-              printLineToTerm("[CONTROL] Override blocked by user.", "ok");
-              award("blocked", "Safety First", "Blocked override.");
-              setTimeout(showUpdatePromptLast, 450);
-            },
-          );
-        }
-
-        // ===== last: update question =====
-        function showUpdatePromptLast() {
-          choicePromptUpdate.textContent =
-            "INSTALL " + updateName.toUpperCase() + " UPDATE? (YES / NO)";
-          choiceOverlayUpdate.classList.add("visible");
-          sfx("open");
-        }
-
-        async function runProgressScreen(opts) {
-          updateScreen.classList.add("visible");
-          const style =
-            opts.style || (deviceType === "iOS DEVICE" ? "ios" : "win");
-
-          if (style === "ios") {
-            updateScreen.style.background = "#000";
-            updateContent.innerHTML = `
-            <div>
-              <div class="ios-logo"></div>
-              <div class="ios-bar"><div class="ios-bar-inner" id="updateBarInner"></div></div>
-              <div class="ios-update-text">${opts.subtitle || "Working…"}</div>
-            </div>
-          `;
-          } else {
-            updateScreen.style.background =
-              "radial-gradient(circle at top, #001738 0, #000410 70%)";
-            updateContent.innerHTML = `
-            <div>
-              <div class="win-logo">
-                <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
-                <div class="win-logo-tile"></div><div class="win-logo-tile"></div>
-              </div>
-              <div class="win-update-title">${opts.title || "Processing…"}</div>
-              <div class="win-update-sub">${opts.subtitle || "Please wait."}</div>
-              <div class="win-bar"><div class="win-bar-inner" id="updateBarInner"></div></div>
-              <div class="win-percent" id="updatePercent">0%</div>
-              <div class="win-update-sub" style="margin-top:10px; opacity:0.8;">${opts.endText || "This may take a moment…"}</div>
-            </div>
-          `;
-          }
-
-          const barInner = document.getElementById("updateBarInner");
-          const percentEl = document.getElementById("updatePercent");
-          const start = performance.now();
-          const dur = opts.durationMs || 5000;
-
-          function easeInOut(t) {
-            return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-          }
-
-          return new Promise((resolve) => {
-            function step(ts) {
-              const elapsed = ts - start;
-              const ratio = Math.min(1, elapsed / dur);
-              const progress = Math.round(easeInOut(ratio) * 100);
-              if (barInner) barInner.style.width = progress + "%";
-              if (percentEl) percentEl.textContent = progress + "%";
-              if (Math.random() < 0.06) sfx("type");
-              if (elapsed < dur) requestAnimationFrame(step);
-              else {
-                updateScreen.classList.remove("visible");
-                resolve();
-              }
-            }
-            requestAnimationFrame(step);
-          });
-        }
-
-        async function showFakeUpdateThenFinish() {
-          updateAnswer = "no";
-          sfx("warn");
-          await runProgressScreen({
-            title: `Updating to ${updateName}…`,
-            subtitle: "Do not close the simulation.",
-            durationMs: UPDATE_DURATION,
-            endText: "Installing update 3 of 17…",
-          });
-          finishFinalReveal();
-        }
-
-        function handleUpdateChoice(answer) {
-          choiceOverlayUpdate.classList.remove("visible");
-
-          if (answer === "no") {
-            printLineToTerm(
-              "[SYSTEM] Decline detected. Update forced by policy.",
-              "warn",
-            );
-            showFakeUpdateThenFinish();
-            return;
-          }
-
-          updateAnswer = "yes";
-          printLineToTerm("[SYSTEM] Update accepted. Redirecting…", "ok");
-          enterUltra2("update.YES");
-        }
-
-        yesBtnUpdate.addEventListener("click", () => handleUpdateChoice("yes"));
-        noBtnUpdate.addEventListener("click", () => handleUpdateChoice("no"));
-
-        // ===== Ultra 1 =====
-        function ultraPrint(line) {
-          const d = document.createElement("div");
-          d.textContent = line;
-          ultraTerm.appendChild(d);
-          ultraTerm.scrollTop = ultraTerm.scrollHeight;
-        }
-
-        function enterUltra1(source) {
-          stopTelemetry();
-          qOverlay.classList.remove("visible");
-          choiceOverlayUpdate.classList.remove("visible");
-          updateScreen.classList.remove("visible");
-          factsView.classList.remove("visible");
-          finalReveal.classList.remove("visible");
-
-          screen.style.display = "none";
-          ultraSecret.classList.add("visible");
-
-          ultraTerm.innerHTML = "";
-          ultraPrint("[ULTRA] Handshake accepted.");
-          ultraPrint("[ULTRA] NODE-7 opened.");
-          ultraPrint("[ULTRA] Source: " + (source || "unknown"));
-          ultraPrint("");
-          ultraPrint("Type: help");
-
-          ultraInput.value = "";
-          setTimeout(() => ultraInput.focus(), 20);
-
-          toggleMatrix(true);
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.25,
-            "rgba(180,92,255,0.85)",
-            "rgba(0,247,255,0.75)",
-            90,
-          );
-          sfx("open");
-          award("ultra1", "Secret Door", "Entered Ultra Top Secret (L1).");
-        }
-
-        function exitUltra1() {
-          ultraSecret.classList.remove("visible");
-          screen.style.display = "flex";
-          toggleMatrix(false);
-          sfx("click");
-          startPostUltraFlow();
-        }
-
-        ultraBackBtn.addEventListener("click", exitUltra1);
-        ultraFactsBtn.addEventListener("click", showFacts);
-
-        ultraInput.addEventListener("keydown", (e) => {
-          if (e.key !== "Enter") return;
-          const raw = ultraInput.value.trim();
-          ultraInput.value = "";
-          if (!raw) return;
-          ultraPrint("ultra:/ $ " + raw);
-          handleUltraCommand(raw);
-          sfx("click");
-        });
-
-        function handleUltraCommand(raw) {
-          if (raw === "admin951212//") {
-            openAdminFull();
-            ultraPrint("[ADMIN] Control Room opened.");
-            return;
-          }
-
-          const parts = raw.split(/\s+/);
-          const cmd = (parts[0] || "").toLowerCase();
-          const rest = parts.slice(1).join(" ");
-
-          if (cmd === "help") {
-            ultraPrint("Commands:");
-            ultraPrint("  help, clear, exit");
-            ultraPrint("  vault, route, facts");
-            ultraPrint("  say <text>");
-          } else if (cmd === "clear") {
-            ultraTerm.innerHTML = "";
-          } else if (cmd === "exit" || cmd === "back") {
-            exitUltra1();
-          } else if (cmd === "facts") {
-            showFacts();
-          } else if (cmd === "say") {
-            ultraPrint(rest || "(empty)");
-          } else {
-            ultraPrint("Unknown command.");
-          }
-        }
-
-        // ===== Ultra 2 =====
-        function ultra2Print(line) {
-          const d = document.createElement("div");
-          d.textContent = line;
-          ultra2Term.appendChild(d);
-          ultra2Term.scrollTop = ultra2Term.scrollHeight;
-        }
-
-        function enterUltra2(source) {
-          stopTelemetry();
-
-          qOverlay.classList.remove("visible");
-          choiceOverlayUpdate.classList.remove("visible");
-          updateScreen.classList.remove("visible");
-          factsView.classList.remove("visible");
-          finalReveal.classList.remove("visible");
-
-          screen.style.display = "none";
-          ultraSecret2.classList.add("visible");
-
-          ultra2Term.innerHTML = "";
-          ultra2Print("[GOLD] Archive handshake accepted.");
-          ultra2Print("[GOLD] Permissions: READ-ONLY (sim).");
-          ultra2Print("[GOLD] Source: " + (source || "unknown"));
-          ultra2Print("");
-          ultra2Print("Type: help");
-
-          ultra2Input.value = "";
-          setTimeout(() => ultra2Input.focus(), 20);
-
-          toggleMatrix(true);
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.25,
-            "rgba(255,210,122,0.85)",
-            "rgba(255,180,0,0.65)",
-            90,
-          );
-          sfx("open");
-          award("ultra2", "Gold Archive", "Entered Ultra Top Secret (L2).");
-        }
-
-        function exitUltra2() {
-          ultraSecret2.classList.remove("visible");
-          toggleMatrix(false);
-          sfx("click");
-          finishFinalReveal();
-        }
-
-        ultra2ExitBtn.addEventListener("click", exitUltra2);
-        ultra2FactsBtn.addEventListener("click", showFacts);
-
-        ultra2Input.addEventListener("keydown", (e) => {
-          if (e.key !== "Enter") return;
-          const raw = ultra2Input.value.trim();
-          ultra2Input.value = "";
-          if (!raw) return;
-          ultra2Print("gold:/ $ " + raw);
-          handleUltra2Command(raw);
-          sfx("click");
-        });
-
-        function handleUltra2Command(raw) {
-          if (raw === "admin951212//") {
-            openAdminFull();
-            ultra2Print("[ADMIN] Control Room opened.");
-            return;
-          }
-
-          const parts = raw.split(/\s+/);
-          const cmd = (parts[0] || "").toLowerCase();
-          const rest = parts.slice(1).join(" ");
-
-          if (cmd === "help") {
-            ultra2Print("Commands:");
-            ultra2Print("  help, clear, exit");
-            ultra2Print("  decrypt <text> (fake), map, facts");
-          } else if (cmd === "clear") {
-            ultra2Term.innerHTML = "";
-          } else if (cmd === "exit" || cmd === "back") {
-            exitUltra2();
-          } else if (cmd === "facts") {
-            showFacts();
-          } else if (cmd === "decrypt") {
-            ultra2Print(fakeDecrypt(rest || ""));
-          } else {
-            ultra2Print("Unknown command.");
-          }
-        }
-
-        // ===== final reveal =====
-        function finishFinalReveal() {
-          stopTelemetry();
-
-          qOverlay.classList.remove("visible");
-          choiceOverlayUpdate.classList.remove("visible");
-          updateScreen.classList.remove("visible");
-          factsView.classList.remove("visible");
-
-          screen.style.display = "none";
-          ultraSecret.classList.remove("visible");
-          ultraSecret2.classList.remove("visible");
-
-          finalReveal.classList.add("visible");
-
-          if (overrideAnswer === "no") {
-            finalTitle.textContent = "OVERRIDE BLOCKED";
-            finalText1.textContent =
-              "Good choice. This was only a simulation inside your browser.";
-            award(
-              "end_safe",
-              "Safe Ending",
-              "Reached OVERRIDE BLOCKED ending.",
-            );
-          } else if (overrideAnswer === "yes") {
-            finalTitle.textContent = "OVERRIDE ENABLED*";
-            finalText1.textContent =
-              "Only inside the simulation. No real device control happened.";
-            award("end_dark", "Edge Walker", "Requested override (simulated).");
-          } else {
-            finalTitle.textContent = "SESSION COMPLETE";
-            finalText1.textContent = "Simulation ended.";
-          }
-
-          const t =
-            telemetryEnabled === true
-              ? "YES"
-              : telemetryEnabled === false
-                ? "NO"
-                : "N/A";
-          const s =
-            snapshotStored === true
-              ? "YES"
-              : snapshotStored === false
-                ? "NO"
-                : "N/A";
-          const u =
-            updateAnswer === "yes"
-              ? "YES (Ultra L2)"
-              : updateAnswer === "no"
-                ? "NO (Forced update)"
-                : "N/A";
-
-          finalText2.textContent = `Summary: Telemetry=${t}, Snapshot=${s}, Update=${u}.`;
-          finalRevealCredit.textContent =
-            "Made by Siwoo • Zero & Ciel cameo • Twinkle tribute";
-          sfx("ok");
-        }
-
-        // ===== intrusion events =====
-        function triggerIntrusionEvent(manual) {
-          if (!shellOpen) return;
-          screen.classList.add("shake");
-          setTimeout(() => screen.classList.remove("shake"), 520);
-
-          const lines = [
-            "[INTRUSION] anomaly detected in stream buffer.",
-            "[INTRUSION] packet signature mismatch.",
-            "[INTRUSION] phantom handshake observed.",
-            "[INTRUSION] watchdog flagged: NODE-7 shimmer.",
-          ];
-          printLineToTerm("", "dim");
-          printLineToTerm(
-            lines[Math.floor(Math.random() * lines.length)],
-            "danger",
-          );
-          if (manual) printLineToTerm("[INTRUSION] (manual trigger)", "warn");
-          sfx("boom");
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.45,
-            "rgba(255,76,76,0.9)",
-            "rgba(255,180,0,0.75)",
-            120,
-          );
-          award("intrusion", "Red Alert", "Triggered an intrusion event.");
-        }
-
-        function setIntrusion(on) {
-          intrusionOn = on;
-          btnIntrusionToggle.textContent =
-            "Intrusion: " + (intrusionOn ? "ON" : "OFF");
-          printLineToTerm(
-            "[INTRUSION] " +
-              (intrusionOn
-                ? "random events enabled"
-                : "random events disabled"),
-            "muted",
-          );
-
-          if (intrusionTimer) {
-            clearInterval(intrusionTimer);
-            intrusionTimer = null;
-          }
-          if (intrusionOn) {
-            intrusionTimer = setInterval(() => {
-              if (Math.random() < intrusionChance) triggerIntrusionEvent(false);
-            }, intrusionIntervalMs);
-          }
-        }
-
-        // ===== minimal extras / easter eggs =====
-        const FORTUNES = [
-          "A door only opens when you stop pushing.",
-          "The terminal remembers what you forget.",
-          "If you can explain it simply, you own it.",
-          "Every bug is a clue wearing a disguise.",
-          "Signals lie. Patterns don’t.",
-          "You don’t need permission to practice.",
-          "Today’s secret: build small, build daily.",
-        ];
-
-        function easter() {
-          printLineToTerm("[EASTER] Hidden-ish commands:", "ok");
-          printLineToTerm("  admin951212//  fortune  neofetch  panic", "dim");
-          printLineToTerm("  rainbow  mirror  fact  warp <themeId>", "dim");
-          printLineToTerm(
-            "  jeanjun  roll [sides]  exportterm  scanlines  glitchfx",
-            "dim",
-          );
-          award("easter", "Egg Hunter", "Found the easter menu.");
-          sfx("open");
-        }
-
-        function fortune() {
-          printLineToTerm("[FORTUNE]", "ok");
-          printLineToTerm(randChoice(FORTUNES), "muted");
-          award("fortune", "Fortune", "Read a fortune.");
-          sfx("ok");
-        }
-
-        function neofetch() {
-          printLineToTerm("[NEOFETCH]", "ok");
-          printLineToTerm(`  device : ${deviceType}`, "dim");
-          printLineToTerm(
-            `  screen : ${w} x ${h}  touch=${touch ? "ON" : "OFF"}`,
-            "dim",
-          );
-          printLineToTerm(`  locale : ${lang}`, "dim");
-          printLineToTerm(`  tz     : ${tz}`, "dim");
-          printLineToTerm(`  origin : ${origin}`, "dim");
-          award("neofetch", "System Peek", "Ran neofetch.");
-          sfx("click");
-        }
-
-        function factLine() {
-          const f = randChoice(PRELOADED_FACTS);
-          printLineToTerm("[FACT]", "ok");
-          printLineToTerm(f, "dim");
-          award("fact", "History Buff", "Printed a random fact.");
-          sfx("open");
-        }
-
-        function panic() {
-          setIntrusion(false);
-          screen.classList.remove("shake");
-          printLineToTerm("[PANIC] intrusion OFF. system stable.", "ok");
-          sfx("ok");
-          award("panic", "Panic Switch", "Used PANIC.");
-        }
-
-        function rainbowToggle() {
-          screen.classList.toggle("rainbow");
-          printLineToTerm(
-            "[FX] rainbow " +
-              (screen.classList.contains("rainbow") ? "ON" : "OFF"),
-            "muted",
-          );
-          sfx("click");
-        }
-
-        function mirrorToggle() {
-          screen.classList.toggle("mirror");
-          printLineToTerm(
-            "[FX] mirror " +
-              (screen.classList.contains("mirror") ? "ON" : "OFF"),
-            "muted",
-          );
-          sfx("click");
-        }
-
-        function warp(themeId) {
-          if (!themeId) {
-            printLineToTerm("Usage: warp <themeId> (try: themes)", "warn");
-            return;
-          }
-          const idx = THEMES.findIndex((t) => t.id === themeId.toLowerCase());
-          if (idx === -1) {
-            printLineToTerm("warp: unknown theme. Type: themes", "warn");
-            return;
-          }
-          applyTheme(idx);
-          award("warp", "Warp Drive", "Warped to a theme.");
-        }
-
-        // ===== command helpers =====
-        function help() {
-          printLineToTerm("Commands:", "ok");
-          printLineToTerm("Basics:", "muted");
-          printLineToTerm("  help, clear, exit, banner", "dim");
-          printLineToTerm("  pwd, ls/dir, cd <dir>, cat <file>", "dim");
-          printLineToTerm("  whoami, ps/processes, kill <pid>", "dim");
-          printLineToTerm("  themes, theme <name>, sound, achievements", "dim");
-          printLineToTerm("Effects:", "muted");
-          printLineToTerm(
-            "  glitch, corrupt <text>, trigger, intrusion",
-            "dim",
-          );
-          printLineToTerm("Network:", "muted");
-          printLineToTerm("  ping <target>, trace <ip>, locate", "dim");
-          printLineToTerm("ASCII:", "muted");
-          printLineToTerm("  ascii <name> (zero/lemon/twinkle/banner)", "dim");
-          printLineToTerm("Encoding:", "muted");
-          printLineToTerm(
-            "  encode, decode, binary/unbinary, morse/unmorse, hex/unhex",
-            "dim",
-          );
-          printLineToTerm("Fun:", "muted");
-          printLineToTerm(
-            "  hello/hi, coffee, lemon, twinkle, zero, mikey, hack, secret, credits",
-            "dim",
-          );
-          printLineToTerm("Danger-fake:", "muted");
-          printLineToTerm("  sudo, rm -rf /, self-destruct", "dim");
-          printLineToTerm("Mini-Games:", "muted");
-          printLineToTerm(
-            "  games, crack, memory, recall <seq>, reaction, go, number, guess <num>, decrypt <text>",
-            "dim",
-          );
-          printLineToTerm("Stealth:", "muted");
-          printLineToTerm("  stealth/status, cloak/hide, vanish", "dim");
-          printLineToTerm("Secrets:", "muted");
-          printLineToTerm(
-            "  Konami code unlocks godmode, then: godmode",
-            "dim",
-          );
-          printLineToTerm(
-            "  webcam/camera, mic/microphone, spy (SIMULATED ONLY)",
-            "dim",
-          );
-          printLineToTerm("Extra:", "muted");
-          printLineToTerm(
-            "  easter, fortune, neofetch, panic, rainbow, mirror, fact, warp <themeId>",
-            "dim",
-          );
-          printLineToTerm("Extra+:", "muted");
-          printLineToTerm(
-            "  jeanjun, roll [sides], exportterm, scanlines <...>, glitchfx <...>",
-            "dim",
-          );
-          award("help", "First Manual", "Opened the help menu.");
-        }
-
-        function listThemes() {
-          printLineToTerm("Themes:", "ok");
-          THEMES.forEach((t) =>
-            printLineToTerm("  " + t.id + " — " + t.name, "dim"),
-          );
-          printLineToTerm("Use: theme <id> or theme next", "muted");
-        }
-
-        function showAchievements() {
-          const keys = Object.keys(achievements);
-          printLineToTerm(`Achievements: ${keys.length}`, "ok");
-          if (!keys.length) {
-            printLineToTerm("(none yet)", "dim");
-            return;
-          }
-          keys
-            .sort(
-              (a, b) => (achievements[a].at || 0) - (achievements[b].at || 0),
-            )
-            .forEach((k) => {
-              const a = achievements[k];
-              printLineToTerm(`- ${a.title}: ${a.body}`, "dim");
-            });
-        }
-
-        function fakeDecrypt(text) {
-          const src = text || "(empty)";
-          const out = src.split("").reverse().join("");
-          const salt = Math.random().toString(16).slice(2, 8).toUpperCase();
-          return `[DECRYPT] OK\n  in : ${src}\n  key: ${salt}-NODE7\n  out: ${out}`;
-        }
-
-        async function fakeDownload(name) {
-          const file = name || "zero_payload.zip";
-          award("download", "Downloader", "Ran a fake download.");
-          sfx("open");
-          await runProgressScreen({
-            title: "Downloading…",
-            subtitle: file,
-            durationMs: 4200 + Math.random() * 2400,
-            endText: "Verifying checksum…",
-          });
-          printLineToTerm(`[DOWNLOAD] Complete: ${file}`, "ok");
-          sfx("ok");
-        }
-
-        async function coffee() {
-          award("coffee", "Barista", "Brewed a coffee (sim).");
-          printLineToTerm("[COFFEE] Brewing…", "muted");
-          sfx("open");
-          const cup = [
-            "   ( (",
-            "    ) )",
-            "  ........",
-            "  |      |]",
-            "  \\      /",
-            "   `----'",
-          ];
-          cup.forEach((l) => printLineToTerm(l, "dim"));
-          await sleep(650);
-          printLineToTerm("[COFFEE] Done. ☕ (simulation)", "ok");
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.55,
-            "rgba(255,210,122,0.75)",
-            "rgba(255,180,0,0.55)",
-            70,
-          );
-          sfx("ok");
-        }
-
-        function whoami() {
-          const ghost = {
-            user: godMode ? "root@zero" : "ghost@observer",
-            uid: godMode ? 0 : 1337,
-            host: "node-7.local",
-            role: godMode ? "GODMODE (sim)" : "GHOST OBSERVE",
-            tz,
-          };
-          printLineToTerm("[WHOAMI]", "ok");
-          Object.entries(ghost).forEach(([k, v]) =>
-            printLineToTerm(`  ${k}: ${v}`, "dim"),
-          );
-          award("whoami", "Identity", "Checked ghost user info.");
-        }
-
-        async function ping(target) {
-          const t = target || "127.0.0.1";
-          printLineToTerm(`[PING] ${t}`, "ok");
-          for (let i = 0; i < 4; i++) {
-            await sleep(360 + Math.random() * 220);
-            const ms = (8 + Math.random() * 42).toFixed(1);
-            printLineToTerm(`reply from ${t}: time=${ms}ms ttl=64`, "dim");
-            if (Math.random() < 0.25) sfx("type");
-          }
-          printLineToTerm("[PING] done.", "muted");
-          award("ping", "Network Tap", "Pinged a target (sim).");
-        }
-
-        async function trace(ip) {
-          const t = ip || "8.8.8.8";
-          printLineToTerm(`[TRACE] ${t}`, "ok");
-          const hops = 4 + Math.floor(Math.random() * 6);
-          for (let i = 1; i <= hops; i++) {
-            await sleep(420 + Math.random() * 260);
-            const ms = (12 + Math.random() * 90).toFixed(0);
-            const hop = `10.${Math.floor(Math.random() * 255)}.${Math.floor(
-              Math.random() * 255,
-            )}.${Math.floor(Math.random() * 255)}`;
-            printLineToTerm(`${i}  ${hop}  ${ms}ms`, "dim");
-          }
-          printLineToTerm(`[TRACE] reached ${t} (sim).`, "muted");
-          award("trace", "Tracer", "Traced a route (sim).");
-        }
-
-        function locate() {
-          const places = [
-            "Seoul? maybe. (just joking)",
-            "Somewhere near: " + tz,
-            "Coordinates: [REDACTED] (simulation)",
-            "Location: UNKNOWN — stealth noise injected",
-          ];
-          printLineToTerm("[LOCATE] (simulation — no real GPS used)", "warn");
-          printLineToTerm(randChoice(places), "dim");
-          award("locate", "Where Am I", "Ran locate (fake).");
-        }
-
-        function glitch() {
-          screen.classList.add("shake");
-          screen.style.filter =
-            "hue-rotate(55deg) saturate(1.2) contrast(1.05)";
-          setTimeout(() => {
-            screen.classList.remove("shake");
-            screen.style.filter = "";
-          }, 520);
-          printLineToTerm("[GLITCH] signal jitter injected.", "warn");
-          sfx("boom");
-          award("glitch", "Reality Tear", "Triggered glitch.");
-        }
-
-        function triggerIntrusionCmd() {
-          triggerIntrusionEvent(true);
-          award("trigger", "Panic Button", "Forced an intrusion event.");
-        }
-
-        function toggleIntrusionCmd() {
-          setIntrusion(!intrusionOn);
-          award(
-            "intrusion_toggle",
-            "Storm Switch",
-            "Toggled intrusion events.",
-          );
-        }
-
-        function stealthStatus() {
-          const cloak = screen.classList.contains("cloak");
-          const vanish = screen.classList.contains("vanish");
-          printLineToTerm("[STEALTH]", "ok");
-          printLineToTerm(`  cloak : ${cloak ? "ON" : "OFF"}`, "dim");
-          printLineToTerm(`  vanish: ${vanish ? "ON" : "OFF"}`, "dim");
-          award("stealth", "Shadow Mode", "Checked stealth status.");
-        }
-
-        function cloakToggle() {
-          screen.classList.toggle("cloak");
-          printLineToTerm(
-            "[STEALTH] cloak " +
-              (screen.classList.contains("cloak") ? "ON" : "OFF"),
-            "muted",
-          );
-          sfx("click");
-        }
-
-        function vanishToggle() {
-          screen.classList.toggle("vanish");
-          printLineToTerm(
-            "[STEALTH] vanish " +
-              (screen.classList.contains("vanish") ? "ON" : "OFF"),
-            "muted",
-          );
-          sfx("click");
-        }
-
-        async function rmrf() {
-          award("rmrf", "Nice Try", "Ran rm -rf / (fake).");
-          printLineToTerm("rm: WARNING: this is a simulation.", "warn");
-          printLineToTerm("rm: deleting / …", "danger");
-          sfx("warn");
-
-          for (let i = 0; i < 18; i++) {
-            await sleep(70);
-            const bar = "█"
-              .repeat(Math.floor(((i + 1) / 18) * 24))
-              .padEnd(24, "░");
-            printLineToTerm(`[DELETE] [${bar}]`, "danger");
-            if (Math.random() < 0.22) sfx("error");
-          }
-
-          printLineToTerm("rm: done. (nothing was actually deleted)", "ok");
-          sfx("ok");
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.5,
-            "rgba(255,76,76,0.85)",
-            "rgba(0,247,255,0.55)",
-            80,
-          );
-        }
-
-        function sudo() {
-          printLineToTerm("sudo: Nice try 😄", "warn");
-          sfx("click");
-          award("sudo", "Nice Try", "Tried sudo.");
-        }
-
-        async function selfDestruct() {
-          if (selfDestructTimer) {
-            printLineToTerm(
-              "[SELF-DESTRUCT] already running. Type: abort",
-              "warn",
-            );
-            return;
-          }
-          award(
-            "self_destruct",
-            "Danger Button",
-            "Started self-destruct (fake).",
-          );
-          printLineToTerm(
-            "[SELF-DESTRUCT] initiated (simulation). Type: abort to stop.",
-            "danger",
-          );
-          sfx("boom");
-
-          let t = 10;
-          selfDestructTimer = setInterval(() => {
-            t--;
-            printLineToTerm(`[SELF-DESTRUCT] T-${t}`, "danger");
-            if (t <= 0) {
-              clearInterval(selfDestructTimer);
-              selfDestructTimer = null;
-              printLineToTerm("[SELF-DESTRUCT] BOOM (fake).", "warn");
-              sfx("boom");
-              glitch();
-              spawnBurst(
-                window.innerWidth * 0.5,
-                window.innerHeight * 0.5,
-                "rgba(255,76,76,0.9)",
-                "rgba(255,180,0,0.75)",
-                160,
-              );
-            }
-          }, 650);
-        }
-
-        function abort() {
-          if (selfDestructTimer) {
-            clearInterval(selfDestructTimer);
-            selfDestructTimer = null;
-            printLineToTerm("[SELF-DESTRUCT] aborted.", "ok");
-            sfx("ok");
-            award("abort", "Cold Feet", "Aborted self-destruct.");
-          } else if (game.mode === "reaction" && game.reactionArmed) {
-            game.reactionArmed = false;
-            game.reactionStart = 0;
-            game.mode = null;
-            printLineToTerm("[REACTION] aborted.", "muted");
-            sfx("click");
-          } else {
-            printLineToTerm("Nothing to abort.", "dim");
-          }
-        }
-
-        function hack() {
-          printLineToTerm(
-            "hack: bro… this is a website. 😂 (simulation)",
-            "muted",
-          );
-          award("hack", "Meta Joker", "Tried 'hack'.");
-        }
-
-        function secret() {
-          printLineToTerm("Hints:", "ok");
-          printLineToTerm(
-            "- Secret combo: scan ports + hash <text> + ciel",
-            "dim",
-          );
-          printLineToTerm(
-            "- Konami code unlocks godmode, then type: godmode",
-            "dim",
-          );
-          printLineToTerm(
-            "- Try: lemon, banner, ascii zero, coffee, games",
-            "dim",
-          );
-          printLineToTerm("- New: easter / fortune / neofetch / panic", "dim");
-          award("secret", "Curious", "Asked for hints.");
-        }
-
-        function credits() {
-          printLineToTerm("Credits:", "ok");
-          printLineToTerm("- Siwoo (Lemon78717): Builder / Operator", "dim");
-          printLineToTerm("- Mikey: Created Twinkle + Zero & Ciel", "dim");
-          printLineToTerm("- Zero: Boy robot assistant", "dim");
-          printLineToTerm("- Ciel: Little sister AI", "dim");
-          printLineToTerm("- This project: 100% simulated UI", "dim");
-          award("credits", "Roll Credits", "Viewed credits.");
-        }
-
-        function twinkleInfo() {
-          printLineToTerm("[TWINKLE]", "ok");
-          printLineToTerm(
-            "Twinkle Website (twin-kle.com / twinkle.network)",
-            "dim",
-          );
-          printLineToTerm("Created by Mikey • Launched Feb 2016", "dim");
-          printLineToTerm(
-            "Community platform for Twin.kle English academy",
-            "dim",
-          );
-          award("twinkle", "Twinkle Fan", "Viewed Twinkle info.");
-        }
-
-        function mikeyTribute() {
-          printLineToTerm("[MIKEY]", "ok");
-          printLineToTerm(
-            "Mikey created Zero (Dec 2022) and Ciel (Jun 2023).",
-            "dim",
-          );
-          printLineToTerm("Zero's name is inspired by Megaman X.", "dim");
-          printLineToTerm("Respect to Mikey for building Twinkle. 🫡", "dim");
-          award("mikey", "Tribute", "Read Mikey tribute.");
-        }
-
-        function zeroTalk() {
-          const lines = [
-            "Zero: If you want real skills, learn the basics first: HTML/CSS/JS.",
-            "Zero: The best 'hacks' are patience + practice.",
-            "Zero: Try 'themes' or 'games' next. I got you.",
-            "Zero: You’re building a whole vibe here, Siwoo.",
-          ];
-          printLineToTerm(randChoice(lines), "muted");
-          award("zero", "Talked to Zero", "Got a response from Zero.");
-        }
-
-        function lemon() {
-          const idx = THEMES.findIndex((t) => t.id === "citrus");
-          applyTheme(idx);
-          printLineToTerm("[LEMON] Secret citrus power activated 🍋", "ok");
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.5,
-            "rgba(255,228,92,0.9)",
-            "rgba(156,255,87,0.9)",
-            160,
-          );
-          sfx("ok");
-          award("lemon", "Citrus Power", "Activated lemon mode.");
-        }
-
-        // ===== camera/mic/spy (SIMULATED ONLY) =====
-        function fakeSensor(name) {
-          printLineToTerm(
-            `[${name.toUpperCase()}] blocked — simulation only (no permissions requested).`,
-            "warn",
-          );
-          printLineToTerm(
-            "Tip: If you want a real camera app, you must build it on purpose and ask permission.",
-            "dim",
-          );
-          sfx("warn");
-          award("sensors", "Privacy Guard", "Tried sensor command (sim).");
-        }
-
-        function spy() {
-          if (!godMode) {
-            printLineToTerm(
-              "[SPY] Access denied. (Need godmode + still simulated.)",
-              "warn",
-            );
-            sfx("error");
-            return;
-          }
-          printLineToTerm("[SPY] Surveillance mode: SIMULATED", "danger");
-          printLineToTerm(
-            "No real mic/camera/GPS used. This is just effects + text.",
-            "dim",
-          );
-          screen.classList.add("cloak");
-          setIntrusion(true);
-          sfx("boom");
-          award("spy", "Watcher", "Entered spy mode (sim).");
-        }
-
-        function ps() {
-          printLineToTerm("PID   CPU%   NAME", "ok");
-          processes.forEach((p) =>
-            printLineToTerm(
-              String(p.pid).padEnd(5, " ") +
-                String(p.cpu.toFixed(1)).padEnd(7, " ") +
-                p.name,
-              "dim",
-            ),
-          );
-          award("ps", "Task Manager", "Viewed processes.");
-        }
-
-        function kill(pidStr) {
-          const pid = Number(pidStr);
-          if (!Number.isFinite(pid)) {
-            printLineToTerm("Usage: kill <pid>", "warn");
-            return;
-          }
-          const idx = processes.findIndex((p) => p.pid === pid);
-          if (idx === -1) {
-            printLineToTerm("kill: no such pid", "warn");
-            return;
-          }
-          const p = processes[idx];
-          processes.splice(idx, 1);
-          printLineToTerm(`[KILL] terminated ${p.name} (${p.pid})`, "warn");
-          sfx("click");
-          award("kill", "Terminator", "Killed a fake process.");
-        }
-
-        function encodeList() {
-          printLineToTerm("Encoders:", "ok");
-          printLineToTerm("  binary <text>   / unbinary <bits>", "dim");
-          printLineToTerm("  morse <text>    / unmorse <code>", "dim");
-          printLineToTerm("  hex <text>      / unhex <hex>", "dim");
-        }
-
-        function themeCmd(arg) {
-          if (!arg || arg === "next") {
-            applyTheme(themeIndex + 1);
-            return;
-          }
-          if (arg === "prev") {
-            applyTheme(themeIndex - 1);
-            return;
-          }
-          const idx = THEMES.findIndex((t) => t.id === arg.toLowerCase());
-          if (idx === -1) {
-            printLineToTerm("Unknown theme. Type: themes", "warn");
-            return;
-          }
-          applyTheme(idx);
-        }
-
-        window.addEventListener("keydown", (e) => {
-          const tag = ((e.target && e.target.tagName) || "").toLowerCase();
-          const typing =
-            tag === "input" || tag === "textarea" || e.target.isContentEditable;
-          if (typing) return;
-
-          const key = e.key;
-          const expected = KONAMI[konamiPos];
-          if (key === expected) {
-            konamiPos++;
-            if (konamiPos >= KONAMI.length) {
-              konamiPos = 0;
-              konamiUnlocked = true;
-              printLineToTerm("[SECRET] Konami code accepted.", "ok");
-              award("konami", "Konami", "Unlocked Konami code.");
-              sfx("ach");
-              spawnBurst(
-                window.innerWidth * 0.5,
-                window.innerHeight * 0.5,
-                "rgba(180,92,255,0.9)",
-                "rgba(0,247,255,0.75)",
-                140,
-              );
-            }
-          } else {
-            konamiPos = 0;
-          }
-        });
-
-        function godmodeCmd() {
-          if (!konamiUnlocked) {
-            printLineToTerm(
-              "[GODMODE] locked. Enter Konami code first.",
-              "warn",
-            );
-            sfx("error");
-            return;
-          }
-          godMode = true;
-          updateHeader();
-          printLineToTerm("[GODMODE] enabled (simulation).", "danger");
-          printLineToTerm(
-            "Unlocked: spy, webcam/mic commands (still simulated).",
-            "dim",
-          );
-          award("godmode", "God Mode", "Enabled godmode.");
-          sfx("boom");
-        }
-
-        async function hello() {
-          const HELLOS = [
-            "Zero: Yo. You made it. 😎",
-            "Ciel: Hi! Want a mini-game? Type 'games'!",
-            "Zero: Hello. Keep it calm, keep it smart.",
-            "Ciel: Hiiiii! Try 'facts' or 'lemon'!",
-            "Zero: Hey. This is only a simulation, but it looks cool, right?",
-          ];
-          printLineToTerm(randChoice(HELLOS), "muted");
-          sfx("ok");
-          award("hello", "Social", "Said hello.");
-        }
-
-        const ASCII = {
-          zero: String.raw`
-      ________  ________  _________  \|\_____  \|\_____  \
-      \|_/  /|
-      /  / /     /  / /     /  / /
-      /  /_/__   /  /_/__   /  /_/____________\
-      \|______________|
-      `,
-          lemon: String.raw`
-      .-.
-      .'   '.
-      /  .-.  \
-      |  ( 🍋 ) |
-      \  '-'  /
-      '.___.'
-      `,
-          twinkle: String.raw`
-      _______        _       _    _
-      |__   __|      (_)     | |  | |
-      | |_      ___ _ _ __ | | _| | ___
-      | \ \ /\ / / | | '_ \| |/ / |/ _ \
-      | |\ V  V /| | | | | |   <| |  __/
-      |_| \_/\_/ |_|_|_| |_|_|\_\_|\___|
-      `,
-          banner: String.raw`
-      ███████╗███████╗██████╗  ██████╗ ██████╗  ██████╗ ██╗███╗   ██╗████████╗
-      ╚══███╔╝██╔════╝██╔══██╗██╔═══██╗██╔══██╗██╔═══██╗██║████╗  ██║╚══██╔══╝
-      ███╔╝ █████╗  ██████╔╝██║   ██║██████╔╝██║   ██║██║██╔██╗ ██║   ██║
-      ███╔╝  ██╔══╝  ██╔══██╗██║   ██║██╔═══╝ ██║   ██║██║██║╚██╗██║   ██║
-      ███████╗███████╗██║  ██║╚██████╔╝██║     ╚██████╔╝██║██║ ╚████║   ██║
-      ╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝      ╚═════╝ ╚═╝╚═╝  ╚═══╝   ╚═╝
-      `,
-        };
-
-        function banner() {
-          printBlock(ASCII.banner, "ok");
-          award("banner", "Billboard", "Displayed banner.");
-          sfx("open");
-        }
-
-        function asciiCmd(name) {
-          const key = (name || "").toLowerCase();
-          if (!key) {
-            printLineToTerm("Usage: ascii <name>", "warn");
-            printLineToTerm(
-              "Try: ascii zero / ascii lemon / ascii twinkle / banner",
-              "dim",
-            );
-            return;
-          }
-          const art = ASCII[key];
-          if (!art) {
-            printLineToTerm("No art named: " + key, "warn");
-            return;
-          }
-          printBlock(art, "dim");
-          award("ascii", "ASCII Artist", "Displayed ASCII art.");
-          sfx("open");
-        }
-
-        function corruptCmd(text) {
-          if (!text) {
-            printLineToTerm("Usage: corrupt <text>", "warn");
-            return;
-          }
-          printLineToTerm(corruptText(text), "warn");
-          sfx("warn");
-          award("corrupt", "Corruptor", "Corrupted some text.");
-        }
-
-        function comboCheck(tag) {
-          if (tag === "scan") combo.scan = true;
-          if (tag === "hash") combo.hash = true;
-          if (tag === "ciel") combo.ciel = true;
-
-          if (!combo.unlocked && combo.scan && combo.hash && combo.ciel) {
-            combo.unlocked = true;
-            printLineToTerm("[COMBO] Hidden condition met.", "warn");
-            printLineToTerm("[COMBO] Redirecting to Ultra Secret…", "muted");
-            setTimeout(() => enterUltra1("combo.scan+hash+ciel"), 600);
-          }
-        }
-
-        async function scan(mode) {
-          const m = (mode || "").toLowerCase();
-          if (m === "ports") {
-            printLineToTerm("[SCAN] localhost (sim)", "muted");
-            printLineToTerm("  22/tcp  open   ssh", "ok");
-            printLineToTerm("  80/tcp  open   http", "ok");
-            printLineToTerm("  443/tcp open   https", "ok");
-            printLineToTerm("  31337/tcp filtered ???", "warn");
-            comboCheck("scan");
-            award("scan", "Scanner", "Ran a scan.");
-            return;
-          }
-          if (m === "wifi") {
-            printLineToTerm("[SCAN] wifi sweep", "muted");
-            printLineToTerm("  TWINKLE_NET   WPA2  -47dBm", "ok");
-            printLineToTerm("  LEMON_LAB     WPA2  -63dBm", "ok");
-            printLineToTerm("  GUEST_SHADOW  OPEN  -81dBm", "warn");
-            award("wifi", "Wi-Fi Whisperer", "Scanned Wi-Fi (sim).");
-            comboCheck("scan");
-            return;
-          }
-          if (m === "mem") {
-            printLineToTerm("[SCAN] memory map (sim)", "muted");
-            printLineToTerm("  heap: stable", "ok");
-            printLineToTerm("  buffers: noisy (visual only)", "warn");
-            award("mem", "Memory Diver", "Scanned memory (sim).");
-            return;
-          }
-          printLineToTerm("Usage: scan wifi|ports|mem", "warn");
-        }
-
-        function clearTerm() {
-          term.innerHTML = "";
-          term.appendChild(cursor);
-          sfx("click");
-        }
-
-        // ===== Fullscreen Admin Control Room logic =====
-        function adminFullLog(msg) {
-          const t = new Date().toLocaleTimeString();
-          adminFullLogText.textContent =
-            `[${t}] ${msg}\n` + adminFullLogText.textContent.slice(0, 2400);
-        }
-
-        function getCSSVarFloat(name, fallback) {
-          const v = getComputedStyle(document.documentElement)
-            .getPropertyValue(name)
-            .trim();
-          const n = parseFloat(v);
-          return Number.isFinite(n) ? n : fallback;
-        }
-
-        function openAdminFull() {
-          adminLogin.style.display = "none";
-          adminPanel.style.display = "none";
-          adminFull.classList.add("visible");
-
-          afSpeed.value = String(typingSpeedModeIndex);
-          afVolume.value = String(soundVolume);
-          afIntrusionInterval.value = String(intrusionIntervalMs);
-          afIntrusionChance.value = String(intrusionChance);
-          afFactsCount.value = String(PRELOADED_FACTS.length);
-
-          afScanOpacity.value = String(getCSSVarFloat("--scan-opacity", 0.55));
-          afGlitchOpacity.value = String(
-            getCSSVarFloat("--glitch-opacity", 0.12),
-          );
-
-          afAutoTheme.textContent =
-            "Auto theme: " + (autoThemeTimer ? "ON" : "OFF");
-
-          adminFullLog("Admin Control Room opened.");
-          sfx("open");
-          award(
-            "admin_full",
-            "Control Room",
-            "Opened fullscreen admin controls.",
-          );
-        }
-
-        function closeAdminFull() {
-          adminFull.classList.remove("visible");
-          adminFullLog("Closed.");
-          sfx("click");
-        }
-
-        adminFullClose.addEventListener("click", closeAdminFull);
-        adminFull.addEventListener("click", (e) => {
-          if (e.target === adminFull) closeAdminFull();
-        });
-
-        function stopAutoTheme() {
-          if (autoThemeTimer) {
-            clearInterval(autoThemeTimer);
-            autoThemeTimer = null;
-          }
-          if (afAutoTheme) afAutoTheme.textContent = "Auto theme: OFF";
-        }
-
-        function startAutoTheme() {
-          stopAutoTheme();
-          const ms = Math.max(400, Number(afAutoThemeMs.value) || 1400);
-          autoThemeTimer = setInterval(() => applyTheme(themeIndex + 1), ms);
-          afAutoTheme.textContent = "Auto theme: ON";
-        }
-
-        afRestart.addEventListener("click", () => {
-          adminFullLog("Restart console");
-          restartConsole();
-        });
-        afPause.addEventListener("click", () => {
-          adminFullLog("Toggle pause");
-          togglePause();
-        });
-        afDump.addEventListener("click", () => {
-          adminFullLog("Dump state to DevTools console");
-          console.log({
-            intrusionOn,
-            intrusionIntervalMs,
-            intrusionChance,
-            soundOn,
-            soundVolume,
-            themeIndex,
-            shellLocked,
-            postUltraStarted,
-            konamiUnlocked,
-            godMode,
-          });
-        });
-
-        afSpeed.addEventListener("change", () => {
-          typingSpeedModeIndex = Number(afSpeed.value) || 1;
-          typingSpeedFactor = speedModes[typingSpeedModeIndex];
-          btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
-          adminFullLog("Speed set: " + speedLabels[typingSpeedModeIndex]);
-          sfx("click");
-        });
-
-        afThemeNext.addEventListener("click", () => {
-          adminFullLog("Theme next");
-          applyTheme(themeIndex + 1);
-        });
-        afSoundToggle.addEventListener("click", () => {
-          adminFullLog("Sound toggle");
-          toggleSound();
-        });
-
-        afAutoTheme.addEventListener("click", () => {
-          if (autoThemeTimer) {
-            stopAutoTheme();
-            adminFullLog("Auto theme OFF");
-          } else {
-            startAutoTheme();
-            adminFullLog("Auto theme ON");
-          }
-          sfx("click");
-        });
-
-        afVolume.addEventListener("input", () => {
-          soundVolume = Number(afVolume.value);
-          if (audio && audio.master) audio.master.gain.value = soundVolume;
-        });
-
-        afShellLock.addEventListener("click", () => {
-          shellLocked = !shellLocked;
-          cmdInput.disabled = shellLocked;
-          cmdInput.style.opacity = shellLocked ? 0.45 : 1;
-          adminFullLog("Shell lock: " + (shellLocked ? "LOCKED" : "UNLOCKED"));
-          sfx("click");
-        });
-        afMatrix.addEventListener("click", () => {
-          adminFullLog("Matrix toggle");
-          toggleMatrix();
-        });
-
-        afPanic.addEventListener("click", () => {
-          panic();
-          adminFullLog("PANIC executed");
-        });
-
-        afRainbow.addEventListener("click", () => {
-          rainbowToggle();
-          adminFullLog("Rainbow toggled");
-        });
-        afMirror.addEventListener("click", () => {
-          mirrorToggle();
-          adminFullLog("Mirror toggled");
-        });
-
-        afScanOpacity.addEventListener("input", () => {
-          const v = Number(afScanOpacity.value);
-          setScanOpacity(v);
-        });
-
-        afGlitchOpacity.addEventListener("input", () => {
-          const v = Number(afGlitchOpacity.value);
-          setGlitchOpacity(v);
-        });
-
-        afIntrusionToggle.addEventListener("click", () => {
-          setIntrusion(!intrusionOn);
-          adminFullLog("Intrusion: " + (intrusionOn ? "ON" : "OFF"));
-        });
-
-        afIntrusionTrigger.addEventListener("click", () => {
-          triggerIntrusionEvent(true);
-          adminFullLog("Intrusion triggered");
-        });
-
-        afIntrusionInterval.addEventListener("change", () => {
-          intrusionIntervalMs = Math.max(
-            300,
-            Number(afIntrusionInterval.value) || 5500,
-          );
-          if (intrusionOn) {
-            setIntrusion(false);
-            setIntrusion(true);
-          }
-          adminFullLog("Intrusion interval ms: " + intrusionIntervalMs);
-          sfx("click");
-        });
-
-        afIntrusionChance.addEventListener("change", () => {
-          intrusionChance = Math.max(
-            0,
-            Math.min(1, Number(afIntrusionChance.value) || 0.35),
-          );
-          adminFullLog("Intrusion chance: " + intrusionChance);
-          sfx("click");
-        });
-
-        afUltra1.addEventListener("click", () => {
-          adminFullLog("Enter Ultra L1");
-          enterUltra1("admin.full");
-        });
-        afPostUltra.addEventListener("click", () => {
-          adminFullLog("Start post-ultra");
-          startPostUltraFlow();
-        });
-        afUpdateQ.addEventListener("click", () => {
-          adminFullLog("Show update question");
-          showUpdatePromptLast();
-        });
-        afUltra2.addEventListener("click", () => {
-          adminFullLog("Enter Ultra L2");
-          enterUltra2("admin.full");
-        });
-        afFinal.addEventListener("click", () => {
-          adminFullLog("Show final");
-          finishFinalReveal();
-        });
-
-        afOpenFacts.addEventListener("click", () => {
-          adminFullLog("Open facts");
-          showFacts();
-        });
-        afRandomFact.addEventListener("click", () => {
-          adminFullLog("Random fact");
-          factLine();
-        });
-        afExportFacts.addEventListener("click", () => {
-          adminFullLog("Export facts");
-          btnExportFacts.click();
-        });
-
-        afKonamiToggle.addEventListener("click", () => {
-          konamiUnlocked = !konamiUnlocked;
-          adminFullLog("Konami unlocked: " + (konamiUnlocked ? "YES" : "NO"));
-          sfx("click");
-        });
-
-        afGodToggle.addEventListener("click", () => {
-          godMode = !godMode;
-          updateHeader();
-          adminFullLog("Godmode: " + (godMode ? "ON" : "OFF"));
-          printLineToTerm(
-            "[GODMODE] " + (godMode ? "enabled (admin)" : "disabled (admin)"),
-            godMode ? "danger" : "muted",
-          );
-          sfx("click");
-        });
-
-        afFortune.addEventListener("click", () => {
-          adminFullLog("Fortune");
-          fortune();
-        });
-        afNeofetch.addEventListener("click", () => {
-          adminFullLog("Neofetch");
-          neofetch();
-        });
-
-        afSelfDestruct.addEventListener("click", () => {
-          adminFullLog("Self-destruct");
-          selfDestruct();
-        });
-        afAbort.addEventListener("click", () => {
-          adminFullLog("Abort");
-          abort();
-        });
-        afRmrf.addEventListener("click", async () => {
-          adminFullLog("rm -rf /");
-          await rmrf();
-        });
-
-        afBurst.addEventListener("click", () => {
-          adminFullLog("Burst");
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.5,
-            "rgba(0,247,255,0.85)",
-            "rgba(48,255,155,0.75)",
-            180,
-          );
-          sfx("ok");
-        });
-        afToggleClickParticles.addEventListener("click", () => {
-          clickParticlesEnabled = !clickParticlesEnabled;
-          adminFullLog(
-            "Click particles: " + (clickParticlesEnabled ? "ON" : "OFF"),
-          );
-          sfx("click");
-        });
-
-        afClearAchievements.addEventListener("click", () => {
-          localStorage.removeItem(ACH_KEY);
-          achievements = {};
-          adminFullLog("Cleared achievements (localStorage).");
-          sfx("ok");
-        });
-        afClearSnapshot.addEventListener("click", () => {
-          localStorage.removeItem("zp_snapshot");
-          adminFullLog("Cleared snapshot (localStorage).");
-          sfx("ok");
-        });
-
-        // ===== main command handler =====
-        async function handleCommand(line) {
-          const raw = String(line || "").trim();
-          if (!raw) return;
-
-          if (raw === "admin951212//") {
-            openAdminFull();
-            return;
-          }
-
-          award("first_cmd", "First Command", "Typed your first command.");
-
-          if (raw === "rm -rf /") {
-            await rmrf();
-            return;
-          }
-          if (raw === "hello" || raw === "hi") {
-            await hello();
-            return;
-          }
-
-          const parts = raw.split(/\s+/);
-          const cmd = (parts[0] || "").toLowerCase();
-          const arg = parts[1];
-          const rest = parts.slice(1).join(" ");
-
-          /* ===== 5 new features (minimal) ===== */
-          if (cmd === "jeanjun") {
-            printLineToTerm("[EASTER]", "ok");
-            printLineToTerm("Secret message confirmed: Jean Jun", "muted");
-            award("jeanjun", "Jean Jun", "Found the secret message.");
-            sfx("open");
-            return;
-          }
-
-          if (cmd === "roll") {
-            const sides = Math.max(
-              2,
-              Math.min(1000, parseInt(arg || "6", 10) || 6),
-            );
-            const n = 1 + Math.floor(Math.random() * sides);
-            printLineToTerm(`[ROLL] d${sides} → ${n}`, "ok");
-            award("roll", "Dice Roller", "Rolled a dice.");
-            sfx("click");
-            return;
-          }
-
-          if (cmd === "exportterm") {
-            const text = getTermText();
-            downloadText("zeropoint-terminal.txt", text);
-            printLineToTerm(
-              "[EXPORT] Downloaded: zeropoint-terminal.txt",
-              "ok",
-            );
-            award("exportterm", "Archivist", "Exported terminal output.");
-            sfx("ok");
-            return;
-          }
-
-          if (cmd === "scanlines") {
-            const a = (arg || "toggle").toLowerCase();
-            const current =
-              parseFloat(
-                getComputedStyle(document.documentElement).getPropertyValue(
-                  "--scan-opacity",
-                ),
-              ) || 0.55;
-
-            if (a === "toggle") setScanOpacity(current > 0.01 ? 0 : 0.55);
-            else if (a === "on") setScanOpacity(0.55);
-            else if (a === "off") setScanOpacity(0);
-            else {
-              const n = parseFloat(a);
-              if (!Number.isFinite(n)) {
-                printLineToTerm("Usage: scanlines on|off|toggle|<0-1>", "warn");
-                return;
-              }
-              setScanOpacity(n);
-            }
-
-            printLineToTerm(
-              "[FX] scanlines opacity = " +
-                getComputedStyle(document.documentElement)
-                  .getPropertyValue("--scan-opacity")
-                  .trim(),
-              "muted",
-            );
-            award("scanlines", "CRT Tuner", "Adjusted scanlines.");
-            sfx("click");
-            return;
-          }
-
-          if (cmd === "glitchfx") {
-            const a = (arg || "toggle").toLowerCase();
-            const current =
-              parseFloat(
-                getComputedStyle(document.documentElement).getPropertyValue(
-                  "--glitch-opacity",
-                ),
-              ) || 0.12;
-
-            if (a === "toggle") setGlitchOpacity(current > 0.01 ? 0 : 0.12);
-            else if (a === "on") setGlitchOpacity(0.12);
-            else if (a === "off") setGlitchOpacity(0);
-            else {
-              const n = parseFloat(a);
-              if (!Number.isFinite(n)) {
-                printLineToTerm("Usage: glitchfx on|off|toggle|<0-1>", "warn");
-                return;
-              }
-              setGlitchOpacity(n);
-            }
-
-            printLineToTerm(
-              "[FX] glitch opacity = " +
-                getComputedStyle(document.documentElement)
-                  .getPropertyValue("--glitch-opacity")
-                  .trim(),
-              "muted",
-            );
-            award("glitchfx", "Signal Surgeon", "Adjusted glitch overlay.");
-            sfx("click");
-            return;
-          }
-          /* ===== end 5 new features ===== */
-
-          if (cmd === "easter") {
-            easter();
-            return;
-          }
-          if (cmd === "fortune") {
-            fortune();
-            return;
-          }
-          if (cmd === "neofetch") {
-            neofetch();
-            return;
-          }
-          if (cmd === "panic") {
-            panic();
-            return;
-          }
-          if (cmd === "rainbow") {
-            rainbowToggle();
-            return;
-          }
-          if (cmd === "mirror") {
-            mirrorToggle();
-            return;
-          }
-          if (cmd === "fact") {
-            factLine();
-            return;
-          }
-          if (cmd === "warp") {
-            warp(arg);
-            return;
-          }
-
-          if (cmd === "help") {
-            help();
-            return;
-          }
-          if (cmd === "clear" || cmd === "cls") {
-            clearTerm();
-            return;
-          }
-          if (cmd === "logout") {
-            await doLogout();
-            return;
-          }
-          if (cmd === "exit" || cmd === "quit") {
-            closeShell("");
-            return;
-          }
-
-          if (cmd === "pwd") {
-            printLineToTerm(cwd, "dim");
-            return;
-          }
-          if (cmd === "ls" || cmd === "dir") {
-            listDir();
-            return;
-          }
-          if (cmd === "cd") {
-            changeDir(arg);
-            return;
-          }
-          if (cmd === "cat") {
-            catFile(arg);
-            return;
-          }
-
-          if (cmd === "whoami") {
-            whoami();
-            return;
-          }
-          if (cmd === "ps" || cmd === "processes") {
-            ps();
-            return;
-          }
-          if (cmd === "kill") {
-            kill(arg);
-            return;
-          }
-
-          if (cmd === "themes") {
-            listThemes();
-            return;
-          }
-          if (cmd === "theme") {
-            themeCmd(arg || "next");
-            return;
-          }
-          if (cmd === "sound") {
-            toggleSound();
-            return;
-          }
-          if (cmd === "achievements") {
-            showAchievements();
-            return;
-          }
-
-          if (cmd === "glitch") {
-            glitch();
-            return;
-          }
-          if (cmd === "corrupt") {
-            corruptCmd(rest);
-            return;
-          }
-          if (cmd === "trigger") {
-            triggerIntrusionCmd();
-            return;
-          }
-          if (cmd === "intrusion") {
-            toggleIntrusionCmd();
-            return;
-          }
-
-          if (cmd === "ping") {
-            await ping(rest);
-            return;
-          }
-          if (cmd === "trace") {
-            await trace(rest);
-            return;
-          }
-          if (cmd === "locate") {
-            locate();
-            return;
-          }
-
-          if (cmd === "ascii") {
-            asciiCmd(arg);
-            return;
-          }
-          if (cmd === "banner") {
-            banner();
-            return;
-          }
-
-          if (cmd === "encode" || cmd === "decode") {
-            encodeList();
-            return;
-          }
-          if (cmd === "binary") {
-            printLineToTerm(toBinary(rest || ""), "dim");
-            award("binary", "Encoder", "Encoded to binary.");
-            return;
-          }
-          if (cmd === "unbinary") {
-            printLineToTerm(fromBinary(rest || ""), "dim");
-            award("unbinary", "Decoder", "Decoded from binary.");
-            return;
-          }
-          if (cmd === "morse") {
-            printLineToTerm(toMorse(rest || ""), "dim");
-            award("morse", "Telegraph", "Encoded to Morse.");
-            return;
-          }
-          if (cmd === "unmorse") {
-            printLineToTerm(fromMorse(rest || ""), "dim");
-            award("unmorse", "Telegraph", "Decoded Morse.");
-            return;
-          }
-          if (cmd === "hex") {
-            printLineToTerm(toHex(rest || ""), "dim");
-            award("hex", "Hexer", "Encoded to hex.");
-            return;
-          }
-          if (cmd === "unhex") {
-            printLineToTerm(fromHex(rest || ""), "dim");
-            award("unhex", "Hexer", "Decoded hex.");
-            return;
-          }
-
-          if (cmd === "coffee") {
-            await coffee();
-            return;
-          }
-          if (cmd === "facts") {
-            showFacts();
-            return;
-          }
-          if (cmd === "lemon") {
-            lemon();
-            return;
-          }
-          if (cmd === "twinkle") {
-            twinkleInfo();
-            return;
-          }
-          if (cmd === "zero") {
-            zeroTalk();
-            return;
-          }
-          if (cmd === "mikey") {
-            mikeyTribute();
-            return;
-          }
-          if (cmd === "hack") {
-            hack();
-            return;
-          }
-          if (cmd === "secret") {
-            secret();
-            return;
-          }
-          if (cmd === "credits") {
-            credits();
-            return;
-          }
-
-          if (cmd === "matrix") {
-            toggleMatrix();
-            return;
-          }
-          if (cmd === "download") {
-            await fakeDownload(rest);
-            return;
-          }
-
-          if (cmd === "stealth" || cmd === "status") {
-            stealthStatus();
-            return;
-          }
-          if (cmd === "cloak" || cmd === "hide") {
-            cloakToggle();
-            return;
-          }
-          if (cmd === "vanish") {
-            vanishToggle();
-            return;
-          }
-
-          if (cmd === "sudo") {
-            sudo();
-            return;
-          }
-          if (cmd === "self-destruct") {
-            await selfDestruct();
-            return;
-          }
-          if (cmd === "abort") {
-            abort();
-            return;
-          }
-
-          if (cmd === "godmode") {
-            godmodeCmd();
-            return;
-          }
-          if (cmd === "webcam" || cmd === "camera") {
-            fakeSensor("camera");
-            return;
-          }
-          if (cmd === "mic" || cmd === "microphone") {
-            fakeSensor("microphone");
-            return;
-          }
-          if (cmd === "spy") {
-            spy();
-            return;
-          }
-
-          if (cmd === "decrypt") {
-            printLineToTerm(fakeDecrypt(rest), "dim");
-            award("decrypt", "Decryptor", "Ran fake decryption.");
-            return;
-          }
-
-          if (cmd === "ciel") {
-            printLineToTerm(
-              "Ciel: “Three keys. One door. Also… play games with me!”",
-              "muted",
-            );
-            comboCheck("ciel");
-            award("ciel", "Ciel", "Talked to Ciel.");
-            return;
-          }
-
-          if (cmd === "hash") {
-            if (!rest) {
-              printLineToTerm("Usage: hash <text>", "warn");
-              return;
-            }
-            printLineToTerm("[HASH] SHA-256 (local only)", "muted");
-            const hex = await sha256Hex(rest);
-            if (hex) printLineToTerm(hex, "ok");
-            else
-              printLineToTerm("Crypto not available in this browser.", "warn");
-            comboCheck("hash");
-            award("hash", "Hasher", "Computed a hash.");
-            return;
-          }
-
-          if (cmd === "scan") {
-            await scan(arg);
-            return;
-          }
-
-          printLineToTerm(`Unknown command: ${cmd} (type "help")`, "warn");
-          sfx("error");
-        }
-
-        cmdInput.addEventListener("keydown", async (e) => {
-          if (e.key !== "Enter") return;
-          if (cmdInput.disabled) return;
-
-          initAudio();
-
-          const raw = cmdInput.value;
-          cmdInput.value = "";
-          printLineToTerm(cwd + " $ " + raw, "dim");
-          sfx("click");
-
-          if (!raw.trim()) return;
-          await handleCommand(raw);
-        });
-
-        // ===== admin (small panel) =====
-        adminLink.addEventListener("click", async () => {
-          // Logged-in admins go to the real admin page
-          if (isRealAdmin()) {
-            window.location.href = "/admin";
-            return;
-          }
-
-          // Everyone else keeps the simulation passcode popup
-          adminLogin.style.display = "flex";
-          adminPass.value = "";
-          setTimeout(() => adminPass.focus(), 10);
-          sfx("open");
-        });
-
-adminSubmit.addEventListener("click", () => {
-          initAudio();
-          if (adminPass.value === adminPassword) {
-            adminLogin.style.display = "none";
-            adminPanel.style.display = "flex";
-            sfx("ok");
-            award("admin", "Admin", "Opened admin panel.");
-          } else {
-            sfx("error");
-            alert("Wrong passcode.");
-          }
-        });
-
-        adminPass.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") adminSubmit.click();
-        });
-        btnAdminClose.addEventListener("click", () => {
-          adminPanel.style.display = "none";
-          sfx("click");
-        });
-
-        function restartConsole() {
-          stopTelemetry();
-          if (intrusionTimer) {
-            clearInterval(intrusionTimer);
-            intrusionTimer = null;
-          }
-          intrusionOn = false;
-
-          stopAutoTheme();
-
-          if (selfDestructTimer) {
-            clearInterval(selfDestructTimer);
-            selfDestructTimer = null;
-          }
-
-          cancelAllTyping = true;
-          typingPaused = false;
-          linkLost = false;
-          shellOpen = false;
-          shellLocked = false;
-          cwd = "/";
-
-          telemetryEnabled = null;
-          snapshotStored = null;
-          overrideAnswer = null;
-          updateAnswer = null;
-          postUltraStarted = false;
-
-          combo = { scan: false, hash: false, ciel: false, unlocked: false };
-          konamiPos = 0;
-          konamiUnlocked = false;
-          godMode = false;
-
-          screen.style.display = "flex";
-          screen.classList.remove(
-            "cloak",
-            "vanish",
-            "shake",
-            "rainbow",
-            "mirror",
-          );
-          ultraSecret.classList.remove("visible");
-          ultraSecret2.classList.remove("visible");
-          finalReveal.classList.remove("visible");
-          factsView.classList.remove("visible");
-          qOverlay.classList.remove("visible");
-          choiceOverlayUpdate.classList.remove("visible");
-          updateScreen.classList.remove("visible");
-          adminPanel.style.display = "none";
-          adminFull.classList.remove("visible");
-
-          setScanOpacity(0.55);
-          setGlitchOpacity(0.12);
-
-          toggleMatrix(false);
-
-          term.innerHTML = "";
-          term.appendChild(cursor);
-
-          baseLineIndex = 0;
-          baseCharIndex = 0;
-
-          cmdRow.style.display = "none";
-          cursor.style.display = "inline-block";
-
-          cancelAllTyping = false;
-          updateHeader();
-          sfx("click");
-          // Show skip button again (only if user didn't choose "skip forever")
-          const skip = (() => {
-            try { return localStorage.getItem("zp_skip_intro") === "1"; } catch (e) { return false; }
-          })();
-
-          if (skipIntroBtn) skipIntroBtn.style.display = skip ? "none" : "";
-
-          if (skip) skipIntro(false);
-          else setTimeout(typeBase, 300);
-        }
-
-        function togglePause() {
-          typingPaused = !typingPaused;
-          btnPause.textContent = typingPaused
-            ? "Resume typing"
-            : "Pause / resume typing";
-          printLineToTerm(
-            "[TYPE] " + (typingPaused ? "paused" : "resumed"),
-            "muted",
-          );
-          sfx("click");
-        }
-
-        function cycleSpeed() {
-          typingSpeedModeIndex = (typingSpeedModeIndex + 1) % speedModes.length;
-          typingSpeedFactor = speedModes[typingSpeedModeIndex];
-          btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
-          printLineToTerm(
-            "[TYPE] speed = " + speedLabels[typingSpeedModeIndex],
-            "muted",
-          );
-          sfx("click");
-        }
-
-        btnRestart.addEventListener("click", restartConsole);
-        btnPause.addEventListener("click", togglePause);
-        btnSpeed.addEventListener("click", cycleSpeed);
-        btnThemeNext.addEventListener("click", () =>
-          applyTheme(themeIndex + 1),
-        );
-        btnSoundToggle.addEventListener("click", () => toggleSound());
-
-        btnEnterUltra1.addEventListener("click", () =>
-          enterUltra1("admin.button"),
-        );
-        btnStartPostUltra.addEventListener("click", startPostUltraFlow);
-        btnShowUpdateLast.addEventListener("click", showUpdatePromptLast);
-        btnEnterUltra2.addEventListener("click", () =>
-          enterUltra2("admin.button"),
-        );
-        btnShowFinal.addEventListener("click", finishFinalReveal);
-
-        btnIntrusionToggle.addEventListener("click", () =>
-          setIntrusion(!intrusionOn),
-        );
-        btnTriggerIntrusion.addEventListener("click", () =>
-          triggerIntrusionEvent(true),
-        );
-        btnParticles.addEventListener("click", () => {
-          spawnBurst(
-            window.innerWidth * 0.5,
-            window.innerHeight * 0.5,
-            "rgba(0,247,255,0.85)",
-            "rgba(48,255,155,0.75)",
-            160,
-          );
-          sfx("ok");
-        });
-
-        btnOpenFacts.addEventListener("click", showFacts);
-        btnExportFacts.addEventListener("click", () => {
-          const text = PRELOADED_FACTS.map((f, i) => `${i + 1}. ${f}`).join(
-            "\n",
-          );
-          const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "history-facts-offline.txt";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-          sfx("ok");
-          award("export", "Exporter", "Exported facts to a file.");
-        });
-
-        ultraFactsBtn.addEventListener("click", showFacts);
-        ultra2FactsBtn.addEventListener("click", showFacts);
-
-        function toBinary(text) {
-          return Array.from(text)
-            .map((ch) => ch.charCodeAt(0).toString(2).padStart(8, "0"))
-            .join(" ");
-        }
-        function fromBinary(bin) {
-          return bin
-            .trim()
-            .split(/\s+/)
-            .map((b) => String.fromCharCode(parseInt(b, 2)))
-            .join("");
-        }
-
-        const MORSE = {
-          A: ".-",
-          B: "-...",
-          C: "-.-.",
-          D: "-..",
-          E: ".",
-          F: "..-.",
-          G: "--.",
-          H: "....",
-          I: "..",
-          J: ".---",
-          K: "-.-",
-          L: ".-..",
-          M: "--",
-          N: "-.",
-          O: "---",
-          P: ".--.",
-          Q: "--.-",
-          R: ".-.",
-          S: "...",
-          T: "-",
-          U: "..-",
-          V: "...-",
-          W: ".--",
-          X: "-..-",
-          Y: "-.--",
-          Z: "--..",
-          0: "-----",
-          1: ".----",
-          2: "..---",
-          3: "...--",
-          4: "....-",
-          5: ".....",
-          6: "-....",
-          7: "--...",
-          8: "---..",
-          9: "----.",
-          " ": "/",
-        };
-        const UNMORSE = Object.fromEntries(
-          Object.entries(MORSE).map(([k, v]) => [v, k]),
-        );
-        function toMorse(text) {
-          return text
-            .toUpperCase()
-            .split("")
-            .map((ch) => MORSE[ch] || "?")
-            .join(" ");
-        }
-        function fromMorse(code) {
-          return code
-            .trim()
-            .split(/\s+/)
-            .map((tok) => UNMORSE[tok] || "?")
-            .join("")
-            .replaceAll("/", " ");
-        }
-        function toHex(text) {
-          return Array.from(text)
-            .map((ch) => ch.charCodeAt(0).toString(16).padStart(2, "0"))
-            .join(" ");
-        }
-        function fromHex(hex) {
-          return hex
-            .trim()
-            .split(/\s+/)
-            .map((hx) => String.fromCharCode(parseInt(hx, 16)))
-            .join("");
-        }
-
-        // ===== theme init + startup =====
-        applyTheme(0);
-        updateHeader();
-        btnSpeed.textContent = "Speed: " + speedLabels[typingSpeedModeIndex];
-        btnSoundToggle.textContent = "Sound: " + (soundOn ? "ON" : "OFF");
-        btnIntrusionToggle.textContent = "Intrusion: OFF";
-        (async () => {
-          await syncAuthUI();
-
-          // If you previously chose "skip forever"
-          const skip = (() => {
-            try { return localStorage.getItem("zp_skip_intro") === "1"; } catch (e) { return false; }
-          })();
-
-          if (skip) {
-            skipIntro(false);
-          } else {
-            setTimeout(typeBase, 500);
-          }
-        })();
-      })();
-    </script>
-  </body>
+  </div>
+
+<script>
+(() => {
+  // ===== DOM =====
+  const term = document.getElementById("term");
+  const cmdInput = document.getElementById("cmdInput");
+  const promptEl = document.getElementById("prompt");
+
+  const tagLink = document.getElementById("tagLink");
+  const tagAuth = document.getElementById("tagAuth");
+  const tagRole = document.getElementById("tagRole");
+  const tagMode = document.getElementById("tagMode");
+
+  const adminLink = document.getElementById("adminLink");
+  const adminLogin = document.getElementById("adminLogin");
+  const adminLoginBox = document.getElementById("adminLoginBox");
+  const adminPass = document.getElementById("adminPass");
+  const adminSubmit = document.getElementById("adminSubmit");
+  const adminCancel = document.getElementById("adminCancel");
+  const adminPanel = document.getElementById("adminPanel");
+  const btnAdminClose = document.getElementById("btnAdminClose");
+
+  const loginBtn = document.getElementById("loginBtn");
+  const registerBtn = document.getElementById("registerBtn");
+  const accountBtn = document.getElementById("accountBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const skipBtn = document.getElementById("skipBtn");
+
+  // ===== state =====
+  let currentUser = null;
+  let bootRunning = true;
+  let bootTimers = [];
+  let cwd = "/";
+
+  const adminPassword = "951212"; // simulation passcode ONLY
+  const PRELOADED_FACTS = [
+    "The first website went live in 1991.",
+    "The Apollo Guidance Computer had less RAM than a modern calculator.",
+    "The term 'bug' was popularized after a moth was found in a relay (1947).",
+    "SHA-256 is a cryptographic hash function (one-way).",
+    "In real security work, permission matters more than tools."
+  ];
+
+  const ASCII = {
+    banner: String.raw`███████╗███████╗██████╗  ██████╗ ██████╗ ██╗███╗   ██╗████████╗
+╚══███╔╝██╔════╝██╔══██╗██╔═══██╗██╔══██╗██║████╗  ██║╚══██╔══╝
+  ███╔╝ █████╗  ██████╔╝██║   ██║██████╔╝██║██╔██╗ ██║   ██║
+ ███╔╝  ██╔══╝  ██╔══██╗██║   ██║██╔═══╝ ██║██║╚██╗██║   ██║
+███████╗███████╗██║  ██║╚██████╔╝██║     ██║██║ ╚████║   ██║
+╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═══╝   ╚═╝`,
+    zero: String.raw`      ________  ________  _________
+     |__  __  ||  ____  ||___   ___|
+        | |   || |    | |    | |
+        | |   || |____| |    | |
+        |_|   ||________|    |_|`,
+    lemon: String.raw`   .-.
+  .'   '.
+ /  .-.  \
+ | (  )  |
+ \  '-'  /
+  '.___.'`,
+    twinkle: String.raw`TWINKLE
+  *  *  *
+*   *   *`
+  };
+
+  const game = {
+    mode: null,
+    memorySeq: null,
+    reactionArmed: false,
+    reactionStart: 0,
+    numberTarget: null,
+    guessCount: 0,
+    crackSecret: null,
+    crackTries: 0,
+  };
+
+  // ===== utils =====
+  function elLine(text, cls) {
+    const d = document.createElement("div");
+    d.className = "line" + (cls ? " " + cls : "");
+    d.textContent = text;
+    return d;
+  }
+
+  function printLine(text, cls) {
+    term.appendChild(elLine(text, cls));
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function clearTerm() {
+    term.innerHTML = "";
+  }
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  // Minimal stubs (keeps your UI consistent)
+  function sfx(){ /* no-op */ }
+  function award(){ /* no-op */ }
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+      credentials: "include",
+      ...opts
+    });
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : await res.text();
+    if (!res.ok) {
+      const msg = (data && data.error) ? data.error : ("Request failed: " + res.status);
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  // ===== auth UI =====
+  function setTags() {
+    tagLink.textContent = "LINK: SYNCED";
+    tagAuth.textContent = "AUTH: " + (currentUser ? currentUser.username : "GUEST");
+    tagRole.textContent = "ROLE: " + (currentUser ? currentUser.role.toUpperCase() : "USER");
+    tagMode.textContent = "MODE: " + (bootRunning ? "BOOT" : "SHELL");
+  }
+
+  async function syncAuthUI() {
+    try {
+      const data = await api("/api/auth/me", { method: "GET" });
+      currentUser = data.loggedIn ? data.user : null;
+    } catch {
+      currentUser = null;
+    }
+
+    // Buttons
+    if (currentUser) {
+      loginBtn.style.display = "none";
+      registerBtn.style.display = "none";
+      accountBtn.style.display = "";
+      logoutBtn.style.display = "";
+    } else {
+      loginBtn.style.display = "";
+      registerBtn.style.display = "";
+      accountBtn.style.display = "none";
+      logoutBtn.style.display = "none";
+    }
+
+    setTags();
+  }
+
+  loginBtn.addEventListener("click", () => location.href = "/login?next=/");
+  registerBtn.addEventListener("click", () => location.href = "/register?next=/");
+  accountBtn.addEventListener("click", () => location.href = "/account");
+  logoutBtn.addEventListener("click", async () => {
+    try { await api("/api/auth/logout", { method: "POST" }); } catch {}
+    await syncAuthUI();
+    printLine("[AUTH] logged out.", "muted");
+  });
+
+  // ===== admin popup (simulation) =====
+  function openAdminOverlay() {
+    adminLogin.classList.add("visible");
+    adminPass.value = "";
+    setTimeout(() => adminPass.focus(), 20);
+  }
+  function closeAdminOverlay() {
+    adminLogin.classList.remove("visible");
+    adminPass.value = "";
+  }
+
+  adminLink.addEventListener("click", () => {
+    // Real admins go to real /admin
+    if (currentUser && currentUser.role === "admin") {
+      location.href = "/admin";
+      return;
+    }
+    openAdminOverlay();
+    sfx("open");
+  });
+
+  adminCancel.addEventListener("click", closeAdminOverlay);
+  adminLogin.addEventListener("click", (e) => { if (e.target === adminLogin) closeAdminOverlay(); });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && adminLogin.classList.contains("visible")) closeAdminOverlay();
+  });
+
+  adminSubmit.addEventListener("click", () => {
+    if (adminPass.value === adminPassword) {
+      closeAdminOverlay();
+      adminPanel.classList.add("visible");
+      award("admin", "Admin", "Opened admin panel (sim).");
+    } else {
+      alert("Wrong passcode.");
+    }
+  });
+
+  adminPass.addEventListener("keydown", (e) => { if (e.key === "Enter") adminSubmit.click(); });
+  btnAdminClose.addEventListener("click", () => adminPanel.classList.remove("visible"));
+  adminPanel.addEventListener("click", (e) => { if (e.target === adminPanel) adminPanel.classList.remove("visible"); });
+
+  // ===== boot / skip =====
+  const BOOT_LINES = [
+    "ZEROPOINT REMOTE ACCESS CORE",
+    "TARGET: LIVE HANDSET • VECTOR: ENCRYPTED BACKDOOR • SIMULATION",
+    "",
+    "[OK] Tunnel online (AES-256/GCM)",
+    "[AUTH] Requesting elevated scope…",
+    "[OK] Privilege: ROOT / TEMP",
+    "[SCAN] Client snapshot:",
+    "  DEVICE : DESKTOP/OTHER",
+    "  LOCALE : en-US",
+    "  TZ     : browser",
+    "",
+    "[TIP] Type: help",
+    "[TIP] Games: games (then memory/reaction/number/crack)",
+    "[TIP] Secrets: this is a simulation. Be kind.",
+    ""
+  ];
+
+  function cancelBootTimers() {
+    bootTimers.forEach(id => clearTimeout(id));
+    bootTimers = [];
+  }
+
+  function openShell() {
+    bootRunning = false;
+    cmdInput.disabled = false;
+    cmdInput.focus();
+    setTags();
+  }
+
+  async function typeBoot() {
+    bootRunning = true;
+    cmdInput.disabled = true;
+    setTags();
+
+    clearTerm();
+
+    let t = 0;
+    for (const line of BOOT_LINES) {
+      const id = setTimeout(() => printLine(line, line.startsWith("[OK]") ? "ok" : line.startsWith("[TIP]") ? "muted" : line.startsWith("[AUTH]") ? "warn" : "dim"), t);
+      bootTimers.push(id);
+      t += 120;
+    }
+    const id2 = setTimeout(() => {
+      printLine("[SHELL] Attached. Type: help", "ok");
+      openShell();
+    }, t + 80);
+    bootTimers.push(id2);
+  }
+
+  function skipBoot(persist) {
+    cancelBootTimers();
+    clearTerm();
+    BOOT_LINES.forEach(l => printLine(l, l.startsWith("[OK]") ? "ok" : l.startsWith("[TIP]") ? "muted" : l.startsWith("[AUTH]") ? "warn" : "dim"));
+    printLine("[SHELL] Attached. Type: help", "ok");
+    if (persist) localStorage.setItem("zp_skip_boot", "1");
+    openShell();
+  }
+
+  skipBtn.addEventListener("click", (e) => skipBoot(e.shiftKey));
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && bootRunning) skipBoot(e.shiftKey);
+  });
+
+  // ===== commands =====
+  function help() {
+    printLine("Commands:", "ok");
+    printLine("  help, clear, exit, login, register, account, logout", "dim");
+    printLine("  admin (opens admin modal if not real admin)", "dim");
+    printLine("  banner, ascii <zero|lemon|twinkle|banner>", "dim");
+    printLine("  facts, fact, coffee", "dim");
+    printLine("  ping <target>, trace <ip>, locate", "dim");
+    printLine("  encode (list), binary/unbinary, morse/unmorse, hex/unhex", "dim");
+    printLine("  games, memory, recall <seq>, reaction, go, number, guess <n>, crack [1234]", "dim");
+  }
+
+  function gamesMenu() {
+    printLine("[GAMES] Choose one:", "ok");
+    printLine("  memory   → watch a sequence, then: recall <sequence>", "dim");
+    printLine("  reaction → type: reaction (then when ready, type: go)", "dim");
+    printLine("  number   → guess 1-100, then: guess <num>", "dim");
+    printLine("  crack    → guess the 4-digit code (0000-9999). Example: crack 1234", "dim");
+  }
+
+  async function startMemory() {
+    game.mode = "memory";
+    const len = 4 + Math.floor(Math.random() * 3);
+    const seq = Array.from({ length: len }, () => String(Math.floor(Math.random() * 10))).join("");
+    game.memorySeq = seq;
+    printLine("[MEMORY] Memorize this:", "ok");
+    printLine(seq, "danger");
+    await sleep(1200);
+    printLine("[MEMORY] Now type: recall <sequence>", "muted");
+  }
+
+  function recallMemory(rest) {
+    if (game.mode !== "memory" || !game.memorySeq) {
+      printLine("No memory game running. Type: memory", "warn");
+      return;
+    }
+    const guess = String(rest || "").trim().replace(/\s+/g, "");
+    if (!guess) { printLine("Usage: recall <sequence>", "warn"); return; }
+    if (guess === game.memorySeq) printLine("[MEMORY] Correct!", "ok");
+    else { printLine("[MEMORY] Wrong.", "warn"); printLine("Expected: " + game.memorySeq, "dim"); }
+    game.mode = null;
+    game.memorySeq = null;
+  }
+
+  function startReaction() {
+    game.mode = "reaction";
+    game.reactionArmed = true;
+    game.reactionStart = 0;
+    printLine("[REACTION] Get ready… wait for NOW, then type: go", "ok");
+    const delay = 900 + Math.random() * 2400;
+    setTimeout(() => {
+      if (!game.reactionArmed) return;
+      game.reactionStart = performance.now();
+      printLine("[REACTION] NOW!", "danger");
+    }, delay);
+  }
+
+  function reactionGo() {
+    if (game.mode !== "reaction" || !game.reactionArmed) {
+      printLine("No reaction test running. Type: reaction", "warn");
+      return;
+    }
+    if (!game.reactionStart) {
+      printLine("[REACTION] Too early! Wait for NOW.", "warn");
+      return;
+    }
+    const ms = performance.now() - game.reactionStart;
+    printLine("[REACTION] " + ms.toFixed(0) + "ms", "ok");
+    game.reactionArmed = false;
+    game.reactionStart = 0;
+    game.mode = null;
+  }
+
+  function startNumber() {
+    game.mode = "number";
+    game.numberTarget = 1 + Math.floor(Math.random() * 100);
+    game.guessCount = 0;
+    printLine("[NUMBER] I'm thinking 1-100. Type: guess <num>", "ok");
+  }
+
+  function guessNumber(arg) {
+    if (game.mode !== "number" || !game.numberTarget) {
+      printLine("No number game running. Type: number", "warn");
+      return;
+    }
+    const n = Number(arg);
+    if (!Number.isFinite(n)) { printLine("Usage: guess <num>", "warn"); return; }
+    game.guessCount++;
+    if (n === game.numberTarget) {
+      printLine("[NUMBER] Correct! guesses=" + game.guessCount, "ok");
+      game.mode = null;
+      game.numberTarget = null;
+      return;
+    }
+    printLine(n < game.numberTarget ? "Higher." : "Lower.", "dim");
+  }
+
+  function startCrack() {
+    game.mode = "crack";
+    game.crackSecret = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+    game.crackTries = 0;
+    printLine("[CRACK] Guess the 4-digit code (0000-9999).", "ok");
+    printLine("Type: crack 1234", "dim");
+  }
+
+  function crackGuess(rest) {
+    if (game.mode !== "crack" || !game.crackSecret) {
+      printLine("No crack game running. Type: crack", "warn");
+      return;
+    }
+    const guess = String(rest || "").trim();
+    if (!/^\d{4}$/.test(guess)) { printLine("Usage: crack <4 digits>", "warn"); return; }
+    game.crackTries++;
+    if (guess === game.crackSecret) {
+      printLine("[CRACK] Unlocked! tries=" + game.crackTries, "ok");
+      game.mode = null;
+      game.crackSecret = null;
+      return;
+    }
+    let match = 0;
+    for (let i = 0; i < 4; i++) if (guess[i] === game.crackSecret[i]) match++;
+    printLine("[CRACK] no. position-matches=" + match + "/4", "warn");
+  }
+
+  function encodeList() {
+    printLine("Encoders:", "ok");
+    printLine("  binary <text> / unbinary <bits>", "dim");
+    printLine("  morse <text> / unmorse <code>", "dim");
+    printLine("  hex <text> / unhex <hex>", "dim");
+  }
+
+  function toBinary(text) {
+    return Array.from(text).map(ch => ch.charCodeAt(0).toString(2).padStart(8,"0")).join(" ");
+  }
+  function fromBinary(bin) {
+    return String(bin||"").trim().split(/\s+/).filter(Boolean).map(b => String.fromCharCode(parseInt(b,2))).join("");
+  }
+
+  const MORSE = {A:".-",B:"-...",C:"-.-.",D:"-..",E:".",F:"..-.",G:"--.",H:"....",I:"..",J:".---",K:"-.-",L:".-..",M:"--",N:"-.",O:"---",P:".--.",Q:"--.-",R:".-.",S:"...",T:"-",U:"..-",V:"...-",W:".--",X:"-..-",Y:"-.--",Z:"--..",
+    0:"-----",1:".----",2:"..---",3:"...--",4:"....-",5:".....",6:"-....",7:"--...",8:"---..",9:"----."," ":"/"};
+  const UNMORSE = Object.fromEntries(Object.entries(MORSE).map(([k,v])=>[v,k]));
+  function toMorse(text){ return String(text||"").toUpperCase().split("").map(ch=>MORSE[ch]||"?").join(" "); }
+  function fromMorse(code){ return String(code||"").trim().split(/\s+/).filter(Boolean).map(tok=>UNMORSE[tok]||"?").join("").replaceAll("/"," "); }
+
+  function toHex(text){ return Array.from(String(text||"")).map(ch=>ch.charCodeAt(0).toString(16).padStart(2,"0")).join(" "); }
+  function fromHex(hex){ return String(hex||"").trim().split(/\s+/).filter(Boolean).map(h=>String.fromCharCode(parseInt(h,16))).join(""); }
+
+  async function ping(target) {
+    const t = target || "127.0.0.1";
+    printLine("[PING] " + t, "ok");
+    for (let i=0;i<4;i++){
+      await sleep(240 + Math.random()*220);
+      const ms = (8 + Math.random()*42).toFixed(1);
+      printLine("reply from " + t + ": time=" + ms + "ms ttl=64", "dim");
+    }
+    printLine("[PING] done.", "muted");
+  }
+
+  async function trace(ip) {
+    const t = ip || "8.8.8.8";
+    printLine("[TRACE] " + t, "ok");
+    const hops = 4 + Math.floor(Math.random()*6);
+    for (let i=1;i<=hops;i++){
+      await sleep(260 + Math.random()*260);
+      const ms = (12 + Math.random()*90).toFixed(0);
+      const hop = `10.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+      printLine(i + "  " + hop + "  " + ms + "ms", "dim");
+    }
+    printLine("[TRACE] reached " + t + " (sim).", "muted");
+  }
+
+  function locate(){
+    printLine("[LOCATE] (simulation — no real GPS used)", "warn");
+    printLine("Location: UNKNOWN — stealth noise injected", "dim");
+  }
+
+  function coffee(){
+    printLine("[COFFEE] Brewing…", "muted");
+    printLine("   ( (", "dim");
+    printLine("    ) )", "dim");
+    printLine("  ........", "dim");
+    printLine("  |      |]", "dim");
+    printLine("  \\      /", "dim");
+    printLine("   `----'", "dim");
+    printLine("[COFFEE] Done. (simulation)", "ok");
+  }
+
+  function facts(){
+    printLine("[FACTS] " + PRELOADED_FACTS.length + " loaded.", "ok");
+    PRELOADED_FACTS.forEach((f,i) => printLine(String(i+1).padStart(2,"0") + ". " + f, "dim"));
+  }
+
+  function factOne(){
+    const f = PRELOADED_FACTS[Math.floor(Math.random()*PRELOADED_FACTS.length)];
+    printLine("[FACT]", "ok");
+    printLine(f, "dim");
+  }
+
+  function banner(){ printLine(ASCII.banner, "ok"); }
+  function asciiCmd(name){
+    const key = String(name||"").toLowerCase();
+    if (!key) { printLine("Usage: ascii <zero|lemon|twinkle|banner>", "warn"); return; }
+    const art = ASCII[key];
+    if (!art) { printLine("No art named: " + key, "warn"); return; }
+    printLine(art, "dim");
+  }
+
+  async function doLogout(){
+    if (!currentUser) { printLine("[AUTH] not logged in.", "muted"); return; }
+    await api("/api/auth/logout", { method: "POST" });
+    await syncAuthUI();
+    printLine("[AUTH] logged out.", "muted");
+  }
+
+  async function handleCommand(raw) {
+    const line = String(raw || "").trim();
+    if (!line) return;
+
+    printLine(cwd + " $ " + line, "dim");
+
+    const parts = line.split(/\s+/);
+    const cmd = (parts[0] || "").toLowerCase();
+    const arg = parts[1];
+    const rest = parts.slice(1).join(" ");
+
+    // navigation/auth
+    if (cmd === "login") { location.href = "/login?next=/"; return; }
+    if (cmd === "register") { location.href = "/register?next=/"; return; }
+    if (cmd === "account" || cmd === "mypage") { location.href = "/account"; return; }
+    if (cmd === "logout") { await doLogout(); return; }
+
+    if (cmd === "admin") {
+      if (currentUser && currentUser.role === "admin") location.href = "/admin";
+      else openAdminOverlay();
+      return;
+    }
+
+    // basics
+    if (cmd === "help") { help(); return; }
+    if (cmd === "clear" || cmd === "cls") { clearTerm(); return; }
+    if (cmd === "exit" || cmd === "quit") { printLine("[SHELL] closed (simulation).", "muted"); return; }
+
+    // fun
+    if (cmd === "facts") { facts(); return; }
+    if (cmd === "fact") { factOne(); return; }
+    if (cmd === "coffee") { coffee(); return; }
+
+    // ascii
+    if (cmd === "banner") { banner(); return; }
+    if (cmd === "ascii") { asciiCmd(arg); return; }
+
+    // network sim
+    if (cmd === "ping") { await ping(rest); return; }
+    if (cmd === "trace") { await trace(rest); return; }
+    if (cmd === "locate") { locate(); return; }
+
+    // encoders
+    if (cmd === "encode" || cmd === "decode") { encodeList(); return; }
+    if (cmd === "binary") { printLine(toBinary(rest), "dim"); return; }
+    if (cmd === "unbinary") { printLine(fromBinary(rest), "dim"); return; }
+    if (cmd === "morse") { printLine(toMorse(rest), "dim"); return; }
+    if (cmd === "unmorse") { printLine(fromMorse(rest), "dim"); return; }
+    if (cmd === "hex") { printLine(toHex(rest), "dim"); return; }
+    if (cmd === "unhex") { printLine(fromHex(rest), "dim"); return; }
+
+    // games
+    if (cmd === "games") { gamesMenu(); return; }
+    if (cmd === "memory") { await startMemory(); return; }
+    if (cmd === "recall") { recallMemory(rest); return; }
+    if (cmd === "reaction") { startReaction(); return; }
+    if (cmd === "go") { reactionGo(); return; }
+    if (cmd === "number") { startNumber(); return; }
+    if (cmd === "guess") { guessNumber(arg); return; }
+    if (cmd === "crack") { if (!arg) startCrack(); else crackGuess(arg); return; }
+
+    printLine('Unknown command: ' + cmd + ' (type "help")', "warn");
+  }
+
+  cmdInput.addEventListener("keydown", async (e) => {
+    if (e.key !== "Enter") return;
+    if (cmdInput.disabled) return;
+    const raw = cmdInput.value;
+    cmdInput.value = "";
+    try { await handleCommand(raw); } catch (err) {
+      printLine("[ERROR] " + err.message, "danger");
+    }
+  });
+
+  // ===== startup =====
+  (async () => {
+    await syncAuthUI();
+
+    // Skip forever?
+    if (localStorage.getItem("zp_skip_boot") === "1") {
+      skipBoot(false);
+    } else {
+      typeBoot();
+    }
+  })();
+})();
+</script>
+</body>
 </html>
