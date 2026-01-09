@@ -1,180 +1,21 @@
-const fs = require("fs");
+// server.js (FREE-friendly: Render Free + MongoDB Atlas Free)
+// Stores users/role requests in MongoDB (persistent) — no disks needed.
+// Sessions are in-memory (they reset when the server sleeps/restarts on free tiers).
+
 const path = require("path");
 const express = require("express");
 const session = require("express-session");
-const FileStoreFactory = require("session-file-store");
 const bcrypt = require("bcryptjs");
+const { MongoClient, ObjectId } = require("mongodb");
 
 const app = express();
 app.set("trust proxy", 1);
 
-/* ============================================================
-   Persistent data paths (Render-friendly)
-   - On Render, set:
-       DATA_DIR=/var/data
-     and add a Persistent Disk mounted at /var/data
-   ============================================================ */
-
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
-const DATA_PATH = path.join(DATA_DIR, "db.json");
-const SESS_DIR = path.join(DATA_DIR, "sessions");
-
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(SESS_DIR)) fs.mkdirSync(SESS_DIR, { recursive: true });
-
-/* ============================================================
-   DB helpers
-   ============================================================ */
-
-function readDB() {
-  try {
-    const raw = fs.readFileSync(DATA_PATH, "utf8");
-    const db = JSON.parse(raw);
-    db.users ||= [];
-    db.roleRequests ||= [];
-    return db;
-  } catch (e) {
-    return { users: [], roleRequests: [] };
-  }
-}
-
-function writeDB(db) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(db, null, 2), "utf8");
-}
-
-function nowISO() {
-  return new Date().toISOString();
-}
-
-function nextId(prefix = "id") {
-  return (
-    prefix +
-    "_" +
-    Math.random().toString(36).slice(2, 10) +
-    "_" +
-    Date.now().toString(36)
-  );
-}
-
-function normalizeUsername(u) {
-  return String(u || "").trim();
-}
-
-function usernameKey(u) {
-  return normalizeUsername(u).toLowerCase();
-}
-
-function publicUser(u) {
-  return { id: u.id, username: u.username, role: u.role, createdAt: u.createdAt };
-}
-
-/* ============================================================
-   Roles
-   ============================================================ */
-
-function roleRank(role) {
-  if (role === "user") return 0;
-  if (role === "mod") return 1;
-  if (role === "admin") return 2;
-  return -1;
-}
-
-function nextRoleFor(role) {
-  if (role === "user") return "mod";
-  if (role === "mod") return "admin";
-  return null;
-}
-
-/* ============================================================
-   Middleware (API)
-   ============================================================ */
-
-function requireAuth(req, res, next) {
-  if (!req.session.userId) return res.status(401).json({ error: "Not logged in" });
-  next();
-}
-
-function requireAdmin(req, res, next) {
-  const db = readDB();
-  const u = db.users.find((x) => x.id === req.session.userId);
-  if (!u) return res.status(401).json({ error: "Not logged in" });
-  if (u.role !== "admin") return res.status(403).json({ error: "Admin only" });
-  req.me = u;
-  next();
-}
-
-/* ============================================================
-   Middleware (Pages)
-   - Used to protect /account /admin /mod and also their .html routes
-   ============================================================ */
-
-function requireRolePage(roles = []) {
-  return (req, res, next) => {
-    if (!req.session.userId) return res.redirect("/login");
-    const db = readDB();
-    const me = db.users.find((u) => u.id === req.session.userId);
-    if (!me) return res.redirect("/login");
-    if (!roles.includes(me.role)) return res.status(403).send("Forbidden");
-    req.me = me;
-    next();
-  };
-}
-
-/* ============================================================
-   Bootstrap admin
-   ============================================================ */
-
-function ensureBootstrapAdmin() {
-  const db = readDB();
-  const adminUsername = process.env.BOOTSTRAP_ADMIN_USERNAME || "admin";
-  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || "951212";
-
-  const hasAdmin = db.users.some((u) => u.role === "admin");
-  if (hasAdmin) return;
-
-  const username = normalizeUsername(adminUsername);
-  const key = usernameKey(username);
-
-  if (!username || String(adminPassword || "").length < 6) {
-    console.warn("[bootstrap] Missing/weak BOOTSTRAP admin credentials; skipping.");
-    return;
-  }
-
-  const existing = db.users.find((u) => usernameKey(u.username) === key);
-  if (existing) {
-    existing.role = "admin";
-    writeDB(db);
-    console.log("[bootstrap] Upgraded existing user to admin:", existing.username);
-    return;
-  }
-
-  const passHash = bcrypt.hashSync(adminPassword, 10);
-  const u = {
-    id: nextId("u"),
-    username,
-    passHash,
-    role: "admin",
-    createdAt: nowISO(),
-  };
-  db.users.push(u);
-  writeDB(db);
-  console.log("[bootstrap] Created admin user:", username);
-}
-
-/* ============================================================
-   Express setup
-   ============================================================ */
-
 app.use(express.json({ limit: "200kb" }));
 app.use(express.urlencoded({ extended: false }));
 
-const FileStore = FileStoreFactory(session);
 app.use(
   session({
-    store: new FileStore({
-      path: SESS_DIR,
-      retries: 0,
-    }),
     secret: process.env.SESSION_SECRET || "dev-secret-change-me",
     resave: false,
     saveUninitialized: false,
@@ -186,31 +27,167 @@ app.use(
   }),
 );
 
-ensureBootstrapAdmin();
+/* =========================
+   MongoDB
+   ========================= */
 
-/* ============================================================
-   Page routes (BEFORE static, so auth can't be bypassed)
-   ============================================================ */
+const MONGODB_URI = process.env.MONGODB_URI; // REQUIRED
+const MONGODB_DB = process.env.MONGODB_DB || "zeropoint";
 
-// Public pages
+if (!MONGODB_URI) {
+  console.error("Missing MONGODB_URI env var.");
+}
+
+const client = new MongoClient(MONGODB_URI || "mongodb://invalid");
+
+let usersCol;
+let roleReqCol;
+
+function normalizeUsername(u) {
+  return String(u || "").trim();
+}
+
+function usernameKey(u) {
+  return normalizeUsername(u).toLowerCase();
+}
+
+function publicUser(u) {
+  return {
+    id: String(u._id),
+    username: u.username,
+    role: u.role,
+    createdAt: u.createdAt ? u.createdAt.toISOString() : null,
+  };
+}
+
+function nextRoleFor(role) {
+  if (role === "user") return "mod";
+  if (role === "mod") return "admin";
+  return null;
+}
+
+function reqToClient(r) {
+  return {
+    id: String(r._id),
+    userId: String(r.userId),
+    usernameAtTime: r.usernameAtTime || null,
+    requestedRole: r.requestedRole,
+    status: r.status,
+    createdAt: r.createdAt ? r.createdAt.toISOString() : null,
+    decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
+    decidedBy: r.decidedBy || null,
+    reason: r.reason || null,
+  };
+}
+
+async function getUserBySession(req) {
+  if (!req.session.userId) return null;
+  try {
+    const id = new ObjectId(req.session.userId);
+    return await usersCol.findOne({ _id: id });
+  } catch {
+    return null;
+  }
+}
+
+/* =========================
+   Auth middleware
+   ========================= */
+
+function requireAuthApi() {
+  return async (req, res, next) => {
+    const me = await getUserBySession(req);
+    if (!me) return res.status(401).json({ error: "Not logged in" });
+    req.me = me;
+    next();
+  };
+}
+
+function requireModApi() {
+  return async (req, res, next) => {
+    const me = await getUserBySession(req);
+    if (!me) return res.status(401).json({ error: "Not logged in" });
+    if (me.role !== "mod" && me.role !== "admin") {
+      return res.status(403).json({ error: "Mod/Admin only" });
+    }
+    req.me = me;
+    next();
+  };
+}
+
+function requireAdminApi() {
+  return async (req, res, next) => {
+    const me = await getUserBySession(req);
+    if (!me) return res.status(401).json({ error: "Not logged in" });
+    if (me.role !== "admin") return res.status(403).json({ error: "Admin only" });
+    req.me = me;
+    next();
+  };
+}
+
+function requireRolePage(roles = []) {
+  return async (req, res, next) => {
+    const me = await getUserBySession(req);
+    if (!me) return res.redirect("/login");
+    if (!roles.includes(me.role)) return res.status(403).send("Forbidden");
+    req.me = me;
+    next();
+  };
+}
+
+/* =========================
+   Bootstrap admin
+   ========================= */
+
+async function ensureBootstrapAdmin() {
+  const adminUsername = process.env.BOOTSTRAP_ADMIN_USERNAME || "admin";
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || "951212";
+
+  const hasAdmin = await usersCol.findOne({ role: "admin" });
+  if (hasAdmin) return;
+
+  const username = normalizeUsername(adminUsername);
+  if (!username || String(adminPassword || "").length < 6) {
+    console.warn("[bootstrap] Missing/weak admin credentials; skipping.");
+    return;
+  }
+
+  const lower = usernameKey(username);
+  const existing = await usersCol.findOne({ usernameLower: lower });
+
+  if (existing) {
+    await usersCol.updateOne({ _id: existing._id }, { $set: { role: "admin" } });
+    console.log("[bootstrap] Upgraded existing user to admin:", existing.username);
+    return;
+  }
+
+  const passHash = bcrypt.hashSync(adminPassword, 10);
+  await usersCol.insertOne({
+    username,
+    usernameLower: lower,
+    passHash,
+    role: "admin",
+    createdAt: new Date(),
+  });
+
+  console.log("[bootstrap] Created admin user:", username);
+}
+
+/* =========================
+   Page routes (BEFORE static)
+   ========================= */
+
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
-app.get("/index.html", (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "index.html")),
-);
+app.get("/index.html", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/login.html", (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "login.html")),
-);
+app.get("/login.html", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
 
-app.get("/register", (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "register.html")),
-);
+app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
 app.get("/register.html", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "register.html")),
 );
 
-// Protected pages (also protect direct .html access)
 app.get(
   ["/account", "/account.html"],
   requireRolePage(["user", "mod", "admin"]),
@@ -223,32 +200,26 @@ app.get(
   (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")),
 );
 
-// NEW: Moderator page
 app.get(
   ["/mod", "/mod.html"],
   requireRolePage(["mod", "admin"]),
   (req, res) => res.sendFile(path.join(__dirname, "public", "mod.html")),
 );
 
-/* ============================================================
-   Static files (AFTER routes)
-   ============================================================ */
-
+// Static last so you can’t bypass protection by visiting /admin.html directly
 app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"] }));
 
-/* ============================================================
+/* =========================
    API: Auth
-   ============================================================ */
+   ========================= */
 
-app.get("/api/auth/me", (req, res) => {
-  if (!req.session.userId) return res.status(200).json({ loggedIn: false });
-  const db = readDB();
-  const u = db.users.find((x) => x.id === req.session.userId);
-  if (!u) return res.status(200).json({ loggedIn: false });
-  return res.status(200).json({ loggedIn: true, user: publicUser(u) });
+app.get("/api/auth/me", async (req, res) => {
+  const me = await getUserBySession(req);
+  if (!me) return res.status(200).json({ loggedIn: false });
+  return res.status(200).json({ loggedIn: true, user: publicUser(me) });
 });
 
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   const username = normalizeUsername(req.body.username);
   const password = String(req.body.password || "");
 
@@ -256,41 +227,44 @@ app.post("/api/auth/register", (req, res) => {
     return res.status(400).json({ error: "Username must be 3-24 characters." });
   }
   if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    return res.status(400).json({
-      error: "Username can only use letters, numbers, underscore.",
-    });
+    return res
+      .status(400)
+      .json({ error: "Username can only use letters, numbers, underscore." });
   }
   if (password.length < 6 || password.length > 128) {
     return res.status(400).json({ error: "Password must be 6-128 characters." });
   }
 
-  const db = readDB();
-  const key = usernameKey(username);
-  if (db.users.some((u) => usernameKey(u.username) === key)) {
-    return res.status(409).json({ error: "Username already taken." });
-  }
+  const lower = usernameKey(username);
+  const exists = await usersCol.findOne({ usernameLower: lower });
+  if (exists) return res.status(409).json({ error: "Username already taken." });
 
   const passHash = bcrypt.hashSync(password, 10);
-  const u = { id: nextId("u"), username, passHash, role: "user", createdAt: nowISO() };
-  db.users.push(u);
-  writeDB(db);
+  const result = await usersCol.insertOne({
+    username,
+    usernameLower: lower,
+    passHash,
+    role: "user",
+    createdAt: new Date(),
+  });
 
-  req.session.userId = u.id;
-  return res.status(201).json({ ok: true, user: publicUser(u) });
+  req.session.userId = String(result.insertedId);
+  const me = await usersCol.findOne({ _id: result.insertedId });
+  return res.status(201).json({ ok: true, user: publicUser(me) });
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const username = normalizeUsername(req.body.username);
   const password = String(req.body.password || "");
 
-  const db = readDB();
-  const u = db.users.find((x) => usernameKey(x.username) === usernameKey(username));
+  const lower = usernameKey(username);
+  const u = await usersCol.findOne({ usernameLower: lower });
   if (!u) return res.status(401).json({ error: "Invalid username or password." });
 
   const ok = bcrypt.compareSync(password, u.passHash);
   if (!ok) return res.status(401).json({ error: "Invalid username or password." });
 
-  req.session.userId = u.id;
+  req.session.userId = String(u._id);
   return res.status(200).json({ ok: true, user: publicUser(u) });
 });
 
@@ -301,11 +275,11 @@ app.post("/api/auth/logout", (req, res) => {
   });
 });
 
-/* ============================================================
+/* =========================
    API: Account
-   ============================================================ */
+   ========================= */
 
-app.post("/api/account/change-username", requireAuth, (req, res) => {
+app.post("/api/account/change-username", requireAuthApi(), async (req, res) => {
   const newUsername = normalizeUsername(req.body.newUsername);
   const currentPassword = String(req.body.currentPassword || "");
 
@@ -313,29 +287,31 @@ app.post("/api/account/change-username", requireAuth, (req, res) => {
     return res.status(400).json({ error: "Username must be 3-24 characters." });
   }
   if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
-    return res.status(400).json({
-      error: "Username can only use letters, numbers, underscore.",
-    });
+    return res
+      .status(400)
+      .json({ error: "Username can only use letters, numbers, underscore." });
   }
 
-  const db = readDB();
-  const u = db.users.find((x) => x.id === req.session.userId);
-  if (!u) return res.status(401).json({ error: "Not logged in" });
-
-  const ok = bcrypt.compareSync(currentPassword, u.passHash);
+  const ok = bcrypt.compareSync(currentPassword, req.me.passHash);
   if (!ok) return res.status(401).json({ error: "Wrong current password." });
 
-  const key = usernameKey(newUsername);
-  if (db.users.some((x) => x.id !== u.id && usernameKey(x.username) === key)) {
-    return res.status(409).json({ error: "Username already taken." });
-  }
+  const lower = usernameKey(newUsername);
+  const exists = await usersCol.findOne({
+    usernameLower: lower,
+    _id: { $ne: req.me._id },
+  });
+  if (exists) return res.status(409).json({ error: "Username already taken." });
 
-  u.username = newUsername;
-  writeDB(db);
-  return res.status(200).json({ ok: true, user: publicUser(u) });
+  await usersCol.updateOne(
+    { _id: req.me._id },
+    { $set: { username: newUsername, usernameLower: lower } },
+  );
+
+  const me2 = await usersCol.findOne({ _id: req.me._id });
+  return res.status(200).json({ ok: true, user: publicUser(me2) });
 });
 
-app.post("/api/account/change-password", requireAuth, (req, res) => {
+app.post("/api/account/change-password", requireAuthApi(), async (req, res) => {
   const currentPassword = String(req.body.currentPassword || "");
   const newPassword = String(req.body.newPassword || "");
 
@@ -343,184 +319,236 @@ app.post("/api/account/change-password", requireAuth, (req, res) => {
     return res.status(400).json({ error: "New password must be 6-128 characters." });
   }
 
-  const db = readDB();
-  const u = db.users.find((x) => x.id === req.session.userId);
-  if (!u) return res.status(401).json({ error: "Not logged in" });
-
-  const ok = bcrypt.compareSync(currentPassword, u.passHash);
+  const ok = bcrypt.compareSync(currentPassword, req.me.passHash);
   if (!ok) return res.status(401).json({ error: "Wrong current password." });
 
-  u.passHash = bcrypt.hashSync(newPassword, 10);
-  writeDB(db);
+  const newHash = bcrypt.hashSync(newPassword, 10);
+  await usersCol.updateOne({ _id: req.me._id }, { $set: { passHash: newHash } });
+
   return res.status(200).json({ ok: true });
 });
 
-/* ============================================================
-   API: Role requests
-   - Upgrade path only:
-       user -> mod
-       mod  -> admin
-   ============================================================ */
+/* =========================
+   API: Role requests (upgrade path only)
+   user -> mod -> admin
+   ========================= */
 
-app.post("/api/requests/role", requireAuth, (req, res) => {
-  const db = readDB();
-  const u = db.users.find((x) => x.id === req.session.userId);
-  if (!u) return res.status(401).json({ error: "Not logged in" });
-
+app.post("/api/requests/role", requireAuthApi(), async (req, res) => {
   const requestedRole = String(req.body.role || "").toLowerCase();
-  const expected = nextRoleFor(u.role);
+  const expected = nextRoleFor(req.me.role);
 
-  if (!expected) {
-    return res.status(400).json({ error: "You cannot request a higher role." });
-  }
+  if (!expected) return res.status(400).json({ error: "You cannot request a higher role." });
   if (requestedRole !== expected) {
     return res.status(400).json({ error: `You can only request: ${expected}` });
   }
 
+  // Only 1 pending request at a time
+  const pending = await roleReqCol.findOne({ userId: req.me._id, status: "pending" });
+  if (pending) return res.status(409).json({ error: "You already have a pending request." });
+
   const now = Date.now();
 
-  // Only 1 pending at a time
-  const pending = db.roleRequests.find((r) => r.userId === u.id && r.status === "pending");
-  if (pending) {
-    return res.status(409).json({ error: "You already have a pending request." });
-  }
+  // Cooldown: 6 hours between requests
+  const lastArr = await roleReqCol
+    .find({ userId: req.me._id })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .toArray();
 
-  // Cooldown: 6 hours between creating requests
-  const last = db.roleRequests
-    .filter((r) => r.userId === u.id)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-
-  if (last) {
-    const lastTime = new Date(last.createdAt).getTime();
+  if (lastArr[0]?.createdAt) {
+    const lastTime = lastArr[0].createdAt.getTime();
     const cooldownMs = 6 * 60 * 60 * 1000;
     if (now - lastTime < cooldownMs) {
       const mins = Math.ceil((cooldownMs - (now - lastTime)) / 60000);
-      return res
-        .status(429)
-        .json({ error: `Please wait ${mins} more minutes before requesting again.` });
+      return res.status(429).json({ error: `Please wait ${mins} more minutes.` });
     }
   }
 
   // Weekly limit: max 3 per 7 days
   const weekMs = 7 * 24 * 60 * 60 * 1000;
-  const recentCount = db.roleRequests.filter(
-    (r) => r.userId === u.id && now - new Date(r.createdAt).getTime() < weekMs,
-  ).length;
+  const recentCount = await roleReqCol.countDocuments({
+    userId: req.me._id,
+    createdAt: { $gte: new Date(now - weekMs) },
+  });
+  if (recentCount >= 3) return res.status(429).json({ error: "Too many requests. Try later." });
 
-  if (recentCount >= 3) {
-    return res.status(429).json({ error: "Too many requests. Try again later." });
-  }
-
-  const reqObj = {
-    id: nextId("req"),
-    userId: u.id,
-    usernameAtTime: u.username,
+  const doc = {
+    userId: req.me._id,
+    usernameAtTime: req.me.username,
     requestedRole,
     status: "pending",
-    createdAt: nowISO(),
+    createdAt: new Date(),
     decidedAt: null,
     decidedBy: null,
     reason: null,
   };
 
-  db.roleRequests.push(reqObj);
-  writeDB(db);
-  return res.status(201).json({ ok: true, request: reqObj });
+  const result = await roleReqCol.insertOne(doc);
+  const saved = await roleReqCol.findOne({ _id: result.insertedId });
+
+  return res.status(201).json({ ok: true, request: reqToClient(saved) });
 });
 
-// Optional: user can view their own requests
-app.get("/api/requests/my", requireAuth, (req, res) => {
-  const db = readDB();
-  const list = db.roleRequests
-    .filter((r) => r.userId === req.session.userId)
-    .slice()
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 50);
+app.get("/api/requests/my", requireAuthApi(), async (req, res) => {
+  const list = await roleReqCol
+    .find({ userId: req.me._id })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .toArray();
 
-  return res.json({ ok: true, requests: list });
+  return res.json({ ok: true, requests: list.map(reqToClient) });
 });
 
-/* ============================================================
-   API: Admin role requests (Option A: admin-only)
-   ============================================================ */
+/* =========================
+   API: Mod (view-only)
+   ========================= */
 
-app.get("/api/admin/requests", requireAdmin, (req, res) => {
+app.get("/api/mod/requests", requireModApi(), async (req, res) => {
   const status = String(req.query.status || "pending").toLowerCase();
-  const db = readDB();
 
-  let list = db.roleRequests.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  if (["pending", "approved", "rejected"].includes(status)) {
-    list = list.filter((r) => r.status === status);
-  }
-  return res.json({ ok: true, requests: list });
+  const filter = {};
+  if (["pending", "approved", "rejected"].includes(status)) filter.status = status;
+  // if status === "all" => no filter
+
+  const list = await roleReqCol.find(filter).sort({ createdAt: -1 }).toArray();
+  return res.json({ ok: true, requests: list.map(reqToClient) });
 });
 
-app.get("/api/admin/requests/pending-count", requireAdmin, (req, res) => {
-  const db = readDB();
-  const n = db.roleRequests.filter((r) => r.status === "pending").length;
+app.get("/api/mod/requests/pending-count", requireModApi(), async (req, res) => {
+  const n = await roleReqCol.countDocuments({ status: "pending" });
   return res.json({ ok: true, pendingCount: n });
 });
 
-app.post("/api/admin/requests/:id/approve", requireAdmin, (req, res) => {
-  const id = req.params.id;
-  const db = readDB();
+/* =========================
+   API: Admin (approve/reject)
+   ========================= */
 
-  const adminUser = db.users.find((u) => u.id === req.session.userId);
+app.get("/api/admin/requests", requireAdminApi(), async (req, res) => {
+  const status = String(req.query.status || "pending").toLowerCase();
 
-  const r = db.roleRequests.find((x) => x.id === id);
+  const filter = {};
+  if (["pending", "approved", "rejected"].includes(status)) filter.status = status;
+  // if status === "all" => no filter
+
+  const list = await roleReqCol.find(filter).sort({ createdAt: -1 }).toArray();
+  return res.json({ ok: true, requests: list.map(reqToClient) });
+});
+
+app.get("/api/admin/requests/pending-count", requireAdminApi(), async (req, res) => {
+  const n = await roleReqCol.countDocuments({ status: "pending" });
+  return res.json({ ok: true, pendingCount: n });
+});
+
+app.post("/api/admin/requests/:id/approve", requireAdminApi(), async (req, res) => {
+  let rid;
+  try {
+    rid = new ObjectId(req.params.id);
+  } catch {
+    return res.status(400).json({ error: "Bad request id" });
+  }
+
+  const r = await roleReqCol.findOne({ _id: rid });
   if (!r) return res.status(404).json({ error: "Not found" });
   if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
 
-  const u = db.users.find((x) => x.id === r.userId);
+  const u = await usersCol.findOne({ _id: r.userId });
   if (!u) return res.status(404).json({ error: "User not found" });
 
-  // Still enforce upgrade path when approving (extra safety)
   const expected = nextRoleFor(u.role);
   if (expected !== r.requestedRole) {
-    r.status = "rejected";
-    r.decidedAt = nowISO();
-    r.decidedBy = adminUser ? adminUser.username : "admin";
-    r.reason = "Rejected (role changed / request no longer valid).";
-    writeDB(db);
+    await roleReqCol.updateOne(
+      { _id: rid },
+      {
+        $set: {
+          status: "rejected",
+          decidedAt: new Date(),
+          decidedBy: req.me.username,
+          reason: "Rejected (role changed / request no longer valid).",
+        },
+      },
+    );
     return res.status(400).json({ error: "User role changed; request no longer valid." });
   }
 
-  u.role = r.requestedRole;
-  r.status = "approved";
-  r.decidedAt = nowISO();
-  r.decidedBy = adminUser ? adminUser.username : "admin";
-  r.reason = String(req.body.reason || "") || null;
+  await usersCol.updateOne({ _id: u._id }, { $set: { role: r.requestedRole } });
 
-  writeDB(db);
-  return res.json({ ok: true, request: r, user: publicUser(u) });
+  await roleReqCol.updateOne(
+    { _id: rid },
+    {
+      $set: {
+        status: "approved",
+        decidedAt: new Date(),
+        decidedBy: req.me.username,
+        reason: String(req.body.reason || "") || null,
+      },
+    },
+  );
+
+  const r2 = await roleReqCol.findOne({ _id: rid });
+  const u2 = await usersCol.findOne({ _id: u._id });
+
+  return res.json({ ok: true, request: reqToClient(r2), user: publicUser(u2) });
 });
 
-app.post("/api/admin/requests/:id/reject", requireAdmin, (req, res) => {
-  const id = req.params.id;
-  const db = readDB();
+app.post("/api/admin/requests/:id/reject", requireAdminApi(), async (req, res) => {
+  let rid;
+  try {
+    rid = new ObjectId(req.params.id);
+  } catch {
+    return res.status(400).json({ error: "Bad request id" });
+  }
 
-  const adminUser = db.users.find((u) => u.id === req.session.userId);
-
-  const r = db.roleRequests.find((x) => x.id === id);
+  const r = await roleReqCol.findOne({ _id: rid });
   if (!r) return res.status(404).json({ error: "Not found" });
   if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
 
-  r.status = "rejected";
-  r.decidedAt = nowISO();
-  r.decidedBy = adminUser ? adminUser.username : "admin";
-  r.reason = String(req.body.reason || "") || null;
+  await roleReqCol.updateOne(
+    { _id: rid },
+    {
+      $set: {
+        status: "rejected",
+        decidedAt: new Date(),
+        decidedBy: req.me.username,
+        reason: String(req.body.reason || "") || null,
+      },
+    },
+  );
 
-  writeDB(db);
-  return res.json({ ok: true, request: r });
+  const r2 = await roleReqCol.findOne({ _id: rid });
+  return res.json({ ok: true, request: reqToClient(r2) });
 });
 
-/* ============================================================
+/* =========================
    Health
-   ============================================================ */
+   ========================= */
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("ZeroPoint server listening on port", PORT);
+/* =========================
+   Start AFTER DB connect
+   ========================= */
+
+async function start() {
+  await client.connect();
+  const db = client.db(MONGODB_DB);
+
+  usersCol = db.collection("users");
+  roleReqCol = db.collection("role_requests");
+
+  // Unique usernames (case-insensitive)
+  await usersCol.createIndex({ usernameLower: 1 }, { unique: true });
+
+  // Helpful indexes for requests
+  await roleReqCol.createIndex({ status: 1, createdAt: -1 });
+  await roleReqCol.createIndex({ userId: 1, createdAt: -1 });
+
+  await ensureBootstrapAdmin();
+
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log("Server listening on port", PORT));
+}
+
+start().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });
