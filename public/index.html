@@ -1,1 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZeroPoint</title>
+    <style>
+      /* =========================================================
+         ZeroPoint index.html
+         - Shell locked unless logged in
+         - Login/Register buttons top-right (hide when logged in)
+         - Admin button shows only for admins
+         - Shift+H opens History Facts
+         - SSE:
+           * admin_run (Feature B)
+           * admin_fx  (Feature C)
+           * commands_update (reload custom commands)
+         - Command logging (Feature A): POST /api/logs/command
+         ========================================================= */
 
+      :root {
+        --txt: #e8fff7;
+        --muted: rgba(232, 255, 247, 0.7);
+        --panel: rgba(0, 0, 0, 0.55);
+        --line: rgba(255, 255, 255, 0.08);
+
+        --accent: #00f7ff;
+        --accent2: #30ff9b;
+        --warn: #ffd27a;
+        --danger: #ff7a7a;
+
+        --scan-opacity: 0.55;
+        --glitch-opacity: 0.12;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      /* IMPORTANT: this CSS is scoped to the index shell only */
+      body.shell {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, #04161b 0%, #010208 55%, #000 100%);
+        color: var(--txt);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        overflow: hidden;
+      }
+
+      #matrixCanvas {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        z-index: 1;
+      }
+      #matrixCanvas.on {
+        opacity: 0.55;
+      }
+
+      #screen {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        padding: 16px 12px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 2;
+        transform-origin: center;
+      }
+
+      /* optional FX toggles that admin can control */
+      #screen.rainbow {
+        animation: hueShift 8s linear infinite;
+      }
+      #screen.mirror {
+        transform: scaleX(-1);
+      }
+      @keyframes hueShift {
+        0% { filter: hue-rotate(0deg); }
+        100% { filter: hue-rotate(360deg); }
+      }
+
+      #topBar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.7);
+        background:
+          radial-gradient(circle at top left, rgba(0, 247, 255, 0.06), transparent 55%),
+          linear-gradient(to bottom, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.62));
+        box-shadow: 0 14px 60px rgba(0, 0, 0, 0.75);
+      }
+
+      #brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        user-select: none;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: 12px;
+        color: #b7ffe7;
+      }
+
+      #dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid var(--accent);
+        box-shadow: 0 0 14px rgba(0, 247, 255, 0.8);
+      }
+
+      .pill {
+        padding: 3px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(0, 0, 0, 0.22);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.92;
+        white-space: nowrap;
+      }
+
+      .pill.ok {
+        border-color: rgba(48, 255, 155, 0.6);
+        color: #b9ffdf;
+      }
+      .pill.warn {
+        border-color: rgba(255, 210, 122, 0.9);
+        color: #ffe0b3;
+      }
+      .pill.info {
+        border-color: rgba(0, 247, 255, 0.8);
+        color: #b4f7ff;
+      }
+
+      #topRightBtns {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      button.small {
+        border-radius: 999px;
+        padding: 6px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.85);
+        background: radial-gradient(circle at top left, rgba(0, 255, 160, 0.14), rgba(0, 0, 0, 0.65));
+        color: var(--txt);
+        font-size: 11px;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+        cursor: pointer;
+        opacity: 0.92;
+      }
+      button.small:hover {
+        opacity: 1;
+        box-shadow: 0 0 0 1px rgba(0, 247, 255, 0.35);
+      }
+
+      #termShell {
+        flex: 1;
+        min-height: 0;
+        border-radius: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.7);
+        background:
+          linear-gradient(to bottom, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.65)),
+          radial-gradient(circle at top left, rgba(48, 255, 155, 0.05), transparent 60%);
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.7),
+          0 16px 80px rgba(0, 0, 0, 0.85);
+        padding: 12px 12px 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+
+      #scanOverlay {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        mix-blend-mode: soft-light;
+        opacity: var(--scan-opacity);
+        background-image: linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+        background-size: 100% 2px;
+        z-index: 3;
+      }
+
+      #glitchOverlay {
+        pointer-events: none;
+        position: absolute;
+        inset: 0;
+        opacity: var(--glitch-opacity);
+        background:
+          repeating-linear-gradient(90deg,
+            rgba(0, 247, 255, 0.02) 0px,
+            rgba(0, 247, 255, 0.10) 1px,
+            transparent 3px,
+            transparent 6px
+          ),
+          repeating-linear-gradient(180deg,
+            rgba(180, 92, 255, 0.02) 0px,
+            rgba(180, 92, 255, 0.10) 2px,
+            transparent 4px,
+            transparent 8px
+          );
+        mix-blend-mode: screen;
+        z-index: 2;
+      }
+
+      #term {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 4px 2px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 13px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+
+      .line { margin: 0 0 2px 0; }
+      .line.dim { opacity: 0.78; color: #8fffd0; }
+      .line.muted { opacity: 0.72; }
+      .line.ok { color: var(--accent2); }
+      .line.warn { color: var(--warn); }
+      .line.danger { color: var(--danger); }
+
+      #cmdRow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      #cmdPrompt { color: var(--accent2); white-space: nowrap; }
+      #cmdInput {
+        flex: 1;
+        min-width: 0;
+        border-radius: 8px;
+        padding: 7px 9px;
+        border: 1px solid rgba(0, 0, 0, 0.9);
+        background: rgba(0, 0, 0, 0.62);
+        color: var(--txt);
+        outline: none;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      #cmdInput:focus {
+        border-color: rgba(48, 255, 155, 0.85);
+        box-shadow: 0 0 0 1px rgba(48, 255, 155, 0.25);
+      }
+
+      /* ===== Facts overlay ===== */
+      #factsView {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at top, rgba(1, 10, 21, 0.98) 0, rgba(0, 0, 0, 0.98) 70%);
+        z-index: 50;
+      }
+      #factsView.visible { display: flex; }
+
+      #factsCard {
+        width: min(760px, calc(100% - 32px));
+        max-height: 80vh;
+        border-radius: 14px;
+        padding: 14px 14px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.8);
+        background: radial-gradient(circle at top left, rgba(4, 24, 34, 0.95), rgba(2, 4, 10, 0.95));
+        box-shadow: 0 20px 90px rgba(0, 0, 0, 0.95);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      #factsHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      #factsTitle {
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-size: 13px;
+        color: #aef9ff;
+      }
+      #factsHint {
+        font-size: 12px;
+        opacity: 0.85;
+        margin-top: 6px;
+      }
+      #factsText {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        border-radius: 10px;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 640px) {
+        #screen { padding: 14px 10px 10px; }
+        #termShell { padding: 10px 10px 8px; }
+      }
+    </style>
+  </head>
+
+  <body class="shell">
+    <canvas id="matrixCanvas"></canvas>
+
+    <div id="screen">
+      <div id="topBar">
+        <div id="brand"><span id="dot"></span><span>ZeroPoint</span></div>
+
+        <span id="pillLink" class="pill warn">LINK: OFFLINE</span>
+        <span id="pillRole" class="pill info">ROLE: GUEST</span>
+        <span id="pillLevel" class="pill info">LV 1</span>
+        <span id="pillDevice" class="pill info">DEVICE: ...</span>
+
+        <div id="topRightBtns">
+          <button id="loginBtn" class="small" type="button">Login</button>
+          <button id="registerBtn" class="small" type="button">Register</button>
+          <button id="adminBtn" class="small" type="button" style="display:none">Admin</button>
+        </div>
+      </div>
+
+      <div id="termShell">
+        <div id="scanOverlay"></div>
+        <div id="glitchOverlay"></div>
+
+        <div id="term"></div>
+
+        <div id="cmdRow" style="display:none">
+          <span id="cmdPrompt">/ $</span>
+          <input id="cmdInput" autocomplete="off" spellcheck="false" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Facts overlay -->
+    <div id="factsView" role="dialog" aria-modal="true">
+      <div id="factsCard">
+        <div id="factsHeader">
+          <div>
+            <div id="factsTitle">History Facts (Offline)</div>
+            <div id="factsHint">Shortcut: <b>Shift + H</b> • Close: <b>Esc</b></div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button id="factsPrintBtn" class="small" type="button">Print</button>
+            <button id="factsCloseBtn" class="small" type="button">Close</button>
+          </div>
+        </div>
+        <pre id="factsText"></pre>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const screen = document.getElementById("screen");
+        const term = document.getElementById("term");
+        const cmdRow = document.getElementById("cmdRow");
+        const cmdPrompt = document.getElementById("cmdPrompt");
+        const cmdInput = document.getElementById("cmdInput");
+
+        const pillLink = document.getElementById("pillLink");
+        const pillRole = document.getElementById("pillRole");
+        const pillLevel = document.getElementById("pillLevel");
+        const pillDevice = document.getElementById("pillDevice");
+
+        const loginBtn = document.getElementById("loginBtn");
+        const registerBtn = document.getElementById("registerBtn");
+        const adminBtn = document.getElementById("adminBtn");
+
+        const factsView = document.getElementById("factsView");
+        const factsText = document.getElementById("factsText");
+        const factsCloseBtn = document.getElementById("factsCloseBtn");
+        const factsPrintBtn = document.getElementById("factsPrintBtn");
+
+        const matrixCanvas = document.getElementById("matrixCanvas");
+        const mctx = matrixCanvas.getContext("2d");
+
+        function addLine(text, cls) {
+          const d = document.createElement("div");
+          d.className = "line" + (cls ? (" " + cls) : "");
+          d.textContent = text;
+          term.appendChild(d);
+          term.scrollTop = term.scrollHeight;
+        }
+
+        function safeJsonParse(s, fallback) {
+          try { return JSON.parse(s); } catch { return fallback; }
+        }
+
+        function clamp01(n) {
+          n = Number(n);
+          if (!Number.isFinite(n)) return 0;
+          return Math.max(0, Math.min(1, n));
+        }
+
+        function setCSSVar(name, value) {
+          document.documentElement.style.setProperty(name, String(value));
+        }
+
+        function makeId(len = 20) {
+          const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+          let out = "";
+          for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+          return out;
+        }
+
+        // Facts (Shift+H)
+        const FACTS = Object.freeze([
+          "A famous ~3,700-year-old clay tablet is a customer complaint: Nanni scolds the merchant Ea-nasir for low-quality copper.",
+          "The Antikythera mechanism used gears to model astronomy and predict eclipses — basically an ancient analog computer.",
+          "Korea’s 'Jikji' (1377) is the oldest extant book printed with movable metal type.",
+          "The Tripitaka Koreana (13th century) was carved onto over 80,000 woodblocks and is still preserved.",
+          "Vindolanda tablets from Roman Britain include everyday letters (requests for socks, party invitations).",
+          "The first recorded labor strike happened in ancient Egypt (Deir el-Medina).",
+          "Mayan mathematicians used a symbol for zero centuries before it became common in Europe."
+        ]);
+
+        function openFacts() {
+          factsText.textContent = FACTS.map((f, i) => `${i + 1}. ${f}`).join("\n");
+          factsView.classList.add("visible");
+        }
+        function closeFacts() {
+          factsView.classList.remove("visible");
+        }
+
+        factsCloseBtn.addEventListener("click", closeFacts);
+        factsPrintBtn.addEventListener("click", () => window.print());
+        window.addEventListener("keydown", (e) => {
+          const tag = (e.target?.tagName || "").toLowerCase();
+          const typing = tag === "input" || tag === "textarea" || e.target?.isContentEditable;
+          if (typing) return;
+
+          if (e.shiftKey && e.key.toLowerCase() === "h") {
+            e.preventDefault();
+            openFacts();
+          }
+          if (e.key === "Escape") closeFacts();
+        });
+
+        // Device ID
+        const DEVICE_KEY = "zp_deviceId_v1";
+        let deviceId = localStorage.getItem(DEVICE_KEY);
+        if (!deviceId || deviceId.length < 6) {
+          deviceId = "dev_" + makeId(18);
+          localStorage.setItem(DEVICE_KEY, deviceId);
+        }
+        pillDevice.textContent = "DEVICE: " + deviceId;
+
+        // Auth + shell lock
+        let meState = { loggedIn: false, user: null };
+        let sse = null;
+        let cwd = "/";
+
+        function setShellLocked(locked) {
+          cmdRow.style.display = locked ? "none" : "flex";
+          cmdInput.disabled = locked;
+          cmdInput.value = "";
+          cmdInput.style.opacity = locked ? "0.5" : "1";
+          cmdPrompt.textContent = cwd + " $";
+        }
+
+        function setTopButtonsForAuth(loggedIn, role) {
+          loginBtn.style.display = loggedIn ? "none" : "";
+          registerBtn.style.display = loggedIn ? "none" : "";
+
+          const isAdmin = role === "admin";
+          adminBtn.style.display = isAdmin ? "" : "none";
+          adminBtn.onclick = () => (location.href = "/admin");
+        }
+
+        function setPills(loggedIn, role) {
+          pillRole.textContent = "ROLE: " + (role || "guest").toUpperCase();
+          pillLevel.textContent = loggedIn ? "LV 2" : "LV 1";
+        }
+
+        loginBtn.addEventListener("click", () => (location.href = "/login"));
+        registerBtn.addEventListener("click", () => (location.href = "/register"));
+
+        async function fetchMe() {
+          const res = await fetch("/api/auth/me", { credentials: "include" });
+          if (!res.ok) return { loggedIn: false };
+          return await res.json();
+        }
+
+        // A) command logs
+        async function logCommand(rawLine) {
+          if (!meState.loggedIn) return;
+          const raw = String(rawLine || "").trim();
+          if (!raw) return;
+          try {
+            await fetch("/api/logs/command", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ deviceId, raw })
+            });
+          } catch {}
+        }
+
+        // Optional server custom commands
+        let customCommands = new Map();
+        async function loadCustomCommands() {
+          if (!meState.loggedIn) {
+            customCommands = new Map();
+            return;
+          }
+          try {
+            const res = await fetch("/api/commands", { credentials: "include" });
+            if (!res.ok) return;
+            const data = await res.json();
+            const m = new Map();
+            (data.commands || []).forEach((c) => {
+              m.set(String(c.name || "").toLowerCase(), c);
+            });
+            customCommands = m;
+          } catch {}
+        }
+
+        // B/C) SSE + device ping
+        async function pingDevice() {
+          if (!meState.loggedIn) return;
+          await fetch("/api/device/ping", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ deviceId })
+          });
+        }
+
+        function disconnectSSE() {
+          if (sse) {
+            try { sse.close(); } catch {}
+            sse = null;
+          }
+          pillLink.textContent = "LINK: OFFLINE";
+          pillLink.className = "pill warn";
+        }
+
+        // FX (matrix + scan/glitch + rainbow/mirror)
+        let fxState = {
+          matrixOn: false,
+          rainbow: false,
+          mirror: false,
+          scanOpacity: 0.55,
+          glitchOpacity: 0.12
+        };
+
+        function resizeMatrix() {
+          matrixCanvas.width = window.innerWidth;
+          matrixCanvas.height = window.innerHeight;
+        }
+        window.addEventListener("resize", resizeMatrix);
+        resizeMatrix();
+
+        let matrixAnim = null;
+        let drops = [];
+        const fontSize = 14;
+        const chars = "01ABCDEFGHJKLMNPQRSTUVWXYZ#$%&*";
+
+        function matrixInit() {
+          const cols = Math.max(10, Math.floor(matrixCanvas.width / fontSize));
+          drops = new Array(cols).fill(0).map(() => Math.floor(Math.random() * 60));
+        }
+        matrixInit();
+
+        function matrixTick() {
+          if (!fxState.matrixOn) return;
+          const w = matrixCanvas.width, h = matrixCanvas.height;
+
+          mctx.fillStyle = "rgba(0,0,0,0.08)";
+          mctx.fillRect(0, 0, w, h);
+          mctx.font = `${fontSize}px monospace`;
+
+          for (let i = 0; i < drops.length; i++) {
+            const ch = chars[Math.floor(Math.random() * chars.length)];
+            const x = i * fontSize;
+            const y = drops[i] * fontSize;
+            mctx.fillStyle = "rgba(0,255,120,0.9)";
+            mctx.fillText(ch, x, y);
+
+            if (y > h && Math.random() > 0.975) drops[i] = 0;
+            drops[i]++;
+          }
+          matrixAnim = requestAnimationFrame(matrixTick);
+        }
+
+        function applyFxPatch(patch) {
+          if (!patch || typeof patch !== "object") return;
+
+          if (patch.scanOpacity !== undefined) {
+            fxState.scanOpacity = clamp01(patch.scanOpacity);
+            setCSSVar("--scan-opacity", fxState.scanOpacity);
+          }
+          if (patch.glitchOpacity !== undefined) {
+            fxState.glitchOpacity = clamp01(patch.glitchOpacity);
+            setCSSVar("--glitch-opacity", fxState.glitchOpacity);
+          }
+
+          if (patch.matrixOn !== undefined) {
+            fxState.matrixOn = !!patch.matrixOn;
+            matrixCanvas.classList.toggle("on", fxState.matrixOn);
+            if (fxState.matrixOn) {
+              matrixInit();
+              if (matrixAnim) cancelAnimationFrame(matrixAnim);
+              matrixAnim = requestAnimationFrame(matrixTick);
+            }
+          }
+
+          if (patch.rainbow !== undefined) {
+            fxState.rainbow = !!patch.rainbow;
+            screen.classList.toggle("rainbow", fxState.rainbow);
+          }
+          if (patch.mirror !== undefined) {
+            fxState.mirror = !!patch.mirror;
+            screen.classList.toggle("mirror", fxState.mirror);
+          }
+        }
+
+        setCSSVar("--scan-opacity", fxState.scanOpacity);
+        setCSSVar("--glitch-opacity", fxState.glitchOpacity);
+
+        function connectSSE() {
+          disconnectSSE();
+          if (!meState.loggedIn) return;
+
+          const url = "/api/events?deviceId=" + encodeURIComponent(deviceId);
+          sse = new EventSource(url);
+
+          sse.addEventListener("open", () => {
+            pillLink.textContent = "LINK: ONLINE";
+            pillLink.className = "pill ok";
+          });
+
+          sse.addEventListener("error", async () => {
+            pillLink.textContent = "LINK: LOST";
+            pillLink.className = "pill warn";
+            await refreshAuthUI();
+          });
+
+          sse.addEventListener("hello", (ev) => {
+            const data = safeJsonParse(ev.data, {});
+            addLine(`[SSE] hello ${data.deviceId || ""}`, "muted");
+          });
+
+          sse.addEventListener("admin_run", async (ev) => {
+            const data = safeJsonParse(ev.data, {});
+            const cmd = String(data.commandLine || "").trim();
+            if (!cmd) return;
+            if (!meState.loggedIn) return;
+
+            addLine("", "muted");
+            addLine(`[REMOTE] from=${data.from || "admin"} cmd=${cmd}`, "warn");
+            await runCommand(cmd, { remote: true, typing: !!data.typing });
+          });
+
+          sse.addEventListener("admin_fx", (ev) => {
+            const data = safeJsonParse(ev.data, {});
+            applyFxPatch(data);
+            addLine(`[FX] updated by ${data.from || "admin"}`, "muted");
+          });
+
+          sse.addEventListener("commands_update", async (ev) => {
+            const data = safeJsonParse(ev.data, {});
+            addLine(`[CMD] update signal by ${data.by || "admin"}`, "muted");
+            await loadCustomCommands();
+          });
+        }
+
+        setInterval(() => pingDevice().catch(() => {}), 25000);
+
+        // Terminal
+        function printBoot() {
+          term.innerHTML = "";
+          addLine("[ZEROPOINT] boot sequence engaged…", "ok");
+          addLine("TIP: Shift+H opens History Facts.", "muted");
+          addLine("TIP: Login to unlock the shell.", "muted");
+          addLine("", "muted");
+        }
+
+        function help() {
+          addLine("Commands:", "ok");
+          addLine("  help, clear, facts", "dim");
+          addLine("  whoami, logout, account", "dim");
+          addLine("  fx (show current fx state)", "dim");
+          addLine("Custom server commands also work (admin-defined).", "muted");
+        }
+
+        function whoami() {
+          if (!meState.loggedIn) { addLine("guest", "dim"); return; }
+          addLine(`${meState.user.username} (${meState.user.role})`, "ok");
+        }
+
+        async function logout() {
+          if (!meState.loggedIn) return;
+          await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+          await refreshAuthUI();
+          addLine("[AUTH] logged out.", "warn");
+        }
+
+        async function typeLikeHuman(text, msPerChar = 18) {
+          const shown = cwd + " $ ";
+          let buf = shown;
+          addLine(buf, "dim");
+          const last = term.lastElementChild;
+          for (let i = 0; i < text.length; i++) {
+            buf += text[i];
+            last.textContent = buf;
+            term.scrollTop = term.scrollHeight;
+            await new Promise((r) => setTimeout(r, msPerChar));
+          }
+        }
+
+        async function runCommand(rawLine, opts = {}) {
+          const raw = String(rawLine || "").trim();
+          if (!raw) return;
+
+          await logCommand(raw);
+
+          if (opts.typing) {
+            await typeLikeHuman(raw, 16);
+          } else if (!opts.remote) {
+            addLine(`${cwd} $ ${raw}`, "dim");
+          }
+
+          const parts = raw.split(/\s+/);
+          const cmd = (parts[0] || "").toLowerCase();
+
+          if (cmd === "help") return help();
+          if (cmd === "clear" || cmd === "cls") { term.innerHTML = ""; return; }
+          if (cmd === "facts") return openFacts();
+          if (cmd === "whoami") return whoami();
+          if (cmd === "account") return (location.href = "/account");
+          if (cmd === "logout") return logout();
+          if (cmd === "fx") {
+            addLine(
+              `[FX] matrixOn=${fxState.matrixOn} rainbow=${fxState.rainbow} mirror=${fxState.mirror} scan=${fxState.scanOpacity} glitch=${fxState.glitchOpacity}`,
+              "muted"
+            );
+            return;
+          }
+
+          if (customCommands.has(cmd)) {
+            const c = customCommands.get(cmd);
+            addLine(`[${cmd}]`, "ok");
+            addLine(String(c.output || "(no output)"), "dim");
+            return;
+          }
+
+          addLine(`Unknown command: ${cmd} (type "help")`, "warn");
+        }
+
+        cmdInput.addEventListener("keydown", async (e) => {
+          if (e.key !== "Enter") return;
+          if (cmdInput.disabled) return;
+
+          const raw = cmdInput.value;
+          cmdInput.value = "";
+          await runCommand(raw, { remote: false, typing: false });
+        });
+
+        async function refreshAuthUI() {
+          let me;
+          try { me = await fetchMe(); } catch { me = { loggedIn: false }; }
+
+          if (me && me.banned) {
+            meState = { loggedIn: false, user: null };
+            disconnectSSE();
+            setShellLocked(true);
+            setTopButtonsForAuth(false, "guest");
+            setPills(false, "guest");
+            addLine("[AUTH] BANNED: " + (me.reason || "No reason"), "danger");
+            return;
+          }
+
+          meState = me && me.loggedIn ? me : { loggedIn: false, user: null };
+
+          const loggedIn = !!meState.loggedIn;
+          const role = meState.user?.role || "guest";
+
+          setTopButtonsForAuth(loggedIn, role);
+          setPills(loggedIn, role);
+          setShellLocked(!loggedIn);
+
+          if (!loggedIn) {
+            disconnectSSE();
+            customCommands = new Map();
+            addLine("[AUTH] login required. Shell locked.", "warn");
+            return;
+          }
+
+          addLine(`[AUTH] logged in as ${meState.user.username} (${role})`, "ok");
+          await pingDevice();
+          await loadCustomCommands();
+          connectSSE();
+          cmdInput.focus();
+        }
+
+        printBoot();
+        setShellLocked(true);
+        refreshAuthUI();
+      })();
+    </script>
+  </body>
+</html>
