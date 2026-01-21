@@ -1,16 +1,16 @@
 {
-  "name": "zeropoint-full",
+  "name": "zeropoint-fullset",
+  "version": "1.0.0",
   "private": true,
-  "version": "4.0.0",
-  "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
-    "mongodb": "^6.12.0"
+    "mongodb": "^6.8.0"
   }
 }
