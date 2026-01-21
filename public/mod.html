@@ -1,1 +1,114 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mod Panel • ZeroPoint</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+</head>
+<body>
+  <div class="center-box">
+    <h2 style="margin:0; letter-spacing:.16em; text-transform:uppercase;">Mod Panel</h2>
+    <p class="dim-text" style="margin:10px 0 16px;">
+      <a href="/">← Back</a> • <a href="/account">My Page</a>
+    </p>
+
+    <div class="card" id="whoCard">Loading…</div>
+
+    <div style="height:12px;"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Submit a fact</div>
+        <div class="dim-text" style="margin-top:6px;">Admins will approve it.</div>
+        <div style="height:10px"></div>
+        <textarea id="factText" rows="6" placeholder="Enter a history fact…"></textarea>
+        <div style="height:10px"></div>
+        <button class="small ok" id="submitFactBtn">Submit Fact</button>
+        <div class="dim-text" id="factMsg" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Request a ban</div>
+        <div class="dim-text" style="margin-top:6px;">Admins approve/deny. You can request by username and/or IP.</div>
+        <div style="height:10px"></div>
+
+        <label class="dim-text">Username (optional)</label>
+        <input id="banUsername" placeholder="username" />
+
+        <div style="height:10px"></div>
+
+        <label class="dim-text">IP (optional)</label>
+        <input id="banIp" placeholder="1.2.3.4" />
+
+        <div style="height:10px"></div>
+
+        <label class="dim-text">Reason</label>
+        <input id="banReason" placeholder="reason" />
+
+        <div style="height:10px"></div>
+        <button class="small warn" id="submitBanBtn">Submit Ban Request</button>
+        <div class="dim-text" id="banMsg" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const whoCard = document.getElementById("whoCard");
+
+  const me = await ZeroPoint.api.json("/api/auth/me",{method:"GET"});
+  if(!me.loggedIn){ location.href="/login?next=/mod"; return; }
+  if(me.user.role !== "mod" && me.user.role !== "admin"){ location.href="/account"; return; }
+
+  whoCard.innerHTML = `
+    <div><b>Logged in:</b> ${me.user.fullName} (@${me.user.username})</div>
+    <div><b>Role:</b> ${me.user.role}</div>
+  `;
+
+  // facts
+  const factText = document.getElementById("factText");
+  const submitFactBtn = document.getElementById("submitFactBtn");
+  const factMsg = document.getElementById("factMsg");
+
+  submitFactBtn.onclick = async ()=>{
+    factMsg.textContent = "Submitting…";
+    try{
+      await ZeroPoint.api.json("/api/mod/facts/submit", {
+        method:"POST",
+        body: JSON.stringify({ text: factText.value })
+      });
+      factText.value = "";
+      factMsg.textContent = "Submitted ✅";
+    }catch(e){
+      factMsg.textContent = (e.data && e.data.error) || "Submit failed.";
+    }
+  };
+
+  // ban request
+  const banUsername = document.getElementById("banUsername");
+  const banIp = document.getElementById("banIp");
+  const banReason = document.getElementById("banReason");
+  const submitBanBtn = document.getElementById("submitBanBtn");
+  const banMsg = document.getElementById("banMsg");
+
+  submitBanBtn.onclick = async ()=>{
+    banMsg.textContent = "Submitting…";
+    try{
+      await ZeroPoint.api.json("/api/mod/ban-requests", {
+        method:"POST",
+        body: JSON.stringify({ username: banUsername.value, ip: banIp.value, reason: banReason.value })
+      });
+      banMsg.textContent = "Ban request submitted ✅";
+      banUsername.value = "";
+      banIp.value = "";
+      banReason.value = "";
+    }catch(e){
+      banMsg.textContent = (e.data && e.data.error) || "Submit failed.";
+    }
+  };
+})();
+</script>
+</body>
+</html>
 
