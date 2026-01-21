@@ -1,1 +1,121 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Account • ZeroPoint</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+</head>
+<body>
+  <div class="center-box">
+    <h2 style="margin:0; letter-spacing:.16em; text-transform:uppercase;">Account</h2>
+    <p class="dim-text" style="margin:10px 0 16px;">
+      <a href="/">← Back to Terminal</a>
+    </p>
+
+    <div class="card" id="card">Loading…</div>
+
+    <hr class="sep" />
+
+    <div class="card" id="actionsCard">
+      <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Actions</div>
+      <div style="height:10px;"></div>
+      <div class="row" style="gap:10px;">
+        <button class="small" id="applyModBtn">Apply for Mod</button>
+        <button class="small" id="applyAdminBtn" style="display:none">Apply for Admin</button>
+        <button class="small" id="modBtn" style="display:none">Mod Panel</button>
+        <button class="small" id="adminBtn" style="display:none">Admin Panel</button>
+      </div>
+      <div class="dim-text" id="applyMsg" style="margin-top:10px;"></div>
+    </div>
+
+    <div style="height:12px"></div>
+    <div class="row">
+      <button class="small" id="logoutBtn">Logout</button>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const card = document.getElementById("card");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const adminBtn = document.getElementById("adminBtn");
+  const modBtn = document.getElementById("modBtn");
+  const applyModBtn = document.getElementById("applyModBtn");
+  const applyAdminBtn = document.getElementById("applyAdminBtn");
+  const applyMsg = document.getElementById("applyMsg");
+
+  const me = await ZeroPoint.api.json("/api/auth/me",{method:"GET"});
+  if(!me.loggedIn){ location.href="/login"; return; }
+
+  const deviceId = ZeroPoint.getDeviceId();
+
+  const role = me.user.role;
+
+  const coinsDisplay = (role === "admin") ? "∞" : String(me.user.coins || 0);
+
+  card.innerHTML = `
+    <div><b>fullName:</b> ${me.user.fullName}</div>
+    <div><b>username:</b> ${me.user.username}</div>
+    <div><b>role:</b> ${me.user.role}</div>
+    <div><b>userId:</b> ${me.user.id}</div>
+    <div><b>deviceId:</b> ${deviceId}</div>
+    <div><b>coins:</b> ${coinsDisplay}</div>
+  `;
+
+  if(role === "admin"){
+    adminBtn.style.display="inline-block";
+    adminBtn.onclick=()=>location.href="/admin";
+    modBtn.style.display="inline-block";
+    modBtn.onclick=()=>location.href="/mod";
+
+    applyModBtn.style.display="none";
+    applyAdminBtn.style.display="none";
+    applyMsg.textContent = "Admin: unlimited coins + all features + full control.";
+  } else if(role === "mod"){
+    modBtn.style.display="inline-block";
+    modBtn.onclick=()=>location.href="/mod";
+    applyAdminBtn.style.display="inline-block";
+
+    applyModBtn.textContent = "You are already a Mod";
+    applyModBtn.disabled = true;
+  } else {
+    applyAdminBtn.style.display="none";
+  }
+
+  applyModBtn.onclick = async ()=>{
+    applyMsg.textContent = "Sending mod request…";
+    try{
+      await ZeroPoint.api.json("/api/requests/role", {
+        method:"POST",
+        body: JSON.stringify({ targetRole:"mod", note:"Please approve my mod request." })
+      });
+      applyMsg.textContent = "Mod request submitted ✅ (admin will review)";
+    }catch(e){
+      applyMsg.textContent = (e.data && (e.data.error || e.data.message)) || "Request failed.";
+    }
+  };
+
+  applyAdminBtn.onclick = async ()=>{
+    applyMsg.textContent = "Sending admin request…";
+    try{
+      await ZeroPoint.api.json("/api/requests/role", {
+        method:"POST",
+        body: JSON.stringify({ targetRole:"admin", note:"Please approve my admin request." })
+      });
+      applyMsg.textContent = "Admin request submitted ✅ (admin will review)";
+    }catch(e){
+      applyMsg.textContent = (e.data && (e.data.error || e.data.message)) || "Request failed.";
+    }
+  };
+
+  logoutBtn.onclick = async () => {
+    logoutBtn.disabled = true;
+    await ZeroPoint.logout();
+    location.href="/";
+  };
+})();
+</script>
+</body>
+</html>
 
