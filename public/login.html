@@ -1,1 +1,116 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ZeroPoint • Login</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/shared.js"></script>
+  </head>
+
+  <body>
+    <div id="screen">
+      <div id="header">
+        <div id="title">ZEROPOINT // LOGIN</div>
+        <div id="subtitle">authenticate</div>
+
+        <div id="statusBar">
+          <a class="status-pill ok" href="/">HOME</a>
+          <a class="status-pill info" href="/register">REGISTER</a>
+          <span class="status-pill info" id="mePill">Checking…</span>
+        </div>
+      </div>
+
+      <div id="term">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Login</div>
+        <div class="dim-text" style="margin-top:6px;">This calls <b>POST /api/auth/login</b></div>
+        <div style="height:12px;"></div>
+
+        <form id="loginForm">
+          <label class="dim-text">Username</label>
+          <input id="username" autocomplete="username" placeholder="username" />
+
+          <div style="height:10px;"></div>
+
+          <label class="dim-text">Password</label>
+          <input id="password" type="password" autocomplete="current-password" placeholder="password" />
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; align-items:center;">
+            <button class="small ok" type="submit">Login</button>
+            <a class="status-pill info" href="/register" style="align-self:center;">Create account</a>
+            <span class="dim-text" id="msg" style="align-self:center;"></span>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      function getNextUrl() {
+        const url = new URL(location.href);
+        return url.searchParams.get("next") || "";
+      }
+
+      function setMsg(text) {
+        document.getElementById("msg").textContent = text || "";
+      }
+
+      // Autofill username: /login?username=abc
+      (function autofillUsername() {
+        const u = new URL(location.href).searchParams.get("username");
+        if (u) document.getElementById("username").value = u;
+      })();
+
+      // If already logged in, redirect
+      (async function alreadyLoggedInCheck() {
+        try {
+          const r = await fetch("/api/auth/me", { credentials: "include" });
+          const data = await r.json().catch(() => ({}));
+
+          if (data?.loggedIn) {
+            document.getElementById("mePill").textContent =
+              `Logged in: ${data.user?.fullName || ""} (@${data.user?.username || ""}) [${data.user?.role || ""}]`;
+
+            const next = getNextUrl();
+            if (next) location.href = next;
+            else location.href = "/";
+          } else {
+            document.getElementById("mePill").textContent = "Not logged in";
+          }
+        } catch {
+          document.getElementById("mePill").textContent = "Login check failed";
+        }
+      })();
+
+      document.getElementById("loginForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        setMsg("Logging in...");
+
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value;
+
+        try {
+          const r = await fetch("/api/auth/login", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+          });
+
+          const data = await r.json().catch(() => ({}));
+
+          if (!r.ok || data.ok === false) {
+            setMsg(data.error || ("Login failed (" + r.status + ")"));
+            return;
+          }
+
+          const next = getNextUrl();
+          if (next) location.href = next;
+          else location.href = "/";
+        } catch (err) {
+          setMsg("Network error. Try again.");
+        }
+      });
+    </script>
+  </body>
+</html>
 
