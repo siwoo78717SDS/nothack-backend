@@ -1,1 +1,580 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin • ZeroPoint</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+  <style>
+    textarea{ min-height: 120px; }
+    .mini{ font-size: 12px; color: var(--muted); }
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .table td,.table th{
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      padding: 8px 6px;
+      vertical-align: top;
+    }
+    .table th{ text-align:left; color: rgba(255,255,255,0.78); }
+    .right{ text-align:right; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+  <div class="center-box">
+    <h2 style="margin:0; letter-spacing:.16em; text-transform:uppercase;">Admin Control Room</h2>
+    <p class="dim-text" style="margin:10px 0 16px;">
+      <a href="/">← Back</a> • <a href="/account">My Page</a>
+    </p>
+
+    <div class="card" id="whoCard">Loading…</div>
+
+    <div style="height:12px;"></div>
+
+    <div class="grid2">
+      <!-- A: logs -->
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">A) Command Logs</div>
+        <div class="mini">Live refresh button + export (copy as JSON)</div>
+        <div style="height:10px"></div>
+        <div class="grid2">
+          <div>
+            <label class="dim-text">Filter deviceId (optional)</label>
+            <input id="logDeviceId" placeholder="dev_..." />
+          </div>
+          <div>
+            <label class="dim-text">Search text (optional)</label>
+            <input id="logQ" placeholder="help / clear / ..." />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="small ok" id="refreshLogsBtn">Refresh</button>
+          <button class="small" id="copyLogsBtn">Copy JSON</button>
+        </div>
+        <div style="height:10px"></div>
+        <pre class="mono" id="logsOut" style="white-space:pre-wrap; margin:0;"></pre>
+      </div>
+
+      <!-- B/C: remote control -->
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">B/C) Remote Control (SSE)</div>
+        <div class="mini">Target: all devices or one deviceId</div>
+        <div style="height:10px"></div>
+
+        <label class="dim-text">Target</label>
+        <select id="targetMode">
+          <option value="all">all devices</option>
+          <option value="device">one deviceId</option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label class="dim-text">DeviceId (only if target=one)</label>
+        <input id="targetDeviceId" placeholder="dev_..." />
+
+        <hr class="sep" />
+
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">B) Remote Run Command</div>
+        <div style="height:10px"></div>
+        <input id="remoteCmd" placeholder="help" />
+        <div class="row" style="margin-top:10px;">
+          <label class="dim-text" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="typingChk" />
+            typing effect
+          </label>
+          <button class="small ok" id="sendCmdBtn">Send</button>
+        </div>
+        <div class="dim-text" id="sendCmdMsg" style="margin-top:10px;"></div>
+
+        <hr class="sep" />
+
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">C) Remote FX</div>
+        <div class="grid2" style="margin-top:10px;">
+          <label class="dim-text" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="fxMatrix" /> matrix
+          </label>
+          <label class="dim-text" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="fxRainbow" /> rainbow
+          </label>
+          <label class="dim-text" style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" id="fxMirror" /> mirror
+          </label>
+          <div></div>
+        </div>
+
+        <div style="height:10px"></div>
+        <label class="dim-text">scanOpacity (0..1)</label>
+        <input id="fxScan" placeholder="0.55" />
+
+        <div style="height:10px"></div>
+        <label class="dim-text">glitchOpacity (0..1)</label>
+        <input id="fxGlitch" placeholder="0.12" />
+
+        <div style="height:10px"></div>
+        <button class="small ok" id="sendFxBtn">Send FX</button>
+        <div class="dim-text" id="sendFxMsg" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <div style="height:12px;"></div>
+
+    <!-- Users -->
+    <div class="card">
+      <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Users</div>
+      <div class="mini">Ban/unban • Set role</div>
+      <div style="height:10px"></div>
+      <div class="row">
+        <input id="userQ" placeholder="search username..." style="flex:1; min-width:180px;" />
+        <button class="small ok" id="refreshUsersBtn">Refresh</button>
+      </div>
+      <div style="height:10px"></div>
+      <div style="overflow:auto;">
+        <table class="table" id="usersTable"></table>
+      </div>
+    </div>
+
+    <div style="height:12px;"></div>
+
+    <div class="grid2">
+      <!-- Requests -->
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Role Requests</div>
+        <div class="mini">Approve/deny mod/admin applications</div>
+        <div style="height:10px"></div>
+        <button class="small ok" id="refreshRoleReqBtn">Refresh</button>
+        <div style="height:10px"></div>
+        <div id="roleReqList" class="grid"></div>
+      </div>
+
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Ban Requests</div>
+        <div class="mini">Submitted by mods • approve/deny</div>
+        <div style="height:10px"></div>
+        <button class="small ok" id="refreshBanReqBtn">Refresh</button>
+        <div style="height:10px"></div>
+        <div id="banReqList" class="grid"></div>
+      </div>
+    </div>
+
+    <div style="height:12px;"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Facts Submissions</div>
+        <div class="mini">Mods submit • admins approve</div>
+        <div style="height:10px"></div>
+        <button class="small ok" id="refreshFactsBtn">Refresh</button>
+        <div style="height:10px"></div>
+        <div id="factsList" class="grid"></div>
+      </div>
+
+      <div class="card">
+        <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">IP Bans</div>
+        <div class="mini">Ban by IP directly</div>
+        <div style="height:10px"></div>
+
+        <div class="grid2">
+          <div>
+            <label class="dim-text">IP</label>
+            <input id="ipBanIp" placeholder="1.2.3.4" />
+          </div>
+          <div>
+            <label class="dim-text">Reason</label>
+            <input id="ipBanReason" placeholder="reason" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="small danger" id="ipBanBtn">Ban IP</button>
+          <button class="small" id="ipUnbanBtn">Unban IP</button>
+          <button class="small ok" id="refreshIpBansBtn">Refresh</button>
+        </div>
+
+        <div class="dim-text" id="ipMsg" style="margin-top:10px;"></div>
+        <div style="height:10px"></div>
+        <pre class="mono" id="ipBansOut" style="white-space:pre-wrap; margin:0;"></pre>
+      </div>
+    </div>
+
+    <div style="height:12px;"></div>
+
+    <!-- Custom commands -->
+    <div class="card">
+      <div style="letter-spacing:.16em; text-transform:uppercase; font-weight:900;">Custom Commands (Optional)</div>
+      <div class="mini">Create/edit/delete server commands, then broadcast update to clients</div>
+
+      <div style="height:10px"></div>
+      <button class="small ok" id="refreshCmdsBtn">Refresh</button>
+
+      <div style="height:10px"></div>
+      <div style="overflow:auto;">
+        <table class="table" id="cmdsTable"></table>
+      </div>
+
+      <hr class="sep" />
+
+      <div class="grid2">
+        <div>
+          <label class="dim-text">Name</label>
+          <input id="newCmdName" placeholder="hello" />
+        </div>
+        <div>
+          <label class="dim-text">Enabled</label>
+          <select id="newCmdEnabled">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="height:10px"></div>
+      <label class="dim-text">Description</label>
+      <input id="newCmdDesc" placeholder="what this command does" />
+
+      <div style="height:10px"></div>
+      <label class="dim-text">Output</label>
+      <textarea id="newCmdOut" placeholder="output text"></textarea>
+
+      <div style="height:10px"></div>
+      <div class="row">
+        <button class="small ok" id="createCmdBtn">Create</button>
+        <button class="small" id="broadcastCmdsBtn">Broadcast commands_update</button>
+      </div>
+
+      <div class="dim-text" id="cmdMsg" style="margin-top:10px;"></div>
+    </div>
+
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me",{method:"GET"}).catch(()=> ({loggedIn:false}));
+  if(!me.loggedIn){ location.href="/login?next=/admin"; return; }
+  if(me.user.role !== "admin"){ location.href="/account"; return; }
+
+  const whoCard = document.getElementById("whoCard");
+  whoCard.innerHTML = `
+    <div><b>Logged in:</b> ${me.user.fullName} (@${me.user.username})</div>
+    <div><b>Role:</b> ${me.user.role}</div>
+  `;
+
+  function targetPayload(){
+    const target = document.getElementById("targetMode").value;
+    const deviceId = document.getElementById("targetDeviceId").value.trim();
+    return { target, deviceId };
+  }
+
+  // A) logs
+  const logsOut = document.getElementById("logsOut");
+  document.getElementById("refreshLogsBtn").onclick = refreshLogs;
+  document.getElementById("copyLogsBtn").onclick = async ()=>{
+    try{
+      await navigator.clipboard.writeText(logsOut.textContent || "");
+    }catch{}
+  };
+  async function refreshLogs(){
+    logsOut.textContent = "Loading…";
+    const deviceId = document.getElementById("logDeviceId").value.trim();
+    const q = document.getElementById("logQ").value.trim();
+    const url = "/api/admin/logs/commands?limit=200"
+      + (deviceId ? ("&deviceId=" + encodeURIComponent(deviceId)) : "")
+      + (q ? ("&q=" + encodeURIComponent(q)) : "");
+    const data = await ZeroPoint.api.json(url, { method:"GET" });
+    logsOut.textContent = JSON.stringify(data.logs || [], null, 2);
+  }
+
+  // B) remote run
+  const sendCmdMsg = document.getElementById("sendCmdMsg");
+  document.getElementById("sendCmdBtn").onclick = async ()=>{
+    sendCmdMsg.textContent = "Sending…";
+    const p = targetPayload();
+    const commandLine = document.getElementById("remoteCmd").value;
+    const typing = document.getElementById("typingChk").checked;
+    try{
+      const data = await ZeroPoint.api.json("/api/admin/run-command", {
+        method:"POST",
+        body: JSON.stringify({ ...p, commandLine, typing })
+      });
+      sendCmdMsg.textContent = "Sent ✅ delivered=" + data.delivered;
+    }catch(e){
+      sendCmdMsg.textContent = (e.data && e.data.error) || "Send failed.";
+    }
+  };
+
+  // C) FX
+  const sendFxMsg = document.getElementById("sendFxMsg");
+  document.getElementById("sendFxBtn").onclick = async ()=>{
+    sendFxMsg.textContent = "Sending…";
+    const p = targetPayload();
+
+    const matrixOn = document.getElementById("fxMatrix").checked;
+    const rainbow = document.getElementById("fxRainbow").checked;
+    const mirror = document.getElementById("fxMirror").checked;
+
+    const scanOpacity = document.getElementById("fxScan").value.trim();
+    const glitchOpacity = document.getElementById("fxGlitch").value.trim();
+
+    const payload = { ...p, matrixOn, rainbow, mirror };
+    if(scanOpacity) payload.scanOpacity = Number(scanOpacity);
+    if(glitchOpacity) payload.glitchOpacity = Number(glitchOpacity);
+
+    try{
+      const data = await ZeroPoint.api.json("/api/admin/fx", { method:"POST", body: JSON.stringify(payload) });
+      sendFxMsg.textContent = "FX sent ✅ delivered=" + data.delivered;
+    }catch(e){
+      sendFxMsg.textContent = (e.data && e.data.error) || "Send failed.";
+    }
+  };
+
+  // Users management
+  const usersTable = document.getElementById("usersTable");
+  document.getElementById("refreshUsersBtn").onclick = refreshUsers;
+  async function refreshUsers(){
+    usersTable.innerHTML = "<tr><th>username</th><th>fullName</th><th>role</th><th>banned</th><th class='right'>actions</th></tr>";
+    const q = document.getElementById("userQ").value.trim();
+    const data = await ZeroPoint.api.json("/api/admin/users" + (q ? ("?q=" + encodeURIComponent(q)) : ""), { method:"GET" });
+    (data.users||[]).forEach(u=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${u.username}</td>
+        <td>${u.fullName || ""}</td>
+        <td>
+          <select data-role="${u.id}">
+            <option value="user" ${u.role==="user"?"selected":""}>user</option>
+            <option value="mod" ${u.role==="mod"?"selected":""}>mod</option>
+            <option value="admin" ${u.role==="admin"?"selected":""}>admin</option>
+          </select>
+        </td>
+        <td>${u.banned ? "<span class='badge'>BANNED</span>" : ""}</td>
+        <td class="right">
+          <button class="small warn" data-ban="${u.id}">Ban</button>
+          <button class="small" data-unban="${u.id}">Unban</button>
+        </td>
+      `;
+      usersTable.appendChild(tr);
+    });
+
+    usersTable.querySelectorAll("button[data-ban]").forEach(btn=>{
+      btn.onclick = async ()=>{
+        const id = btn.getAttribute("data-ban");
+        const reason = prompt("Ban reason?") || "Banned by admin.";
+        await ZeroPoint.api.json(`/api/admin/users/${id}/ban`, { method:"POST", body: JSON.stringify({ reason }) });
+        refreshUsers();
+      };
+    });
+    usersTable.querySelectorAll("button[data-unban]").forEach(btn=>{
+      btn.onclick = async ()=>{
+        const id = btn.getAttribute("data-unban");
+        await ZeroPoint.api.json(`/api/admin/users/${id}/unban`, { method:"POST" });
+        refreshUsers();
+      };
+    });
+    usersTable.querySelectorAll("select[data-role]").forEach(sel=>{
+      sel.onchange = async ()=>{
+        const id = sel.getAttribute("data-role");
+        await ZeroPoint.api.json(`/api/admin/users/${id}/role`, { method:"POST", body: JSON.stringify({ role: sel.value }) });
+        refreshUsers();
+      };
+    });
+  }
+
+  // Role requests
+  document.getElementById("refreshRoleReqBtn").onclick = refreshRoleReq;
+  async function refreshRoleReq(){
+    const list = document.getElementById("roleReqList");
+    list.innerHTML = "";
+    const data = await ZeroPoint.api.json("/api/admin/requests/role", { method:"GET" });
+    (data.requests||[]).forEach(r=>{
+      const d = document.createElement("div");
+      d.className="card";
+      d.innerHTML = `
+        <div><b>${r.username}</b> (${r.fromRole} → ${r.targetRole})</div>
+        <div class="mini">${r.createdAt}</div>
+        <div class="mini">${r.note || ""}</div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="small ok">Approve</button>
+          <button class="small">Reject</button>
+        </div>
+      `;
+      const [approveBtn, rejectBtn] = d.querySelectorAll("button");
+      approveBtn.onclick = async ()=>{ await ZeroPoint.api.json(`/api/admin/requests/role/${r.id}/approve`, { method:"POST" }); refreshRoleReq(); refreshUsers(); };
+      rejectBtn.onclick = async ()=>{ await ZeroPoint.api.json(`/api/admin/requests/role/${r.id}/reject`, { method:"POST" }); refreshRoleReq(); };
+      list.appendChild(d);
+    });
+    if(!(data.requests||[]).length) list.innerHTML = "<div class='dim-text'>(no pending)</div>";
+  }
+
+  // Ban requests
+  document.getElementById("refreshBanReqBtn").onclick = refreshBanReq;
+  async function refreshBanReq(){
+    const list = document.getElementById("banReqList");
+    list.innerHTML = "";
+    const data = await ZeroPoint.api.json("/api/admin/ban-requests", { method:"GET" });
+    (data.requests||[]).forEach(r=>{
+      const d = document.createElement("div");
+      d.className="card";
+      d.innerHTML = `
+        <div><b>RequestedBy:</b> ${r.requestedBy}</div>
+        <div><b>User:</b> ${r.username || "(none)"} ${r.userId ? ("<span class='mini mono'>("+r.userId+")</span>") : ""}</div>
+        <div><b>IP:</b> ${r.ip || "(none)"}</div>
+        <div><b>Reason:</b> ${r.reason || ""}</div>
+        <div class="mini">${r.createdAt}</div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="small ok">Approve</button>
+          <button class="small">Reject</button>
+        </div>
+      `;
+      const [approveBtn, rejectBtn] = d.querySelectorAll("button");
+      approveBtn.onclick = async ()=>{ await ZeroPoint.api.json(`/api/admin/ban-requests/${r.id}/approve`, { method:"POST" }); refreshBanReq(); refreshUsers(); };
+      rejectBtn.onclick = async ()=>{ await ZeroPoint.api.json(`/api/admin/ban-requests/${r.id}/reject`, { method:"POST" }); refreshBanReq(); };
+      list.appendChild(d);
+    });
+    if(!(data.requests||[]).length) list.innerHTML = "<div class='dim-text'>(no pending)</div>";
+  }
+
+  // Facts submissions
+  document.getElementById("refreshFactsBtn").onclick = refreshFacts;
+  async function refreshFacts(){
+    const list = document.getElementById("factsList");
+    list.innerHTML = "";
+    const data = await ZeroPoint.api.json("/api/admin/facts/submissions", { method:"GET" });
+    (data.submissions||[]).forEach(s=>{
+      const d = document.createElement("div");
+      d.className="card";
+      d.innerHTML = `
+        <div class="mini">${s.submittedAt} • by ${s.submittedBy || ""}</div>
+        <div style="margin-top:8px;">${(s.text || "").replace(/</g,"&lt;")}</div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <button class="small ok">Approve</button>
+          <button class="small">Reject</button>
+        </div>
+      `;
+      const [approveBtn, rejectBtn] = d.querySelectorAll("button");
+      approveBtn.onclick = async ()=>{ await ZeroPoint.api.json(`/api/admin/facts/submissions/${s.id}/approve`, { method:"POST" }); refreshFacts(); };
+      rejectBtn.onclick = async ()=>{ await ZeroPoint.api.json(`/api/admin/facts/submissions/${s.id}/reject`, { method:"POST" }); refreshFacts(); };
+      list.appendChild(d);
+    });
+    if(!(data.submissions||[]).length) list.innerHTML = "<div class='dim-text'>(no pending)</div>";
+  }
+
+  // IP bans
+  const ipMsg = document.getElementById("ipMsg");
+  const ipBansOut = document.getElementById("ipBansOut");
+  document.getElementById("ipBanBtn").onclick = async ()=>{
+    ipMsg.textContent = "Banning…";
+    try{
+      await ZeroPoint.api.json("/api/admin/ip-bans/ban", { method:"POST", body: JSON.stringify({ ip: document.getElementById("ipBanIp").value, reason: document.getElementById("ipBanReason").value }) });
+      ipMsg.textContent = "Banned ✅";
+      await refreshIpBans();
+    }catch(e){
+      ipMsg.textContent = (e.data && e.data.error) || "Failed.";
+    }
+  };
+  document.getElementById("ipUnbanBtn").onclick = async ()=>{
+    ipMsg.textContent = "Unbanning…";
+    try{
+      await ZeroPoint.api.json("/api/admin/ip-bans/unban", { method:"POST", body: JSON.stringify({ ip: document.getElementById("ipBanIp").value }) });
+      ipMsg.textContent = "Unbanned ✅";
+      await refreshIpBans();
+    }catch(e){
+      ipMsg.textContent = (e.data && e.data.error) || "Failed.";
+    }
+  };
+  document.getElementById("refreshIpBansBtn").onclick = refreshIpBans;
+  async function refreshIpBans(){
+    const data = await ZeroPoint.api.json("/api/admin/ip-bans", { method:"GET" });
+    ipBansOut.textContent = JSON.stringify(data.bans || [], null, 2);
+  }
+
+  // Custom commands
+  const cmdsTable = document.getElementById("cmdsTable");
+  const cmdMsg = document.getElementById("cmdMsg");
+
+  document.getElementById("refreshCmdsBtn").onclick = refreshCmds;
+  document.getElementById("createCmdBtn").onclick = createCmd;
+  document.getElementById("broadcastCmdsBtn").onclick = broadcastCmds;
+
+  async function refreshCmds(){
+    cmdsTable.innerHTML = "<tr><th>name</th><th>enabled</th><th>description</th><th>output</th><th class='right'>actions</th></tr>";
+    const data = await ZeroPoint.api.json("/api/admin/commands", { method:"GET" });
+    (data.commands || []).forEach(c=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${c.name}</td>
+        <td>${c.enabled ? "true" : "false"}</td>
+        <td>${(c.description||"").replace(/</g,"&lt;")}</td>
+        <td class="mono">${(c.output||"").replace(/</g,"&lt;")}</td>
+        <td class="right">
+          <button class="small" data-edit="${c.id}">Edit</button>
+          <button class="small danger" data-del="${c.id}">Delete</button>
+        </td>
+      `;
+      cmdsTable.appendChild(tr);
+    });
+
+    cmdsTable.querySelectorAll("button[data-del]").forEach(b=>{
+      b.onclick = async ()=>{
+        const id = b.getAttribute("data-del");
+        await ZeroPoint.api.json(`/api/admin/commands/${id}`, { method:"DELETE" });
+        refreshCmds();
+      };
+    });
+    cmdsTable.querySelectorAll("button[data-edit]").forEach(b=>{
+      b.onclick = async ()=>{
+        const id = b.getAttribute("data-edit");
+        const desc = prompt("New description?") ?? "";
+        const out = prompt("New output?") ?? "";
+        const enabled = (prompt("Enabled? true/false", "true") || "true").toLowerCase() !== "false";
+        await ZeroPoint.api.json(`/api/admin/commands/${id}`, { method:"PUT", body: JSON.stringify({ description: desc, output: out, enabled }) });
+        refreshCmds();
+      };
+    });
+  }
+
+  async function createCmd(){
+    cmdMsg.textContent = "Creating…";
+    try{
+      const name = document.getElementById("newCmdName").value.trim();
+      const description = document.getElementById("newCmdDesc").value;
+      const output = document.getElementById("newCmdOut").value;
+      const enabled = document.getElementById("newCmdEnabled").value === "true";
+      await ZeroPoint.api.json("/api/admin/commands", { method:"POST", body: JSON.stringify({ name, description, output, enabled }) });
+      cmdMsg.textContent = "Created ✅";
+      await refreshCmds();
+    }catch(e){
+      cmdMsg.textContent = (e.data && e.data.error) || "Create failed.";
+    }
+  }
+
+  async function broadcastCmds(){
+    cmdMsg.textContent = "Broadcasting…";
+    try{
+      const p = targetPayload();
+      await ZeroPoint.api.json("/api/admin/commands/broadcast", { method:"POST", body: JSON.stringify(p) });
+      cmdMsg.textContent = "Broadcasted ✅";
+    }catch(e){
+      cmdMsg.textContent = (e.data && e.data.error) || "Broadcast failed.";
+    }
+  }
+
+  // initial loads
+  await refreshUsers();
+  await refreshRoleReq();
+  await refreshBanReq();
+  await refreshFacts();
+  await refreshLogs();
+  await refreshCmds();
+  await refreshIpBans();
+})();
+</script>
+</body>
+</html>
 
