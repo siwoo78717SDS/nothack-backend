@@ -1,8 +1,5 @@
-// server.js (FREE-friendly: Render Free + MongoDB Atlas Free)
-// Stores users/role requests in MongoDB (persistent) — no disks needed.
-// Sessions are in-memory (they reset when the server sleeps/restarts on free tiers).
-
 const path = require("path");
+const crypto = require("crypto");
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
@@ -11,7 +8,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 const app = express();
 app.set("trust proxy", 1);
 
-app.use(express.json({ limit: "200kb" }));
+app.use(express.json({ limit: "300kb" }));
 app.use(express.urlencoded({ extended: false }));
 
 app.use(
@@ -22,113 +19,91 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    },
-  }),
+      secure: process.env.NODE_ENV === "production"
+    }
+  })
 );
 
 /* =========================
    MongoDB
    ========================= */
-
-const MONGODB_URI = process.env.MONGODB_URI; // REQUIRED
+const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || "zeropoint";
 
-if (!MONGODB_URI) {
-  console.error("Missing MONGODB_URI env var.");
-}
+if (!MONGODB_URI) console.warn("Missing MONGODB_URI env var.");
 
 const client = new MongoClient(MONGODB_URI || "mongodb://invalid");
 
 let usersCol;
-let roleReqCol;
+let devicesCol;
+let commandsCol;
+let logsCol;
 
+/* =========================
+   Helpers
+   ========================= */
+function safeStr(x, max = 5000) {
+  const s = String(x ?? "");
+  return s.length > max ? s.slice(0, max) : s;
+}
 function normalizeUsername(u) {
   return String(u || "").trim();
 }
-
 function usernameKey(u) {
   return normalizeUsername(u).toLowerCase();
 }
-
 function publicUser(u) {
   return {
     id: String(u._id),
     username: u.username,
     role: u.role,
-    createdAt: u.createdAt ? u.createdAt.toISOString() : null,
+    banned: !!u.banned,
+    banReason: u.banReason || null,
+    createdAt: u.createdAt ? u.createdAt.toISOString() : null
   };
 }
-
-function nextRoleFor(role) {
-  if (role === "user") return "mod";
-  if (role === "mod") return "admin";
-  return null;
-}
-
-function reqToClient(r) {
-  return {
-    id: String(r._id),
-    userId: String(r.userId),
-    usernameAtTime: r.usernameAtTime || null,
-    requestedRole: r.requestedRole,
-    status: r.status,
-    createdAt: r.createdAt ? r.createdAt.toISOString() : null,
-    decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
-    decidedBy: r.decidedBy || null,
-    reason: r.reason || null,
-  };
-}
-
 async function getUserBySession(req) {
   if (!req.session.userId) return null;
   try {
     const id = new ObjectId(req.session.userId);
-    return await usersCol.findOne({ _id: id });
+    const u = await usersCol.findOne({ _id: id });
+    if (!u) return null;
+
+    const sv = Number(req.session.sessionVersion || 0);
+    const uv = Number(u.sessionVersion || 1);
+    if (sv !== uv) {
+      try { req.session.destroy(() => {}); } catch {}
+      return null;
+    }
+    return u;
   } catch {
     return null;
   }
 }
-
-/* =========================
-   Auth middleware
-   ========================= */
-
 function requireAuthApi() {
   return async (req, res, next) => {
     const me = await getUserBySession(req);
     if (!me) return res.status(401).json({ error: "Not logged in" });
+    if (me.banned) return res.status(403).json({ error: "Banned", reason: me.banReason || null });
     req.me = me;
     next();
   };
 }
-
-function requireModApi() {
-  return async (req, res, next) => {
-    const me = await getUserBySession(req);
-    if (!me) return res.status(401).json({ error: "Not logged in" });
-    if (me.role !== "mod" && me.role !== "admin") {
-      return res.status(403).json({ error: "Mod/Admin only" });
-    }
-    req.me = me;
-    next();
-  };
-}
-
 function requireAdminApi() {
   return async (req, res, next) => {
     const me = await getUserBySession(req);
     if (!me) return res.status(401).json({ error: "Not logged in" });
+    if (me.banned) return res.status(403).json({ error: "Banned", reason: me.banReason || null });
     if (me.role !== "admin") return res.status(403).json({ error: "Admin only" });
     req.me = me;
     next();
   };
 }
-
 function requireRolePage(roles = []) {
   return async (req, res, next) => {
     const me = await getUserBySession(req);
     if (!me) return res.redirect("/login");
+    if (me.banned) return res.status(403).send("Banned");
     if (!roles.includes(me.role)) return res.status(403).send("Forbidden");
     req.me = me;
     next();
@@ -138,16 +113,20 @@ function requireRolePage(roles = []) {
 /* =========================
    Bootstrap admin
    ========================= */
-
 async function ensureBootstrapAdmin() {
-  const adminUsername = process.env.BOOTSTRAP_ADMIN_USERNAME || "admin";
-  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || "951212";
+  const adminUsername = process.env.BOOTSTRAP_ADMIN_USERNAME;
+  const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+
+  if (!adminUsername || !adminPassword) {
+    console.warn("[bootstrap] BOOTSTRAP_ADMIN_USERNAME/PASSWORD not set; skipping admin bootstrap.");
+    return;
+  }
 
   const hasAdmin = await usersCol.findOne({ role: "admin" });
   if (hasAdmin) return;
 
   const username = normalizeUsername(adminUsername);
-  if (!username || String(adminPassword || "").length < 6) {
+  if (!username || String(adminPassword).length < 6) {
     console.warn("[bootstrap] Missing/weak admin credentials; skipping.");
     return;
   }
@@ -161,62 +140,73 @@ async function ensureBootstrapAdmin() {
     return;
   }
 
-  const passHash = bcrypt.hashSync(adminPassword, 10);
+  const passHash = bcrypt.hashSync(String(adminPassword), 10);
   await usersCol.insertOne({
     username,
     usernameLower: lower,
     passHash,
     role: "admin",
-    createdAt: new Date(),
+    banned: false,
+    sessionVersion: 1,
+    createdAt: new Date()
   });
-
   console.log("[bootstrap] Created admin user:", username);
 }
 
 /* =========================
-   Page routes (BEFORE static)
+   SSE (device live connections)
    ========================= */
+const liveByDeviceId = new Map(); // deviceId -> Set(res)
 
+function sseSend(res, eventName, dataObj) {
+  res.write(`event: ${eventName}\n`);
+  res.write(`data: ${JSON.stringify(dataObj)}\n\n`);
+}
+function attachLive(deviceId, res) {
+  if (!liveByDeviceId.has(deviceId)) liveByDeviceId.set(deviceId, new Set());
+  liveByDeviceId.get(deviceId).add(res);
+}
+function detachLive(deviceId, res) {
+  const set = liveByDeviceId.get(deviceId);
+  if (!set) return;
+  set.delete(res);
+  if (set.size === 0) liveByDeviceId.delete(deviceId);
+}
+function broadcast(eventName, payload) {
+  for (const [, set] of liveByDeviceId.entries()) {
+    for (const res of set) sseSend(res, eventName, payload);
+  }
+}
+function sendToDevice(deviceId, eventName, payload) {
+  const set = liveByDeviceId.get(deviceId);
+  if (!set) return 0;
+  for (const res of set) sseSend(res, eventName, payload);
+  return set.size;
+}
+
+/* =========================
+   Pages
+   ========================= */
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
-app.get("/index.html", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
-
 app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/login.html", (req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-
 app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
-app.get("/register.html", (req, res) =>
-  res.sendFile(path.join(__dirname, "public", "register.html")),
+app.get("/account", requireRolePage(["user","mod","admin"]), (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "account.html"))
+);
+app.get("/admin", requireRolePage(["admin"]), (req, res) =>
+  res.sendFile(path.join(__dirname, "public", "admin.html"))
 );
 
-app.get(
-  ["/account", "/account.html"],
-  requireRolePage(["user", "mod", "admin"]),
-  (req, res) => res.sendFile(path.join(__dirname, "public", "account.html")),
-);
-
-app.get(
-  ["/admin", "/admin.html"],
-  requireRolePage(["admin"]),
-  (req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")),
-);
-
-app.get(
-  ["/mod", "/mod.html"],
-  requireRolePage(["mod", "admin"]),
-  (req, res) => res.sendFile(path.join(__dirname, "public", "mod.html")),
-);
-
-// Static last so you can’t bypass protection by visiting /admin.html directly
 app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"] }));
 
 /* =========================
-   API: Auth
+   Auth API (no email)
    ========================= */
-
 app.get("/api/auth/me", async (req, res) => {
   const me = await getUserBySession(req);
-  if (!me) return res.status(200).json({ loggedIn: false });
-  return res.status(200).json({ loggedIn: true, user: publicUser(me) });
+  if (!me) return res.json({ loggedIn: false });
+  if (me.banned) return res.json({ loggedIn: false, banned: true, reason: me.banReason || null });
+  return res.json({ loggedIn: true, user: publicUser(me) });
 });
 
 app.post("/api/auth/register", async (req, res) => {
@@ -227,9 +217,7 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(400).json({ error: "Username must be 3-24 characters." });
   }
   if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    return res
-      .status(400)
-      .json({ error: "Username can only use letters, numbers, underscore." });
+    return res.status(400).json({ error: "Username can only use letters, numbers, underscore." });
   }
   if (password.length < 6 || password.length > 128) {
     return res.status(400).json({ error: "Password must be 6-128 characters." });
@@ -245,27 +233,33 @@ app.post("/api/auth/register", async (req, res) => {
     usernameLower: lower,
     passHash,
     role: "user",
-    createdAt: new Date(),
+    banned: false,
+    sessionVersion: 1,
+    createdAt: new Date()
   });
 
+  // auto-login after register
   req.session.userId = String(result.insertedId);
-  const me = await usersCol.findOne({ _id: result.insertedId });
-  return res.status(201).json({ ok: true, user: publicUser(me) });
+  req.session.sessionVersion = 1;
+
+  return res.status(201).json({ ok: true });
 });
 
 app.post("/api/auth/login", async (req, res) => {
   const username = normalizeUsername(req.body.username);
   const password = String(req.body.password || "");
 
-  const lower = usernameKey(username);
-  const u = await usersCol.findOne({ usernameLower: lower });
+  const u = await usersCol.findOne({ usernameLower: usernameKey(username) });
   if (!u) return res.status(401).json({ error: "Invalid username or password." });
+  if (u.banned) return res.status(403).json({ error: "Banned", reason: u.banReason || null });
 
   const ok = bcrypt.compareSync(password, u.passHash);
   if (!ok) return res.status(401).json({ error: "Invalid username or password." });
 
   req.session.userId = String(u._id);
-  return res.status(200).json({ ok: true, user: publicUser(u) });
+  req.session.sessionVersion = Number(u.sessionVersion || 1);
+
+  return res.json({ ok: true, user: publicUser(u) });
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -276,271 +270,334 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 /* =========================
-   API: Account
+   Devices + SSE
    ========================= */
+app.post("/api/device/ping", requireAuthApi(), async (req, res) => {
+  const deviceId = safeStr(req.body.deviceId || "", 120).trim();
+  if (!deviceId || deviceId.length < 6) return res.status(400).json({ error: "Bad deviceId" });
 
-app.post("/api/account/change-username", requireAuthApi(), async (req, res) => {
-  const newUsername = normalizeUsername(req.body.newUsername);
-  const currentPassword = String(req.body.currentPassword || "");
+  await devicesCol.updateOne(
+    { deviceId },
+    {
+      $set: {
+        deviceId,
+        userId: req.me._id,
+        username: req.me.username,
+        ua: safeStr(req.headers["user-agent"] || "", 300),
+        lastSeenAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
 
-  if (!newUsername || newUsername.length < 3 || newUsername.length > 24) {
-    return res.status(400).json({ error: "Username must be 3-24 characters." });
-  }
-  if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
-    return res
-      .status(400)
-      .json({ error: "Username can only use letters, numbers, underscore." });
-  }
+  res.json({ ok: true });
+});
 
-  const ok = bcrypt.compareSync(currentPassword, req.me.passHash);
-  if (!ok) return res.status(401).json({ error: "Wrong current password." });
+app.get("/api/events", requireAuthApi(), async (req, res) => {
+  const deviceId = safeStr(req.query.deviceId || "", 120).trim();
+  if (!deviceId || deviceId.length < 6) return res.status(400).end();
 
-  const lower = usernameKey(newUsername);
-  const exists = await usersCol.findOne({
-    usernameLower: lower,
-    _id: { $ne: req.me._id },
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  attachLive(deviceId, res);
+
+  await devicesCol.updateOne(
+    { deviceId },
+    {
+      $set: {
+        deviceId,
+        userId: req.me._id,
+        username: req.me.username,
+        ua: safeStr(req.headers["user-agent"] || "", 300),
+        lastSeenAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
+
+  sseSend(res, "hello", { ok: true, deviceId });
+
+  const hb = setInterval(() => sseSend(res, "hb", { t: Date.now() }), 25000);
+  req.on("close", () => {
+    clearInterval(hb);
+    detachLive(deviceId, res);
   });
-  if (exists) return res.status(409).json({ error: "Username already taken." });
+});
+
+/* =========================
+   Commands (custom, admin-defined)
+   ========================= */
+function cleanCommandName(name) {
+  const n = String(name || "").trim();
+  if (!/^[a-zA-Z0-9_-]{1,24}$/.test(n)) return null;
+  return n.toLowerCase();
+}
+
+app.get("/api/commands", requireAuthApi(), async (req, res) => {
+  const list = await commandsCol.find({ enabled: true }).sort({ name: 1 }).limit(500).toArray();
+  res.json({
+    ok: true,
+    commands: list.map((c) => ({
+      id: String(c._id),
+      name: c.name,
+      description: c.description || "",
+      output: c.output || "",
+      enabled: !!c.enabled
+    }))
+  });
+});
+
+/* =========================
+   Feature A: Command logs
+   ========================= */
+app.post("/api/logs/command", requireAuthApi(), async (req, res) => {
+  const deviceId = safeStr(req.body.deviceId || "", 120).trim();
+  const raw = safeStr(req.body.raw || "", 500);
+
+  if (!deviceId || deviceId.length < 6) return res.status(400).json({ error: "Bad deviceId" });
+  if (!raw) return res.status(400).json({ error: "Missing raw command" });
+
+  await logsCol.insertOne({
+    kind: "command",
+    createdAt: new Date(),
+    userId: req.me._id,
+    username: req.me.username,
+    deviceId,
+    raw
+  });
+
+  res.json({ ok: true });
+});
+
+/* =========================
+   Admin API (users/devices/commands/logs + A/B/C)
+   ========================= */
+app.get("/api/admin/users", requireAdminApi(), async (req, res) => {
+  const q = safeStr(req.query.q || "", 60).trim().toLowerCase();
+  const filter = q ? { usernameLower: { $regex: q } } : {};
+  const list = await usersCol.find(filter).sort({ createdAt: -1 }).limit(400).toArray();
+  res.json({ ok: true, users: list.map(publicUser) });
+});
+
+app.post("/api/admin/users/:id/ban", requireAdminApi(), async (req, res) => {
+  let uid;
+  try { uid = new ObjectId(req.params.id); } catch { return res.status(400).json({ error: "Bad user id" }); }
+  const reason = safeStr(req.body.reason || "Banned by admin.", 200);
+
+  const u = await usersCol.findOne({ _id: uid });
+  if (!u) return res.status(404).json({ error: "User not found" });
+  if (String(u._id) === String(req.me._id)) return res.status(400).json({ error: "You cannot ban yourself." });
 
   await usersCol.updateOne(
-    { _id: req.me._id },
-    { $set: { username: newUsername, usernameLower: lower } },
+    { _id: uid },
+    { $set: { banned: true, banReason: reason, bannedAt: new Date(), bannedBy: req.me.username } }
   );
-
-  const me2 = await usersCol.findOne({ _id: req.me._id });
-  return res.status(200).json({ ok: true, user: publicUser(me2) });
+  const u2 = await usersCol.findOne({ _id: uid });
+  res.json({ ok: true, user: publicUser(u2) });
 });
 
-app.post("/api/account/change-password", requireAuthApi(), async (req, res) => {
-  const currentPassword = String(req.body.currentPassword || "");
-  const newPassword = String(req.body.newPassword || "");
+app.post("/api/admin/users/:id/unban", requireAdminApi(), async (req, res) => {
+  let uid;
+  try { uid = new ObjectId(req.params.id); } catch { return res.status(400).json({ error: "Bad user id" }); }
 
-  if (newPassword.length < 6 || newPassword.length > 128) {
-    return res.status(400).json({ error: "New password must be 6-128 characters." });
-  }
-
-  const ok = bcrypt.compareSync(currentPassword, req.me.passHash);
-  if (!ok) return res.status(401).json({ error: "Wrong current password." });
-
-  const newHash = bcrypt.hashSync(newPassword, 10);
-  await usersCol.updateOne({ _id: req.me._id }, { $set: { passHash: newHash } });
-
-  return res.status(200).json({ ok: true });
-});
-
-/* =========================
-   API: Role requests (upgrade path only)
-   user -> mod -> admin
-   ========================= */
-
-app.post("/api/requests/role", requireAuthApi(), async (req, res) => {
-  const requestedRole = String(req.body.role || "").toLowerCase();
-  const expected = nextRoleFor(req.me.role);
-
-  if (!expected) return res.status(400).json({ error: "You cannot request a higher role." });
-  if (requestedRole !== expected) {
-    return res.status(400).json({ error: `You can only request: ${expected}` });
-  }
-
-  // Only 1 pending request at a time
-  const pending = await roleReqCol.findOne({ userId: req.me._id, status: "pending" });
-  if (pending) return res.status(409).json({ error: "You already have a pending request." });
-
-  const now = Date.now();
-
-  // Cooldown: 6 hours between requests
-  const lastArr = await roleReqCol
-    .find({ userId: req.me._id })
-    .sort({ createdAt: -1 })
-    .limit(1)
-    .toArray();
-
-  if (lastArr[0]?.createdAt) {
-    const lastTime = lastArr[0].createdAt.getTime();
-    const cooldownMs = 6 * 60 * 60 * 1000;
-    if (now - lastTime < cooldownMs) {
-      const mins = Math.ceil((cooldownMs - (now - lastTime)) / 60000);
-      return res.status(429).json({ error: `Please wait ${mins} more minutes.` });
-    }
-  }
-
-  // Weekly limit: max 3 per 7 days
-  const weekMs = 7 * 24 * 60 * 60 * 1000;
-  const recentCount = await roleReqCol.countDocuments({
-    userId: req.me._id,
-    createdAt: { $gte: new Date(now - weekMs) },
-  });
-  if (recentCount >= 3) return res.status(429).json({ error: "Too many requests. Try later." });
-
-  const doc = {
-    userId: req.me._id,
-    usernameAtTime: req.me.username,
-    requestedRole,
-    status: "pending",
-    createdAt: new Date(),
-    decidedAt: null,
-    decidedBy: null,
-    reason: null,
-  };
-
-  const result = await roleReqCol.insertOne(doc);
-  const saved = await roleReqCol.findOne({ _id: result.insertedId });
-
-  return res.status(201).json({ ok: true, request: reqToClient(saved) });
-});
-
-app.get("/api/requests/my", requireAuthApi(), async (req, res) => {
-  const list = await roleReqCol
-    .find({ userId: req.me._id })
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .toArray();
-
-  return res.json({ ok: true, requests: list.map(reqToClient) });
-});
-
-/* =========================
-   API: Mod (view-only)
-   ========================= */
-
-app.get("/api/mod/requests", requireModApi(), async (req, res) => {
-  const status = String(req.query.status || "pending").toLowerCase();
-
-  const filter = {};
-  if (["pending", "approved", "rejected"].includes(status)) filter.status = status;
-  // if status === "all" => no filter
-
-  const list = await roleReqCol.find(filter).sort({ createdAt: -1 }).toArray();
-  return res.json({ ok: true, requests: list.map(reqToClient) });
-});
-
-app.get("/api/mod/requests/pending-count", requireModApi(), async (req, res) => {
-  const n = await roleReqCol.countDocuments({ status: "pending" });
-  return res.json({ ok: true, pendingCount: n });
-});
-
-/* =========================
-   API: Admin (approve/reject)
-   ========================= */
-
-app.get("/api/admin/requests", requireAdminApi(), async (req, res) => {
-  const status = String(req.query.status || "pending").toLowerCase();
-
-  const filter = {};
-  if (["pending", "approved", "rejected"].includes(status)) filter.status = status;
-  // if status === "all" => no filter
-
-  const list = await roleReqCol.find(filter).sort({ createdAt: -1 }).toArray();
-  return res.json({ ok: true, requests: list.map(reqToClient) });
-});
-
-app.get("/api/admin/requests/pending-count", requireAdminApi(), async (req, res) => {
-  const n = await roleReqCol.countDocuments({ status: "pending" });
-  return res.json({ ok: true, pendingCount: n });
-});
-
-app.post("/api/admin/requests/:id/approve", requireAdminApi(), async (req, res) => {
-  let rid;
-  try {
-    rid = new ObjectId(req.params.id);
-  } catch {
-    return res.status(400).json({ error: "Bad request id" });
-  }
-
-  const r = await roleReqCol.findOne({ _id: rid });
-  if (!r) return res.status(404).json({ error: "Not found" });
-  if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
-
-  const u = await usersCol.findOne({ _id: r.userId });
+  const u = await usersCol.findOne({ _id: uid });
   if (!u) return res.status(404).json({ error: "User not found" });
 
-  const expected = nextRoleFor(u.role);
-  if (expected !== r.requestedRole) {
-    await roleReqCol.updateOne(
-      { _id: rid },
-      {
-        $set: {
-          status: "rejected",
-          decidedAt: new Date(),
-          decidedBy: req.me.username,
-          reason: "Rejected (role changed / request no longer valid).",
-        },
-      },
-    );
-    return res.status(400).json({ error: "User role changed; request no longer valid." });
-  }
-
-  await usersCol.updateOne({ _id: u._id }, { $set: { role: r.requestedRole } });
-
-  await roleReqCol.updateOne(
-    { _id: rid },
-    {
-      $set: {
-        status: "approved",
-        decidedAt: new Date(),
-        decidedBy: req.me.username,
-        reason: String(req.body.reason || "") || null,
-      },
-    },
+  await usersCol.updateOne(
+    { _id: uid },
+    { $set: { banned: false }, $unset: { banReason: "", bannedAt: "", bannedBy: "" } }
   );
-
-  const r2 = await roleReqCol.findOne({ _id: rid });
-  const u2 = await usersCol.findOne({ _id: u._id });
-
-  return res.json({ ok: true, request: reqToClient(r2), user: publicUser(u2) });
+  const u2 = await usersCol.findOne({ _id: uid });
+  res.json({ ok: true, user: publicUser(u2) });
 });
 
-app.post("/api/admin/requests/:id/reject", requireAdminApi(), async (req, res) => {
-  let rid;
-  try {
-    rid = new ObjectId(req.params.id);
-  } catch {
-    return res.status(400).json({ error: "Bad request id" });
+app.post("/api/admin/users/:id/role", requireAdminApi(), async (req, res) => {
+  let uid;
+  try { uid = new ObjectId(req.params.id); } catch { return res.status(400).json({ error: "Bad user id" }); }
+  const role = String(req.body.role || "").toLowerCase();
+  if (!["user","mod","admin"].includes(role)) return res.status(400).json({ error: "Role must be user/mod/admin" });
+
+  const u = await usersCol.findOne({ _id: uid });
+  if (!u) return res.status(404).json({ error: "User not found" });
+  if (String(u._id) === String(req.me._id) && role !== "admin") {
+    return res.status(400).json({ error: "You cannot downgrade your own admin role." });
   }
 
-  const r = await roleReqCol.findOne({ _id: rid });
-  if (!r) return res.status(404).json({ error: "Not found" });
-  if (r.status !== "pending") return res.status(400).json({ error: "Already decided" });
-
-  await roleReqCol.updateOne(
-    { _id: rid },
-    {
-      $set: {
-        status: "rejected",
-        decidedAt: new Date(),
-        decidedBy: req.me.username,
-        reason: String(req.body.reason || "") || null,
-      },
-    },
-  );
-
-  const r2 = await roleReqCol.findOne({ _id: rid });
-  return res.json({ ok: true, request: reqToClient(r2) });
+  await usersCol.updateOne({ _id: uid }, { $set: { role } });
+  const u2 = await usersCol.findOne({ _id: uid });
+  res.json({ ok: true, user: publicUser(u2) });
 });
 
-/* =========================
-   Health
-   ========================= */
+app.get("/api/admin/devices", requireAdminApi(), async (req, res) => {
+  const list = await devicesCol.find({}).sort({ lastSeenAt: -1 }).limit(500).toArray();
+  res.json({
+    ok: true,
+    devices: list.map((d) => ({
+      deviceId: d.deviceId,
+      username: d.username || null,
+      lastSeenAt: d.lastSeenAt ? d.lastSeenAt.toISOString() : null,
+      ua: d.ua || null
+    }))
+  });
+});
 
+/* Admin: Commands CRUD */
+app.get("/api/admin/commands", requireAdminApi(), async (req, res) => {
+  const list = await commandsCol.find({}).sort({ name: 1 }).limit(800).toArray();
+  res.json({
+    ok: true,
+    commands: list.map((c) => ({
+      id: String(c._id),
+      name: c.name,
+      description: c.description || "",
+      output: c.output || "",
+      enabled: !!c.enabled
+    }))
+  });
+});
+
+app.post("/api/admin/commands", requireAdminApi(), async (req, res) => {
+  const name = cleanCommandName(req.body.name);
+  if (!name) return res.status(400).json({ error: "Bad command name" });
+
+  const description = safeStr(req.body.description || "", 300);
+  const output = safeStr(req.body.output || "", 5000);
+  const enabled = req.body.enabled !== false;
+
+  const exists = await commandsCol.findOne({ name });
+  if (exists) return res.status(409).json({ error: "Command already exists." });
+
+  const result = await commandsCol.insertOne({
+    name, description, output, enabled,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    createdBy: req.me.username
+  });
+  res.status(201).json({ ok: true, id: String(result.insertedId) });
+});
+
+app.put("/api/admin/commands/:id", requireAdminApi(), async (req, res) => {
+  let cid;
+  try { cid = new ObjectId(req.params.id); } catch { return res.status(400).json({ error: "Bad id" }); }
+
+  const patch = {};
+  if (req.body.description !== undefined) patch.description = safeStr(req.body.description || "", 300);
+  if (req.body.output !== undefined) patch.output = safeStr(req.body.output || "", 5000);
+  if (req.body.enabled !== undefined) patch.enabled = !!req.body.enabled;
+  patch.updatedAt = new Date();
+
+  await commandsCol.updateOne({ _id: cid }, { $set: patch });
+  res.json({ ok: true });
+});
+
+app.delete("/api/admin/commands/:id", requireAdminApi(), async (req, res) => {
+  let cid;
+  try { cid = new ObjectId(req.params.id); } catch { return res.status(400).json({ error: "Bad id" }); }
+  await commandsCol.deleteOne({ _id: cid });
+  res.json({ ok: true });
+});
+
+/* Admin: broadcast commands_update to devices (so clients reload custom commands) */
+app.post("/api/admin/commands/broadcast", requireAdminApi(), async (req, res) => {
+  const target = String(req.body.target || "all").toLowerCase(); // all | device
+  const deviceId = safeStr(req.body.deviceId || "", 120).trim();
+
+  if (target !== "all" && target !== "device") return res.status(400).json({ error: "Bad target" });
+  if (target === "device" && (!deviceId || deviceId.length < 6)) return res.status(400).json({ error: "Bad deviceId" });
+
+  const payload = { t: Date.now(), by: req.me.username };
+  if (target === "all") broadcast("commands_update", payload);
+  else sendToDevice(deviceId, "commands_update", payload);
+
+  res.json({ ok: true });
+});
+
+/* Feature A (admin view): get command logs */
+app.get("/api/admin/logs/commands", requireAdminApi(), async (req, res) => {
+  const deviceId = safeStr(req.query.deviceId || "", 120).trim();
+  const q = safeStr(req.query.q || "", 120).trim().toLowerCase();
+  const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50)));
+
+  const filter = { kind: "command" };
+  if (deviceId) filter.deviceId = deviceId;
+  if (q) filter.raw = { $regex: q };
+
+  const list = await logsCol.find(filter).sort({ createdAt: -1 }).limit(limit).toArray();
+  res.json({
+    ok: true,
+    logs: list.map((l) => ({
+      id: String(l._id),
+      at: l.createdAt ? l.createdAt.toISOString() : null,
+      username: l.username || null,
+      deviceId: l.deviceId,
+      raw: l.raw
+    }))
+  });
+});
+
+/* Feature B: remote run command */
+app.post("/api/admin/run-command", requireAdminApi(), async (req, res) => {
+  const target = String(req.body.target || "all").toLowerCase(); // all | device
+  const deviceId = safeStr(req.body.deviceId || "", 120).trim();
+  const commandLine = safeStr(req.body.commandLine || "", 400).trim();
+  const typing = !!req.body.typing;
+
+  if (!commandLine) return res.status(400).json({ error: "Missing commandLine" });
+  if (target !== "all" && target !== "device") return res.status(400).json({ error: "Bad target" });
+  if (target === "device" && (!deviceId || deviceId.length < 6)) return res.status(400).json({ error: "Bad deviceId" });
+
+  const payload = { commandLine, typing, from: req.me.username, at: new Date().toISOString() };
+  const delivered = target === "all" ? (broadcast("admin_run", payload), "broadcast") : sendToDevice(deviceId, "admin_run", payload);
+
+  res.json({ ok: true, delivered });
+});
+
+/* Feature C: remote FX control */
+app.post("/api/admin/fx", requireAdminApi(), async (req, res) => {
+  const target = String(req.body.target || "all").toLowerCase(); // all | device
+  const deviceId = safeStr(req.body.deviceId || "", 120).trim();
+
+  if (target !== "all" && target !== "device") return res.status(400).json({ error: "Bad target" });
+  if (target === "device" && (!deviceId || deviceId.length < 6)) return res.status(400).json({ error: "Bad deviceId" });
+
+  const fx = {
+    matrixOn: req.body.matrixOn,
+    rainbow: req.body.rainbow,
+    mirror: req.body.mirror,
+    scanOpacity: req.body.scanOpacity,
+    glitchOpacity: req.body.glitchOpacity,
+    from: req.me.username,
+    at: new Date().toISOString()
+  };
+
+  const payload = Object.fromEntries(Object.entries(fx).filter(([,v]) => v !== undefined));
+  const delivered = target === "all" ? (broadcast("admin_fx", payload), "broadcast") : sendToDevice(deviceId, "admin_fx", payload);
+
+  res.json({ ok: true, delivered });
+});
+
+/* Health */
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-/* =========================
-   Start AFTER DB connect
-   ========================= */
-
+/* Start */
 async function start() {
   await client.connect();
   const db = client.db(MONGODB_DB);
 
   usersCol = db.collection("users");
-  roleReqCol = db.collection("role_requests");
+  devicesCol = db.collection("devices");
+  commandsCol = db.collection("commands");
+  logsCol = db.collection("command_logs");
 
-  // Unique usernames (case-insensitive)
   await usersCol.createIndex({ usernameLower: 1 }, { unique: true });
-
-  // Helpful indexes for requests
-  await roleReqCol.createIndex({ status: 1, createdAt: -1 });
-  await roleReqCol.createIndex({ userId: 1, createdAt: -1 });
+  await devicesCol.createIndex({ deviceId: 1 }, { unique: true });
+  await devicesCol.createIndex({ lastSeenAt: -1 });
+  await commandsCol.createIndex({ name: 1 }, { unique: true });
+  await logsCol.createIndex({ createdAt: -1 });
+  await logsCol.createIndex({ kind: 1, deviceId: 1, createdAt: -1 });
 
   await ensureBootstrapAdmin();
 
