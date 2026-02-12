@@ -20,9 +20,18 @@
   </div>
 
 <script>
-(async function(){
-  const me = await ZeroPoint.api.json("/api/auth/me",{method:"GET"});
-  if(me.loggedIn){ location.href="/"; return; }
+(async function () {
+  // Optional: check if already logged in
+  try {
+    const meRes = await fetch("/api/auth/me", { method: "GET" });
+    const me = await meRes.json().catch(() => ({}));
+    if (me && me.loggedIn) {
+      location.href = "/";
+      return;
+    }
+  } catch (e) {
+    console.warn("auth/me check failed", e);
+  }
 
   const username = document.getElementById("username");
   const password = document.getElementById("password");
@@ -32,12 +41,35 @@
   btn.onclick = async () => {
     btn.disabled = true;
     msg.textContent = "";
-    const res = await ZeroPoint.api.json("/api/auth/login",{
-      method:"POST",
-      body:{ username: username.value.trim(), password: password.value }
-    });
-    if(res.error){ msg.textContent = res.error; btn.disabled=false; return; }
-    location.href="/";
+
+    const body = {
+      username: username.value.trim(),
+      password: password.value
+    };
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || (data && data.error)) {
+        msg.textContent =
+          (data && data.error) || "Login failed. Please try again.";
+        btn.disabled = false;
+        return;
+      }
+
+      // Success
+      location.href = "/";
+    } catch (err) {
+      console.error(err);
+      msg.textContent = "Network error. Please try again.";
+      btn.disabled = false;
+    }
   };
 })();
 </script>
