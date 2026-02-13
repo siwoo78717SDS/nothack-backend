@@ -21,7 +21,7 @@
 
 <script>
 (async function () {
-  // Optional: check if already logged in
+  // optional: check if already logged in
   try {
     const meRes = await fetch("/api/auth/me", { method: "GET" });
     const me = await meRes.json().catch(() => ({}));
@@ -39,6 +39,7 @@
   const msg = document.getElementById("msg");
 
   btn.onclick = async () => {
+    console.log("LOGIN BUTTON CLICKED");
     btn.disabled = true;
     msg.textContent = "";
 
@@ -54,6 +55,8 @@
         body: JSON.stringify(body)
       });
 
+      console.log("LOGIN RESPONSE STATUS", res.status);
+
       const data = await res.json().catch(() => null);
 
       if (!res.ok || (data && data.error)) {
@@ -63,10 +66,9 @@
         return;
       }
 
-      // Success
       location.href = "/";
     } catch (err) {
-      console.error(err);
+      console.error("LOGIN FETCH ERROR", err);
       msg.textContent = "Network error. Please try again.";
       btn.disabled = false;
     }
