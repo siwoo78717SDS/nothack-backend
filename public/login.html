@@ -1,79 +1,108 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Login • ZeroPoint</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="stylesheet" href="/style.css">
-  <script src="/shared.js"></script>
-</head>
-<body>
-  <div class="center-box">
-    <div class="card">
-      <h2 style="margin-top:0;">Login</h2>
-      <div class="dim-text" style="margin-bottom:12px;">No account? <a href="/register">Register</a></div>
-      <input id="username" placeholder="username" style="width:100%; margin-bottom:8px;">
-      <input id="password" placeholder="password" type="password" style="width:100%; margin-bottom:8px;">
-      <button id="loginBtn">Login</button>
-      <div id="msg" class="dim-text" style="margin-top:10px;"></div>
-    </div>
-  </div>
-
-<script>
-(async function () {
-  // optional: check if already logged in
-  try {
-    const meRes = await fetch("/api/auth/me", { method: "GET" });
-    const me = await meRes.json().catch(() => ({}));
-    if (me && me.loggedIn) {
-      location.href = "/";
-      return;
-    }
-  } catch (e) {
-    console.warn("auth/me check failed", e);
-  }
-
-  const username = document.getElementById("username");
-  const password = document.getElementById("password");
-  const btn = document.getElementById("loginBtn");
-  const msg = document.getElementById("msg");
-
-  btn.onclick = async () => {
-    console.log("LOGIN BUTTON CLICKED");
-    btn.disabled = true;
-    msg.textContent = "";
-
-    const body = {
-      username: username.value.trim(),
-      password: password.value
-    };
-
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-
-      console.log("LOGIN RESPONSE STATUS", res.status);
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || (data && data.error)) {
-        msg.textContent =
-          (data && data.error) || "Login failed. Please try again.";
-        btn.disabled = false;
-        return;
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Login • ZeroPoint</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 480px;
+        margin: 40px auto;
       }
+      .error {
+        color: red;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Login</h1>
 
-      location.href = "/";
-    } catch (err) {
-      console.error("LOGIN FETCH ERROR", err);
-      msg.textContent = "Network error. Please try again.";
-      btn.disabled = false;
-    }
-  };
-})();
-</script>
-</body>
+    <div>
+      <label>
+        Username
+        <input id="username" type="text" autocomplete="username" />
+      </label>
+    </div>
+    <div>
+      <label>
+        Password
+        <input id="password" type="password" autocomplete="current-password" />
+      </label>
+    </div>
+    <button id="loginBtn" type="button">Login</button>
+
+    <p id="msg" class="error"></p>
+
+    <script>
+      (async function () {
+        // Your backend on Render
+        const API_BASE = "https://nothack.onrender.com";
+
+        // Optional: check if already logged in
+        try {
+          const meRes = await fetch(`${API_BASE}/api/auth/me`, {
+            method: "GET",
+            credentials: "include"
+          });
+          const me = await meRes.json().catch(() => ({}));
+          if (me && me.loggedIn) {
+            location.href = "/";
+            return;
+          }
+        } catch (e) {
+          console.warn("auth/me check failed", e);
+        }
+
+        const username = document.getElementById("username");
+        const password = document.getElementById("password");
+        const btn = document.getElementById("loginBtn");
+        const msg = document.getElementById("msg");
+
+        btn.onclick = async () => {
+          console.log("LOGIN BUTTON CLICKED");
+          btn.disabled = true;
+          msg.textContent = "";
+
+          const body = {
+            username: username.value.trim(),
+            password: password.value
+          };
+
+          if (!body.username || !body.password) {
+            msg.textContent = "Please enter username and password.";
+            btn.disabled = false;
+            return;
+          }
+
+          try {
+            const res = await fetch(`${API_BASE}/api/auth/login`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(body)
+            });
+
+            console.log("LOGIN RESPONSE STATUS", res.status);
+
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok || (data && data.error)) {
+              msg.textContent =
+                (data && data.error) || "Login failed. Please try again.";
+              btn.disabled = false;
+              return;
+            }
+
+            // success
+            location.href = "/";
+          } catch (err) {
+            console.error("LOGIN FETCH ERROR", err);
+            msg.textContent = "Network error. Please try again.";
+            btn.disabled = false;
+          }
+        };
+      })();
+    </script>
+  </body>
 </html>
