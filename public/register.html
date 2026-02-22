@@ -21,9 +21,36 @@
   </div>
 
 <script>
-(async function(){
-  const me = await ZeroPoint.api.json("/api/auth/me",{method:"GET"});
-  if(me.loggedIn){ location.href="/"; return; }
+(async function () {
+  const API_BASE = "https://nothack.onrender.com";
+
+  async function apiJson(path, options = {}) {
+    const res = await fetch(API_BASE + path, {
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      },
+      ...options,
+      body: options.body ? JSON.stringify(options.body) : undefined
+    });
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (e) {
+      // ignore JSON parse errors
+    }
+
+    return data || {};
+  }
+
+  // redirect if already logged in
+  const me = await apiJson("/api/auth/me", { method: "GET" });
+  if (me.loggedIn) {
+    location.href = "/";
+    return;
+  }
 
   const fullName = document.getElementById("fullName");
   const username = document.getElementById("username");
@@ -34,12 +61,25 @@
   btn.onclick = async () => {
     btn.disabled = true;
     msg.textContent = "";
-    const res = await ZeroPoint.api.json("/api/auth/register",{
-      method:"POST",
-      body:{ fullName: fullName.value.trim(), username: username.value.trim(), password: password.value }
+
+    const body = {
+      fullName: fullName.value.trim(),
+      username: username.value.trim(),
+      password: password.value
+    };
+
+    const res = await apiJson("/api/auth/register", {
+      method: "POST",
+      body
     });
-    if(res.error){ msg.textContent = res.error; btn.disabled=false; return; }
-    location.href="/";
+
+    if (res.error) {
+      msg.textContent = res.error;
+      btn.disabled = false;
+      return;
+    }
+
+    location.href = "/";
   };
 })();
 </script>
