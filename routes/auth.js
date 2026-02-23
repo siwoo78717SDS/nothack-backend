@@ -17,12 +17,16 @@ function getClientIp(req) {
 
 function regenerateSession(req) {
   return new Promise((resolve, reject) => {
-    // express-session provides req.session.regenerate
     req.session.regenerate((err) => {
       if (err) return reject(err);
       resolve();
     });
   });
+}
+
+// Used for safe regex (so usernames like "." don’t break the regex)
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 router.post("/register", async (req, res) => {
@@ -42,7 +46,14 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 6 characters" });
     }
 
-    const exists = await User.findOne({ username: u });
+    // IMPORTANT: check both exact username and usernameLower
+    const exists = await User.findOne({
+      $or: [
+        { username: u },
+        { usernameLower: u.toLowerCase() }
+      ]
+    });
+
     if (exists) return res.status(400).json({ error: "Username already taken" });
 
     const now = new Date();
@@ -52,6 +63,7 @@ router.post("/register", async (req, res) => {
     const user = await User.create({
       fullName: String(fullName).slice(0, 80),
       username: u,
+      usernameLower: u.toLowerCase(), // ✅ FIX: save usernameLower
       passwordHash,
 
       // tracking fields
@@ -63,7 +75,7 @@ router.post("/register", async (req, res) => {
     // Prevent session fixation
     await regenerateSession(req);
     req.session.userId = user._id.toString();
-    req.session._lastSeenWriteAt = Date.now(); // aligns with your throttling logic
+    req.session._lastSeenWriteAt = Date.now();
 
     return res.json({
       ok: true,
@@ -86,15 +98,19 @@ router.post("/login", loginLimiter, async (req, res) => {
       return res.status(400).json({ error: "Missing username/password" });
     }
 
-    const uname = String(username).trim().toLowerCase();
+    const unameRaw = String(username).trim();
+    const unameLower = unameRaw.toLowerCase();
 
-    // IMPORTANT: do not allow deleted accounts to log in
-    const user = await User.findOne({ usernameLower: uname, isDeleted: false })
-      .select("+passHash");
-    if (!user) {
-      // we don't reveal if account exists but is deleted; just say invalid
-      return res.status(400).json({ error: "Invalid credentials" });
-    }
+    // ✅ FIX: look up user correctly (supports old accounts too)
+    const user = await User.findOne({
+      isDeleted: false,
+      $or: [
+        { usernameLower: unameLower },
+        { username: new RegExp("^" + escapeRegExp(unameRaw) + "$", "i") }
+      ]
+    }).select("+passwordHash"); // ✅ FIX: was +passHash
+
+    if (!user) return res.status(400).json({ error: "Invalid credentials" });
 
     const ok = await user.checkPassword(String(password));
     if (!ok) return res.status(400).json({ error: "Invalid credentials" });
@@ -139,7 +155,6 @@ router.post("/logout", async (req, res) => {
         return res.status(500).json({ error: "Server error" });
       }
 
-      // default cookie name for express-session
       res.clearCookie("connect.sid");
       return res.json({ ok: true });
     });
@@ -156,7 +171,6 @@ router.get("/me", async (req, res) => {
 
   const user = await User.findById(req.session.userId);
 
-  // If user was deleted after session was created, treat as logged out
   if (!user || user.isDeleted) {
     return res.json({ loggedIn: false });
   }
@@ -172,8 +186,6 @@ router.get("/me", async (req, res) => {
       coins: user.coins,
       statusMessage: user.statusMessage || "",
       theme: user.theme || "classic",
-
-      // optional: show to the user themself
       lastLoginAt: user.lastLoginAt || null,
       lastSeenAt: user.lastSeenAt || null
     }
