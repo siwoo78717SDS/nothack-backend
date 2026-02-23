@@ -2,32 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/style.css" />
     <title>Login • ZeroPoint</title>
-   
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <h1>Login</h1>
+    <div class="center-box">
+      <div class="card">
+        <h2 style="margin-top:0;">Login</h2>
+        <div class="dim-text" style="margin-bottom:12px;">
+          Don't have an account? <a href="/register">Register</a>
+        </div>
 
-    <div>
-      <label>
-        Username
-        <input id="username" type="text" autocomplete="username" />
-      </label>
+        <input
+          id="username"
+          placeholder="username"
+          autocomplete="username"
+          style="width:100%; margin-bottom:8px;"
+        />
+        <input
+          id="password"
+          placeholder="password"
+          type="password"
+          autocomplete="current-password"
+          style="width:100%; margin-bottom:8px;"
+        />
+        <button id="loginBtn" type="button">Login</button>
+        <div id="msg" class="dim-text" style="margin-top:10px;"></div>
+      </div>
     </div>
-    <div>
-      <label>
-        Password
-        <input id="password" type="password" autocomplete="current-password" />
-      </label>
-    </div>
-    <button id="loginBtn" type="button">Login</button>
-
-    <p id="msg" class="error"></p>
 
     <script>
       (async function () {
-        // Your backend on Render
         const API_BASE = "https://nothack.onrender.com";
 
         // Optional: check if already logged in
@@ -51,7 +57,6 @@
         const msg = document.getElementById("msg");
 
         btn.onclick = async () => {
-          console.log("LOGIN BUTTON CLICKED");
           btn.disabled = true;
           msg.textContent = "";
 
@@ -73,8 +78,6 @@
               credentials: "include",
               body: JSON.stringify(body)
             });
-
-            console.log("LOGIN RESPONSE STATUS", res.status);
 
             const data = await res.json().catch(() => null);
 
