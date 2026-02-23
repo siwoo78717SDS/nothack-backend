@@ -24,7 +24,6 @@ function regenerateSession(req) {
   });
 }
 
-// Used for safe regex (so usernames like "." don’t break the regex)
 function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -46,33 +45,26 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 6 characters" });
     }
 
-    // IMPORTANT: check both exact username and usernameLower
+    // check both exact and lower (supports older docs)
     const exists = await User.findOne({
-      $or: [
-        { username: u },
-        { usernameLower: u.toLowerCase() }
-      ]
+      $or: [{ username: u }, { usernameLower: u.toLowerCase() }]
     });
-
     if (exists) return res.status(400).json({ error: "Username already taken" });
 
     const now = new Date();
     const ip = getClientIp(req);
 
-    const passwordHash = await User.hashPassword(String(password));
+    const passHash = await User.hashPassword(String(password));
     const user = await User.create({
       fullName: String(fullName).slice(0, 80),
       username: u,
-      usernameLower: u.toLowerCase(), // ✅ FIX: save usernameLower
-      passwordHash,
+      passHash, // ✅ MUST be passHash (matches your User model)
 
-      // tracking fields
       lastLoginAt: now,
       lastSeenAt: now,
       lastIp: ip
     });
 
-    // Prevent session fixation
     await regenerateSession(req);
     req.session.userId = user._id.toString();
     req.session._lastSeenWriteAt = Date.now();
@@ -101,26 +93,23 @@ router.post("/login", loginLimiter, async (req, res) => {
     const unameRaw = String(username).trim();
     const unameLower = unameRaw.toLowerCase();
 
-    // ✅ FIX: look up user correctly (supports old accounts too)
     const user = await User.findOne({
       isDeleted: false,
       $or: [
         { usernameLower: unameLower },
         { username: new RegExp("^" + escapeRegExp(unameRaw) + "$", "i") }
       ]
-    }).select("+passwordHash"); // ✅ FIX: was +passHash
+    }).select("+passHash"); // ✅ MUST select passHash (it’s hidden by default)
 
     if (!user) return res.status(400).json({ error: "Invalid credentials" });
 
     const ok = await user.checkPassword(String(password));
     if (!ok) return res.status(400).json({ error: "Invalid credentials" });
 
-    // Prevent session fixation
     await regenerateSession(req);
     req.session.userId = user._id.toString();
     req.session._lastSeenWriteAt = Date.now();
 
-    // Update login + activity fields
     const now = new Date();
     const ip = getClientIp(req);
     await User.updateOne(
@@ -128,7 +117,6 @@ router.post("/login", loginLimiter, async (req, res) => {
       { $set: { lastLoginAt: now, lastSeenAt: now, lastIp: ip } }
     );
 
-    // award first-login achievement (only once)
     await awardAchievement(user._id, "FIRST_LOGIN");
 
     return res.json({
