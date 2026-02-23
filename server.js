@@ -7,6 +7,7 @@ const MongoStore = require("connect-mongo");
 const mongoose = require("mongoose");
 const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
+const cors = require("cors"); // ⬅️ NEW
 
 const User = require("./models/User");
 const IpBan = require("./models/IpBan"); // IP ban model
@@ -30,6 +31,14 @@ const app = express();
 
 // IMPORTANT: makes req.ip work correctly behind proxies (Render/Vercel/Nginx/etc.)
 app.set("trust proxy", 1);
+
+// ⬅️ CORS MUST COME EARLY, BEFORE SESSIONS / ROUTES
+app.use(
+  cors({
+    origin: "https://nothack.vercel.app", // your frontend origin
+    credentials: true
+  })
+);
 
 const PORT = Number(process.env.PORT || 3000);
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017";
