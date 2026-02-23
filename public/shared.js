@@ -2,6 +2,9 @@ window.ZeroPoint = window.ZeroPoint || {};
 
 // ---------- basic helpers ----------
 
+// Backend API base (Render)
+const API_BASE = "https://nothack.onrender.com";
+
 ZeroPoint.escapeHtml = function (str) {
   if (str == null) return "";
   return String(str)
@@ -21,7 +24,12 @@ ZeroPoint.api.json = async function (url, options = {}) {
   };
   if (options.body !== undefined) opts.body = JSON.stringify(options.body);
 
-  const res = await fetch(url, opts);
+  // prepend API_BASE if url starts with "/"
+  const finalUrl = url.startsWith("http")
+    ? url
+    : `${API_BASE}${url}`;
+
+  const res = await fetch(finalUrl, opts);
   let data = null;
   try {
     data = await res.json();
@@ -83,17 +91,6 @@ ZeroPoint.unlocks = ZeroPoint.unlocks || {};
 /**
  * Load current unlock info for the logged-in user.
  * GET /api/unlocks
- *
- * Returns whatever the API returns, usually:
- * {
- *   ok: true,
- *   coins: number,
- *   level: number,
- *   features: [
- *     { key, name, costCoins, minLevel, unlocked },
- *     ...
- *   ]
- * }
  */
 ZeroPoint.unlocks.load = async function () {
   return await ZeroPoint.api.json("/api/unlocks", { method: "GET" });
@@ -102,9 +99,6 @@ ZeroPoint.unlocks.load = async function () {
 /**
  * Buy/unlock a feature by key.
  * POST /api/unlocks/buy  { key }
- *
- * Example:
- *   const res = await ZeroPoint.unlocks.buy("chat");
  */
 ZeroPoint.unlocks.buy = async function (key) {
   return await ZeroPoint.api.json("/api/unlocks/buy", {
