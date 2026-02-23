@@ -43,7 +43,9 @@
             credentials: "include"
           });
           const me = await meRes.json().catch(() => ({}));
+          console.log("ME RESPONSE ON LOGIN PAGE", meRes.status, me);
           if (me && me.loggedIn) {
+            console.log("Already logged in, redirecting to /");
             location.href = "/";
             return;
           }
@@ -81,6 +83,8 @@
 
             const data = await res.json().catch(() => null);
 
+            console.log("LOGIN RESPONSE", res.status, data); // DEBUG
+
             if (!res.ok || (data && data.error)) {
               msg.textContent =
                 (data && data.error) || "Login failed. Please try again.";
@@ -89,6 +93,7 @@
             }
 
             // success
+            console.log("REDIRECTING TO /"); // DEBUG
             location.href = "/";
           } catch (err) {
             console.error("LOGIN FETCH ERROR", err);
