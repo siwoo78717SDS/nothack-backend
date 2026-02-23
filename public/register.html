@@ -11,7 +11,9 @@
   <div class="center-box">
     <div class="card">
       <h2 style="margin-top:0;">Register</h2>
-      <div class="dim-text" style="margin-bottom:12px;">Already have an account? <a href="/login">Login</a></div>
+      <div class="dim-text" style="margin-bottom:12px;">
+        Already have an account? <a href="/login">Login</a>
+      </div>
       <input id="fullName" placeholder="full name" style="width:100%; margin-bottom:8px;">
       <input id="username" placeholder="username (3-20, letters/numbers/_)" style="width:100%; margin-bottom:8px;">
       <input id="password" placeholder="password (min 6)" type="password" style="width:100%; margin-bottom:8px;">
@@ -20,68 +22,68 @@
     </div>
   </div>
 
-<script>
-(async function () {
-  const API_BASE = "https://nothack.onrender.com";
-
-  async function apiJson(path, options = {}) {
-    const res = await fetch(API_BASE + path, {
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.headers || {})
-      },
-      ...options,
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
-
-    let data = null;
-    try {
-      data = await res.json();
-    } catch (e) {
-      // ignore JSON parse errors
-    }
-
-    return data || {};
-  }
-
-  // redirect if already logged in
-  const me = await apiJson("/api/auth/me", { method: "GET" });
-  if (me.loggedIn) {
-    location.href = "/";
-    return;
-  }
-
-  const fullName = document.getElementById("fullName");
-  const username = document.getElementById("username");
-  const password = document.getElementById("password");
-  const btn = document.getElementById("regBtn");
-  const msg = document.getElementById("msg");
-
-  btn.onclick = async () => {
-    btn.disabled = true;
-    msg.textContent = "";
-
-    const body = {
-      fullName: fullName.value.trim(),
-      username: username.value.trim(),
-      password: password.value
-    };
-
-    const res = await apiJson("/api/auth/register", {
-      method: "POST",
-      body
-    });
-
-    if (res.error) {
-      msg.textContent = res.error;
-      btn.disabled = false;
-      return;
-    }
-
-    location.href = "/";
-  };
-})();
-</script>
+  <script>
+    (async function () {
+      const API_BASE = "https://nothack.onrender.com";
+    
+      async function apiJson(path, options = {}) {
+        const res = await fetch(API_BASE + path, {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+          },
+          ...options,
+          body: options.body ? JSON.stringify(options.body) : undefined
+        });
+    
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (e) {
+          // ignore JSON parse errors
+        }
+    
+        return data || {};
+      }
+    
+      // redirect if already logged in
+      const me = await apiJson("/api/auth/me", { method: "GET" });
+      if (me.loggedIn) {
+        location.href = "/";
+        return;
+      }
+    
+      const fullName = document.getElementById("fullName");
+      const username = document.getElementById("username");
+      const password = document.getElementById("password");
+      const btn = document.getElementById("regBtn");
+      const msg = document.getElementById("msg");
+    
+      btn.onclick = async () => {
+        btn.disabled = true;
+        msg.textContent = "";
+    
+        const body = {
+          fullName: fullName.value.trim(),
+          username: username.value.trim(),
+          password: password.value
+        };
+    
+        const res = await apiJson("/api/auth/register", {
+          method: "POST",
+          body
+        });
+    
+        if (res.error) {
+          msg.textContent = res.error;
+          btn.disabled = false;
+          return;
+        }
+    
+        location.href = "/";
+      };
+    })();
+  </script>
 </body>
 </html>
