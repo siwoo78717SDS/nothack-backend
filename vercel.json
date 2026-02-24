@@ -1,25 +1,10 @@
 {
+  "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://nothack-backend.onrender.com/api/:path*"
-    },
-
-    { "source": "/", "destination": "/index.html" },
-
-    { "source": "/login", "destination": "/login.html" },
-    { "source": "/register", "destination": "/register.html" },
-
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/mod", "destination": "/mod.html" },
-
-    { "source": "/groups", "destination": "/groups.html" },
-    { "source": "/users", "destination": "/users.html" },
-
-    { "source": "/shop", "destination": "/shop.html" },
-    {
-      "source": "/how-to-get-coins",
-      "destination": "/how-to-get-coins.html"
+      "destination": "https://nothack.onrender.com/api/:path*"
     }
   ]
 }

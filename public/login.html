@@ -18,14 +18,14 @@
           id="username"
           placeholder="username"
           autocomplete="username"
-          style="width:100%; margin-bottom:8px;"
+          style="margin-bottom:8px;"
         />
         <input
           id="password"
           placeholder="password"
           type="password"
           autocomplete="current-password"
-          style="width:100%; margin-bottom:8px;"
+          style="margin-bottom:8px;"
         />
         <button id="loginBtn" type="button">Login</button>
         <div id="msg" class="dim-text" style="margin-top:10px;"></div>
@@ -34,7 +34,26 @@
 
     <script>
       (async function () {
-        const API_BASE = "https://nothack.onrender.com";
+        // With vercel.json rewrite, this will proxy to Render:
+        // /api/...  ->  https://nothack.onrender.com/api/...
+        const API_BASE = "";
+
+        const username = document.getElementById("username");
+        const password = document.getElementById("password");
+        const btn = document.getElementById("loginBtn");
+        const msg = document.getElementById("msg");
+
+        function setMsg(t) {
+          msg.textContent = t || "";
+        }
+
+        // Enter key support
+        password.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") btn.click();
+        });
+        username.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") btn.click();
+        });
 
         // Optional: check if already logged in
         try {
@@ -43,24 +62,17 @@
             credentials: "include"
           });
           const me = await meRes.json().catch(() => ({}));
-          console.log("ME RESPONSE ON LOGIN PAGE", meRes.status, me);
           if (me && me.loggedIn) {
-            console.log("Already logged in, redirecting to /");
-            location.href = "/";
+            location.replace("/");
             return;
           }
         } catch (e) {
           console.warn("auth/me check failed", e);
         }
 
-        const username = document.getElementById("username");
-        const password = document.getElementById("password");
-        const btn = document.getElementById("loginBtn");
-        const msg = document.getElementById("msg");
-
         btn.onclick = async () => {
           btn.disabled = true;
-          msg.textContent = "";
+          setMsg("");
 
           const body = {
             username: username.value.trim(),
@@ -68,7 +80,7 @@
           };
 
           if (!body.username || !body.password) {
-            msg.textContent = "Please enter username and password.";
+            setMsg("Please enter username and password.");
             btn.disabled = false;
             return;
           }
@@ -83,21 +95,17 @@
 
             const data = await res.json().catch(() => null);
 
-            console.log("LOGIN RESPONSE", res.status, data); // DEBUG
-
             if (!res.ok || (data && data.error)) {
-              msg.textContent =
-                (data && data.error) || "Login failed. Please try again.";
+              setMsg((data && data.error) || "Login failed. Please try again.");
               btn.disabled = false;
               return;
             }
 
             // success
-            console.log("REDIRECTING TO /"); // DEBUG
-            location.href = "/";
+            location.replace("/");
           } catch (err) {
             console.error("LOGIN FETCH ERROR", err);
-            msg.textContent = "Network error. Please try again.";
+            setMsg("Network error. Please try again.");
             btn.disabled = false;
           }
         };
