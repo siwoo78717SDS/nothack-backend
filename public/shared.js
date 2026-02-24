@@ -2,9 +2,14 @@ window.ZeroPoint = window.ZeroPoint || {};
 
 // ---------- basic helpers ----------
 
-// Backend API base (Render)
-const API_BASE = "https://nothack.onrender.com";
+// IMPORTANT:
+// Use same-origin API so Vercel can proxy /api/* → Render.
+// Do NOT hardcode https://nothack.onrender.com here.
+const API_BASE = "";
 
+/**
+ * Escape HTML to avoid XSS when inserting user-provided text into the DOM.
+ */
 ZeroPoint.escapeHtml = function (str) {
   if (str == null) return "";
   return String(str)
@@ -16,34 +21,61 @@ ZeroPoint.escapeHtml = function (str) {
 };
 
 ZeroPoint.api = {};
+
+/**
+ * JSON helper for calling the backend.
+ *
+ * Example:
+ *   const me = await ZeroPoint.api.json("/api/auth/me", { method: "GET" });
+ */
 ZeroPoint.api.json = async function (url, options = {}) {
   const opts = {
     method: options.method || "GET",
     headers: { "Content-Type": "application/json" },
-    credentials: "include"
+    credentials: "include" // keep cookies for auth
   };
-  if (options.body !== undefined) opts.body = JSON.stringify(options.body);
 
-  // prepend API_BASE if url starts with "/"
+  if (options.body !== undefined) {
+    opts.body = JSON.stringify(options.body);
+  }
+
+  // Always go through same-origin URL.
+  // When API_BASE == "", "/api/..." stays "/api/...",
+  // and vercel.json rewrites it to https://nothack.onrender.com/api/...
   const finalUrl = url.startsWith("http")
     ? url
     : `${API_BASE}${url}`;
 
   const res = await fetch(finalUrl, opts);
   let data = null;
+
   try {
     data = await res.json();
-  } catch {
+  } catch (e) {
     data = { error: "Bad JSON response" };
   }
-  if (!res.ok && !data.error) data.error = "Request failed";
+
+  if (!res.ok && !data.error) {
+    data.error = "Request failed";
+  }
+
   return data;
 };
 
+/**
+ * Log out current user.
+ * POST /api/auth/logout
+ */
 ZeroPoint.logout = async function () {
   await ZeroPoint.api.json("/api/auth/logout", { method: "POST" });
 };
 
+/**
+ * Get a path segment from the URL, counting from the end.
+ * Example:
+ *   /users/123/profile  -> getPathParam(0) = "profile"
+ *                         getPathParam(1) = "123"
+ */
 ZeroPoint.getPathParam = function (indexFromEnd) {
   const parts = location.pathname.split("/").filter(Boolean);
   return parts[parts.length - 1 - (indexFromEnd || 0)];
@@ -70,8 +102,8 @@ ZeroPoint.showStatus = function (el, msg, type) {
   el.classList.add(cls);
 };
 
-// Optional minimal styles (only if you want to rely on them globally).
-// If you already style .zp-status-* in your CSS, you can delete this block.
+// Inject minimal default styles for .zp-status-*
+// (If you already have these in CSS, you can delete this block.)
 (function injectZeroPointStatusStyles() {
   if (document.getElementById("zp-status-style")) return;
   const style = document.createElement("style");
