@@ -1,0 +1,476 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>CodeQuiz • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/shared.js"></script>
+
+  <style>
+    body.shell {
+      margin: 0;
+      background: radial-gradient(circle at top, #041421 0, #02050b 45%, #000 100%);
+      color: #eaf7ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      /* allow the whole page to scroll */
+      overflow-y: auto;
+    }
+
+    /* Global top bar */
+    #topBar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.35rem 0.9rem;
+      background: rgba(5, 5, 15, 0.98);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(120, 200, 255, 0.3);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.18);
+    }
+
+    #brand {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9be7ff;
+      font-size: 0.85rem;
+    }
+
+    #brand #dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #0ff, #05f);
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.9);
+      animation: zp-pulseDot 1.6s infinite alternate;
+    }
+
+    @keyframes zp-pulseDot {
+      from { transform: scale(1); box-shadow: 0 0 8px rgba(0, 255, 255, 0.7); }
+      to   { transform: scale(1.25); box-shadow: 0 0 15px rgba(0, 255, 255, 1); }
+    }
+
+    #statusPills {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: 0.75rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.74rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid transparent;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .pill.info {
+      background: linear-gradient(120deg, rgba(0, 160, 255, 0.1), rgba(0, 255, 255, 0.07));
+      border-color: rgba(0, 200, 255, 0.45);
+      color: #e0f7ff;
+    }
+
+    .pill.ok {
+      background: linear-gradient(120deg, rgba(0, 255, 180, 0.1), rgba(0, 255, 120, 0.1));
+      border-color: rgba(0, 255, 180, 0.6);
+      color: #d8ffe8;
+    }
+
+    #topRightBtns {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.38rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 200, 255, 0.6);
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 255, 0.23), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(0, 140, 255, 0.23), transparent 60%),
+        rgba(10, 15, 35, 0.96);
+      box-shadow:
+        0 0 10px rgba(0, 150, 255, 0.3),
+        0 0 2px rgba(0, 255, 255, 0.4) inset;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #e5f6ff;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow:
+        0 0 14px rgba(0, 200, 255, 0.65),
+        0 0 3px rgba(0, 255, 255, 0.55) inset;
+      border-color: rgba(165, 235, 255, 0.95);
+    }
+
+    #logoutBtn {
+      border: none;
+      background: transparent;
+      color: #ffb3b3;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      margin-left: 0.25rem;
+      opacity: 0.9;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+
+    #logoutBtn:hover {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+
+    .center-box{
+      position: relative !important;
+      top: auto !important;
+      left: auto !important;
+      transform: none !important;
+
+      display:flex;
+      align-items: flex-start !important;
+      justify-content: center !important;
+
+      padding: 16px 12px 40px !important;
+      min-height: calc(100vh - 90px) !important;
+      overflow: visible !important;
+    }
+
+    .quiz-card{
+      display:flex;
+      flex-direction:column;
+      width: min(900px, 100%);
+      /* no height restriction here */
+    }
+
+    /* Only the inner quiz content scrolls if tall */
+    #quiz {
+      max-height: 420px;
+      overflow-y: auto;
+      padding-right: 6px;
+      margin-top: 8px;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+    }
+
+    .qCard {
+      border:1px solid var(--line);
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 12px;
+      margin: 10px 0;
+    }
+    .qTitle {
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .opt { display:block; margin: 6px 0; }
+    .opt input[type="radio"]{
+      position: fixed;
+      left: -9999px;
+      top: -9999px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .opt-inner{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid rgba(148, 163, 184, 0.5);
+      background: rgba(15, 23, 42, 0.8);
+      cursor:pointer;
+      transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .06s ease;
+      font-size:14px;
+      user-select:none;
+    }
+    .opt-inner:hover{
+      background: rgba(30, 64, 175, 0.5);
+      border-color:#38bdf8;
+      box-shadow:0 0 14px rgba(56, 189, 248, 0.4);
+      transform: translateY(-1px);
+    }
+    .opt-dot{
+      width:10px;height:10px;border-radius:999px;
+      border:2px solid rgba(148, 163, 184, 0.8);
+      box-sizing:border-box;
+      flex:0 0 auto;
+    }
+    .opt input[type="radio"]:checked + .opt-inner{
+      background: radial-gradient(circle at top left, #22c55e44, #0f172a);
+      border-color:#4ade80;
+      box-shadow:0 0 18px rgba(74, 222, 128, 0.7);
+    }
+    .opt input[type="radio"]:checked + .opt-inner .opt-dot{
+      border-color:#4ade80;
+      background:#22c55e;
+      box-shadow:0 0 10px rgba(34, 197, 94, 0.9);
+    }
+    .opt-text{ flex:1; }
+
+    .pill.codequiz-pill{
+      background: radial-gradient(circle at top left, #22c55e33, #0f172a);
+      border-color:#4ade80;
+      box-shadow:0 0 14px rgba(74, 222, 128, 0.5);
+    }
+
+    .reviewBox{
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(0,0,0,0.2);
+    }
+    .reviewRow{
+      padding: 8px 0;
+      border-top: 1px dashed rgba(148,163,184,0.35);
+    }
+    .reviewRow:first-child{ border-top: none; }
+    .good { color: #4ade80; }
+    .bad { color: #f87171; }
+    .dim { opacity: 0.85; }
+
+    @media (max-width: 720px) {
+      #topBar {
+        flex-wrap: wrap;
+        row-gap: 0.4rem;
+        padding: 0.45rem 0.55rem;
+      }
+      #statusPills {
+        margin-left: 0.3rem;
+      }
+      #topRightBtns {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .center-box {
+        padding: 1rem 0.6rem 1.6rem !important;
+      }
+      .card.quiz-card {
+        padding: 0.9rem 0.9rem;
+      }
+    }
+  </style>
+</head>
+
+<body class="shell">
+  <div id="topBar">
+    <div id="brand">
+      <div id="dot"></div>
+      <div>CodeQuiz</div>
+      <div id="statusPills">
+        <div id="mePill" class="pill info">Loading…</div>
+        <div id="coinsPill" class="pill ok">0 coins</div>
+      </div>
+    </div>
+
+    <div id="topRightBtns">
+      <a class="nav-btn" href="/">Terminal</a>
+      <a class="nav-btn" href="/shop">Shop</a>
+      <a class="nav-btn" href="/wordle">Wordle</a>
+      <span class="pill codequiz-pill">Daily CodeQuiz</span>
+      <button id="logoutBtn">Logout</button>
+    </div>
+  </div>
+
+  <div id="screen">
+    <div class="center-box">
+      <div class="card quiz-card">
+        <h2 style="margin-top:0;">Daily CodeQuiz</h2>
+        <div id="status" class="dim-text">Loading…</div>
+
+        <div id="quiz"></div>
+
+        <div class="row gap" style="margin-top:12px; flex-wrap:wrap;">
+          <button id="submitBtn">Submit</button>
+          <button id="claimBtn" style="display:none;">Claim Reward</button>
+          <button id="reloadBtn" class="small">Reload</button>
+          <a href="/" class="small pill info">Back to Terminal</a>
+        </div>
+
+        <div id="result"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if (!me.loggedIn) { location.href = "/login"; return; }
+
+  const coinsInfo = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+  const mePill = document.getElementById("mePill");
+  const coinsPill = document.getElementById("coinsPill");
+  mePill.textContent = `${me.user.username} • ${me.user.role} • L${coinsInfo.level}`;
+  coinsPill.textContent = `${coinsInfo.coins} coins`;
+
+  document.getElementById("logoutBtn").onclick = async () => {
+    await ZeroPoint.logout();
+    location.href = "/login";
+  };
+
+  const statusEl = document.getElementById("status");
+  const quizEl = document.getElementById("quiz");
+  const submitBtn = document.getElementById("submitBtn");
+  const claimBtn = document.getElementById("claimBtn");
+  const reloadBtn = document.getElementById("reloadBtn");
+  const resultEl = document.getElementById("result");
+
+  let lastToday = null;
+
+  function rewardFromTable(score, table) {
+    if (!Array.isArray(table)) return 0;
+    const s = Math.max(0, Math.min(5, Number(score) || 0));
+    return table[s] ?? 0;
+  }
+
+  function renderReview(review) {
+    if (!Array.isArray(review) || review.length === 0) return "";
+
+    const rows = review.map((r, idx) => {
+      const statusClass = r.isCorrect ? "good" : "bad";
+      const statusText = r.isCorrect ? "Correct" : "Wrong";
+
+      return `
+        <div class="reviewRow">
+          <div><b>Q${idx + 1}</b> — ${ZeroPoint.escapeHtml(r.prompt)}</div>
+          <div class="dim">Your answer: <span class="${statusClass}">${ZeroPoint.escapeHtml(r.yourText)}</span></div>
+          <div class="dim">Correct: <b>${ZeroPoint.escapeHtml(r.correctText)}</b></div>
+          <div class="${statusClass}"><b>${statusText}</b></div>
+        </div>
+      `;
+    }).join("");
+
+    return `<div class="reviewBox"><b>Answer Review</b>${rows}</div>`;
+  }
+
+  function renderQuiz(dayKey, questions, attempt, rules, reviewMaybe) {
+    lastToday = { dayKey, questions, attempt, rules, review: reviewMaybe || null };
+
+    const table = (rules && rules.rewardTable) ? rules.rewardTable : null;
+    statusEl.textContent = `Day: ${dayKey} • Reward table: 0→${table?.[0] ?? 0}, 1→${table?.[1] ?? "?"}, 2→${table?.[2] ?? "?"}, 3→${table?.[3] ?? "?"}, 4→${table?.[4] ?? "?"}, 5→${table?.[5] ?? "?"} coins`;
+
+    quizEl.innerHTML = "";
+
+    questions.forEach((q, i) => {
+      const card = document.createElement("div");
+      card.className = "qCard";
+      card.innerHTML = `
+        <div class="qTitle">Q${i + 1}. ${ZeroPoint.escapeHtml(q.prompt)}</div>
+        ${q.choices.map((c, idx) => `
+          <label class="opt">
+            <input type="radio" name="q${i}" value="${idx}" ${attempt.completed ? "disabled" : ""}>
+            <div class="opt-inner">
+              <div class="opt-dot"></div>
+              <span class="opt-text">${ZeroPoint.escapeHtml(c)}</span>
+            </div>
+          </label>
+        `).join("")}
+      `;
+      quizEl.appendChild(card);
+    });
+
+    quizEl.scrollTop = 0;
+
+    if (attempt.completed) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitted";
+
+      claimBtn.style.display = attempt.claimed ? "none" : "inline-block";
+
+      const estimate = rewardFromTable(attempt.score, rules.rewardTable);
+      resultEl.innerHTML = `
+        <div class="dim-text">Score: <b>${attempt.score}/${attempt.max}</b> • Reward if claimed: <b>${estimate}</b> coins</div>
+        ${renderReview(reviewMaybe)}
+      `;
+    } else {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit";
+      claimBtn.style.display = "none";
+      resultEl.innerHTML = "";
+    }
+  }
+
+  async function loadQuiz() {
+    const res = await ZeroPoint.api.json("/api/quizzes/codequiz/today", { method:"GET" });
+    if (res.error) {
+      statusEl.textContent = "Error: " + res.error;
+      quizEl.innerHTML = "";
+      resultEl.innerHTML = "";
+      return;
+    }
+    renderQuiz(res.dayKey, res.questions, res.attempt, res.rules, res.review || null);
+  }
+
+  submitBtn.onclick = async () => {
+    const resToday = await ZeroPoint.api.json("/api/quizzes/codequiz/today", { method:"GET" });
+    if (resToday.error) return alert(resToday.error);
+
+    const answers = resToday.questions.map((q, i) => {
+      const checked = document.querySelector(`input[name="q${i}"]:checked`);
+      return checked ? Number(checked.value) : -1;
+    });
+
+    if (answers.some(a => a < 0)) return alert("Answer all questions first.");
+
+    const submitRes = await ZeroPoint.api.json("/api/quizzes/codequiz/submit", {
+      method:"POST",
+      body: { answers }
+    });
+
+    if (submitRes.error) return alert(submitRes.error);
+
+    await loadQuiz();
+  };
+
+  claimBtn.onclick = async () => {
+    const claimRes = await ZeroPoint.api.json("/api/quizzes/codequiz/claim", { method:"POST" });
+    if (claimRes.error) return alert(claimRes.error);
+
+    alert(`Claimed +${claimRes.reward} coins`);
+    await loadQuiz();
+  };
+
+  reloadBtn.onclick = async () => {
+    await loadQuiz();
+  };
+
+  await loadQuiz();
+})();
+</script>
+</body>
+</html>

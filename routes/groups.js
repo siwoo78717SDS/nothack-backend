@@ -328,6 +328,19 @@ router.post(
         await recordFeatureAction(req.user._id, "imageUpload", "imagesSent", 1);
       }
 
+      // NEW: Socket.IO broadcast to group room
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`group:${group._id}`).emit("group_message", {
+          _id: msg._id,
+          groupId: group._id,
+          fromUsername: msg.fromUsername,
+          text: msg.text,
+          imageUrl: msg.imageUrl,
+          createdAt: msg.createdAt
+        });
+      }
+
       res.json({ ok: true, message: msg });
     } catch (err) {
       console.error("POST /groups/:id/send error:", err);

@@ -1,25 +1,13 @@
+// models/IpBan.js
 const mongoose = require("mongoose");
 
-const ipBanSchema = new mongoose.Schema({
-  ip: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true
+const ipBanSchema = new mongoose.Schema(
+  {
+    ip: { type: String, required: true, unique: true, index: true, trim: true },
+    reason: { type: String, default: "" },
+    expiresAt: { type: Date, default: null, index: true } // null = permanent
   },
-  reason: {
-    type: String,
-    default: ""
-  },
-  // null = permanent ban
-  expiresAt: {
-    type: Date,
-    default: null
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+  { timestamps: true }
+);
 
-module.exports = mongoose.model("IpBan", ipBanSchema);
+module.exports = mongoose.models.IpBan || mongoose.model("IpBan", ipBanSchema);

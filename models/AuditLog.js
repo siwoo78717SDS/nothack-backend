@@ -1,17 +1,29 @@
 const mongoose = require("mongoose");
 
-const auditLogSchema = new mongoose.Schema({
-  actorUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  actorUsername: { type: String, required: true },
-  actorRole: { type: String, required: true },
+const auditLogSchema = new mongoose.Schema(
+  {
+    actorUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true
+    },
+    actorUsername: { type: String, default: "" },
+    actorRole: { type: String, default: "" },
 
-  action: { type: String, required: true, index: true }, // e.g. "ADMIN_ADJUST_COINS"
-  targetUsername: { type: String, default: "" },
+    action: { type: String, required: true, index: true }, // e.g. "ADMIN_ADJUST_COINS"
+    targetUsername: { type: String, default: "", index: true },
 
-  details: { type: Object, default: {} },
+    details: { type: Object, default: {} },
+    ip: { type: String, default: "" }
+  },
+  {
+    timestamps: true, // createdAt + updatedAt
+    minimize: false
+  }
+);
 
-  ip: { type: String, default: "" },
-  createdAt: { type: Date, default: Date.now }
-});
+auditLogSchema.index({ createdAt: -1 });
 
-module.exports = mongoose.model("AuditLog", auditLogSchema);
+module.exports =
+  mongoose.models.AuditLog || mongoose.model("AuditLog", auditLogSchema);

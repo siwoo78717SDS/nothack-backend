@@ -1,198 +1,682 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>ZeroPoint Terminal</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="stylesheet" href="/style.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
   <script src="/shared.js"></script>
   <style>
-    #terminal {
-      height: 420px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      line-height: 1.4;
+    /* ===== TOP COMMAND BAR ===== */
+    #topBar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.35rem 0.9rem;
+      background: rgba(5, 5, 15, 0.98);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(120, 200, 255, 0.3);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.18);
     }
-    #cmd { width: 100%; }
-    .prompt { color: #60a5fa; }
-    .ok { color: #4ade80; }
-    .warn { color: #facc15; }
-    .bad { color: #f87171; }
+
+    #brand {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9be7ff;
+      font-size: 0.85rem;
+    }
+
+    #brand #dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #0ff, #05f);
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.9);
+      animation: zp-pulseDot 1.6s infinite alternate;
+    }
+
+    @keyframes zp-pulseDot {
+      from { transform: scale(1); box-shadow: 0 0 8px rgba(0, 255, 255, 0.7); }
+      to   { transform: scale(1.25); box-shadow: 0 0 15px rgba(0, 255, 255, 1); }
+    }
+
+    #statusPills {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: 0.75rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.74rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid transparent;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .pill.info {
+      background: linear-gradient(120deg, rgba(0, 160, 255, 0.1), rgba(0, 255, 255, 0.07));
+      border-color: rgba(0, 200, 255, 0.45);
+      color: #e0f7ff;
+    }
+
+    .pill.ok {
+      background: linear-gradient(120deg, rgba(0, 255, 180, 0.1), rgba(0, 255, 120, 0.1));
+      border-color: rgba(0, 255, 180, 0.6);
+      color: #d8ffe8;
+    }
+
+    .pill.warn {
+      background: linear-gradient(120deg, rgba(255, 186, 0, 0.16), rgba(255, 88, 0, 0.16));
+      border-color: rgba(255, 186, 0, 0.7);
+      color: #ffe9c7;
+    }
+
+    /* MAIN NAV BUTTON STRIP */
+    #topRightBtns {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      max-width: min(100%, 950px);
+    }
+
+    .nav-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.38rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 200, 255, 0.6);
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 255, 0.23), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(0, 140, 255, 0.23), transparent 60%),
+        rgba(10, 15, 35, 0.96);
+      box-shadow:
+        0 0 10px rgba(0, 150, 255, 0.3),
+        0 0 2px rgba(0, 255, 255, 0.4) inset;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #e5f6ff;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.2s ease;
+      overflow: hidden;
+    }
+
+    .nav-btn::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        130deg,
+        rgba(255, 255, 255, 0.24),
+        transparent 40%,
+        transparent 60%,
+        rgba(0, 255, 255, 0.22)
+      );
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      mix-blend-mode: screen;
+    }
+
+    .nav-btn:hover::before {
+      opacity: 0.75;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow:
+        0 0 14px rgba(0, 200, 255, 0.65),
+        0 0 3px rgba(0, 255, 255, 0.55) inset;
+      border-color: rgba(165, 235, 255, 0.95);
+    }
+
+    .nav-btn:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow:
+        0 0 6px rgba(0, 130, 220, 0.9),
+        0 0 2px rgba(0, 255, 255, 0.4) inset;
+    }
+
+    .nav-btn.primary {
+      border-color: rgba(0, 255, 187, 0.9);
+      box-shadow:
+        0 0 14px rgba(0, 250, 180, 0.6),
+        0 0 3px rgba(0, 255, 200, 0.7) inset;
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 200, 0.25), transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(0, 220, 160, 0.28), transparent 60%),
+        rgba(8, 25, 20, 0.98);
+    }
+
+    .nav-btn.danger {
+      border-color: rgba(255, 100, 100, 0.9);
+      box-shadow:
+        0 0 10px rgba(255, 80, 80, 0.7),
+        0 0 3px rgba(255, 150, 150, 0.7) inset;
+      background:
+        radial-gradient(circle at 0 0, rgba(255, 120, 120, 0.25), transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(255, 60, 60, 0.28), transparent 60%),
+        rgba(30, 8, 8, 0.98);
+    }
+
+    #logoutBtn {
+      border: none;
+      background: transparent;
+      color: #ffb3b3;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      margin-left: 0.25rem;
+      opacity: 0.9;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+
+    #logoutBtn:hover {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+
+    /* Terminal layout */
+    body.shell {
+      margin: 0;
+      background: radial-gradient(circle at top, #041421 0, #02050b 45%, #000 100%);
+      color: #eaf7ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #termShell {
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 0.75rem 0.9rem 1rem;
+      gap: 0.4rem;
+    }
+
+    #term {
+      flex: 1;
+      font-family: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.3;
+      overflow-y: auto;
+      border-radius: 0.75rem;
+      padding: 0.75rem 0.85rem;
+      background: radial-gradient(circle at 0 0, rgba(0, 200, 255, 0.12), transparent 55%),
+                  radial-gradient(circle at 100% 100%, rgba(0, 255, 180, 0.12), transparent 55%),
+                  rgba(3, 10, 18, 0.98);
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.85) inset;
+      border: 1px solid rgba(30, 80, 110, 0.7);
+    }
+
+    #cmdRow {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      background: linear-gradient(120deg, rgba(0, 255, 200, 0.08), rgba(0, 255, 120, 0.08));
+      border: 1px solid rgba(0, 255, 187, 0.5);
+      box-shadow: 0 0 12px rgba(0, 255, 187, 0.45);
+    }
+
+    #cmdPrompt {
+      font-family: "JetBrains Mono", monospace;
+      color: #7bffc5;
+      font-size: 0.85rem;
+    }
+
+    #cmdInput {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #f5fffb;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.85rem;
+    }
+
+    .line.dim { color: #7e96ab; }
+    .line.ok { color: #79ffbf; }
+    .line.warn { color: #ffd27a; }
+    .line.danger { color: #ff8a8a; }
+
+    @media (max-width: 720px) {
+      #topBar {
+        flex-wrap: wrap;
+        row-gap: 0.4rem;
+        padding: 0.4rem 0.55rem;
+      }
+      #statusPills {
+        margin-left: 0.3rem;
+      }
+      #topRightBtns {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .nav-btn {
+        padding: 0.32rem 0.7rem;
+        font-size: 0.68rem;
+      }
+      #termShell {
+        padding: 0.6rem 0.5rem 0.9rem;
+      }
+    }
   </style>
 </head>
-<body>
-  <div class="center-box">
-    <div class="card">
-      <div class="row gap" style="justify-content:space-between;">
-        <div>
-          <b>ZeroPoint</b> <span class="dim-text">terminal UI</span>
-          <span id="meTag" class="dim-text"></span>
-        </div>
-        <div class="row gap">
-          <a href="/mypage">My Page</a>
-          <a href="/people">People</a>
-          <a href="/groups">Groups</a>
-          <a href="/levels">Levels</a>
-          <a href="/admin" id="adminLink" style="display:none;">Admin</a>
-          <button id="logoutBtn">Logout</button>
+
+<body class="shell">
+  <div id="screen">
+    <div id="topBar">
+      <div id="brand">
+        <div id="dot"></div>
+        <div>ZeroPoint</div>
+        <div id="statusPills">
+          <div id="mePill" class="pill info">Loading…</div>
+          <div id="coinsPill" class="pill ok">0 coins</div>
         </div>
       </div>
-      <hr>
-      <div id="terminal"></div>
-      <div class="row gap" style="margin-top:10px;">
-        <span class="prompt">$</span>
-        <input id="cmd" placeholder="Type a command. Try: help" autocomplete="off">
+
+      <div id="topRightBtns">
+        <!-- Home/Terminal -->
+        <a id="homeBtn" class="nav-btn primary" href="/">
+          <span>Terminal</span>
+        </a>
+
+        <!-- Chat (unlocked) -->
+        <a id="chatLink" class="nav-btn" href="/chat" style="display:none">
+          <span>Chat</span>
+        </a>
+
+        <!-- Groups (unlocked) -->
+        <a id="groupsLink" class="nav-btn" href="/groups" style="display:none">
+          <span>Groups</span>
+        </a>
+
+        <!-- Always visible pages -->
+        <a id="mypageLink" class="nav-btn" href="/mypage">
+          <span>My Page</span>
+        </a>
+
+        <a id="peopleLink" class="nav-btn" href="/people">
+          <span>People</span>
+        </a>
+
+        <a id="shopLink" class="nav-btn" href="/shop">
+          <span>Shop</span>
+        </a>
+
+        <a id="wordleLink" class="nav-btn" href="/wordle">
+          <span>Wordle</span>
+        </a>
+
+        <a id="codequizLink" class="nav-btn" href="/codequiz">
+          <span>CodeQuiz</span>
+        </a>
+
+        <a id="coinsGuideLink" class="nav-btn" href="/how-to-get-coins">
+          <span>Coins</span>
+        </a>
+
+        <!-- Admin only -->
+        <a id="adminLink" class="nav-btn danger" href="/admin" style="display:none">
+          <span>Admin</span>
+        </a>
+
+        <button id="logoutBtn">Logout</button>
+      </div>
+    </div>
+
+    <div id="termShell">
+      <div id="glitchOverlay"></div>
+      <div id="scanOverlay"></div>
+
+      <div id="term"></div>
+
+      <div id="cmdRow">
+        <div id="cmdPrompt">$</div>
+        <input id="cmdInput" autocomplete="off" autofocus />
       </div>
     </div>
   </div>
 
-<script>
-(async function(){
-  const term = document.getElementById("terminal");
-  const cmd = document.getElementById("cmd");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const meTag = document.getElementById("meTag");
-  const adminLink = document.getElementById("adminLink");
+  <script>
+    (async function () {
+      const term = document.getElementById("term");
+      const cmdInput = document.getElementById("cmdInput");
+      const logoutBtn = document.getElementById("logoutBtn");
+      const mePill = document.getElementById("mePill");
+      const coinsPill = document.getElementById("coinsPill");
+      const adminLink = document.getElementById("adminLink");
+      const chatLink = document.getElementById("chatLink");
+      const groupsLink = document.getElementById("groupsLink");
 
-  const me = await ZeroPoint.api.json("/api/auth/me", { method: "GET" });
-  if (!me.loggedIn) { location.href="/login"; return; }
-  const coinsInfo = await ZeroPoint.api.json("/api/coins/me", { method: "GET" });
+      function addLine(text = "", cls = "") {
+        const div = document.createElement("div");
+        div.className = "line" + (cls ? " " + cls : "");
+        div.textContent = text;
+        term.appendChild(div);
+        term.scrollTop = term.scrollHeight;
+      }
 
-  meTag.textContent = `(${me.user.username} • ${me.user.role} • L${coinsInfo.level} • ${coinsInfo.coins} coins)`;
-  if (me.user.role === "admin") adminLink.style.display = "inline";
+      function clearTerm() {
+        term.innerHTML = "";
+      }
 
-  let theme = me.user.theme || "classic";
-  applyTheme(theme);
+      function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+      }
 
-  function print(line, cls) {
-    const div = document.createElement("div");
-    div.textContent = line;
-    if (cls) div.className = cls;
-    term.appendChild(div);
-    term.scrollTop = term.scrollHeight;
-  }
+      function randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
 
-  function applyTheme(t) {
-    theme = t;
-    if (t === "green") document.documentElement.style.setProperty("--accent", "#4ade80");
-    else if (t === "amber") document.documentElement.style.setProperty("--accent", "#facc15");
-    else document.documentElement.style.setProperty("--accent", "#60a5fa");
-  }
+      const me = await ZeroPoint.api.json("/api/auth/me", { method: "GET" });
+      if (!me.loggedIn) {
+        location.href = "/login";
+        return;
+      }
 
-  async function run(line) {
-    const parts = line.trim().split(" ");
-    const c = (parts[0] || "").toLowerCase();
-    const args = parts.slice(1);
+      const coinsInfo = await ZeroPoint.api.json("/api/coins/me", { method: "GET" });
+      mePill.textContent = `${me.user.username} • ${me.user.role} • L${coinsInfo.level}`;
+      coinsPill.textContent = `${coinsInfo.coins} coins`;
 
-    if (!c) return;
+      if (me.user.role === "admin") adminLink.style.display = "inline-flex";
 
-    if (c === "help") {
-      print("Commands:", "ok");
-      print("  me                     - show your info");
-      print("  announcements          - show latest announcements");
-      print("  transactions           - show your coin transaction history");
-      print("  achievements           - show your achievements");
-      print("  chat <username>        - open DM chat page with someone");
-      print("  people                 - open /people");
-      print("  groups                 - open /groups");
-      print("  mypage                 - open /mypage");
-      print("  levels                 - open /levels");
-      print("Level 3 commands:");
-      print("  settheme classic|green|amber");
-      print("  setstatus <text>");
-      return;
-    }
+      // -------- UNLOCKS HANDLING --------
+      let unlocks = {};
 
-    if (c === "me") {
-      const me2 = await ZeroPoint.api.json("/api/auth/me", { method: "GET" });
-      const coins2 = await ZeroPoint.api.json("/api/coins/me", { method: "GET" });
-      print(`username: ${me2.user.username}`);
-      print(`role: ${me2.user.role}`);
-      print(`level: ${coins2.level}`);
-      print(`coins: ${coins2.coins}`);
-      print(`status: ${me2.user.statusMessage || ""}`);
-      print(`theme: ${me2.user.theme || "classic"}`);
-      return;
-    }
+      function normalizeUnlocks(u) {
+        if (!u || u.error) return {};
+        if (u.unlocks && typeof u.unlocks === "object") return u.unlocks;
+        return u;
+      }
 
-    if (c === "announcements") {
-      const a = await ZeroPoint.api.json("/api/announcements", { method: "GET" });
-      (a.announcements || []).slice(0, 10).forEach(item => {
-        print(`- ${item.title} (by ${item.createdByUsername})`);
+      async function refreshUnlocks() {
+        try {
+          const u = await ZeroPoint.unlocks.load(); // GET /api/unlocks
+          unlocks = normalizeUnlocks(u);
+          console.log("unlocks raw:", u);
+          console.log("unlocks normalized:", unlocks);
+        } catch (e) {
+          console.error("Failed to refresh unlocks:", e);
+          unlocks = {};
+        }
+
+        const chatOn =
+          unlocks.chat ||
+          unlocks.chatUnlocked ||
+          unlocks.chatEnabled ||
+          unlocks.chatOn;
+
+        const groupsOn =
+          unlocks.groupChat ||
+          unlocks.createGroup ||
+          unlocks.groupUnlocked ||
+          unlocks.groupsEnabled ||
+          unlocks.groupsOn;
+
+        chatLink.style.display = chatOn ? "inline-flex" : "none";
+        groupsLink.style.display = groupsOn ? "inline-flex" : "none";
+      }
+
+      // Initial unlock state
+      await refreshUnlocks();
+
+      // -------- TERMINAL UI --------
+      addLine("Welcome to the ZeroPoint Terminal", "ok");
+      addLine("Type 'help' for commands.", "dim");
+      addLine("");
+
+      logoutBtn.onclick = async () => {
+        await ZeroPoint.api.json("/api/auth/logout", { method: "POST" });
+        location.href = "/login";
+      };
+
+      async function fakeDeleteAnimation() {
+        addLine("rm -rf /", "warn");
+        await sleep(250);
+        addLine("Deleting system files...", "dim");
+        for (let i = 0; i <= 20; i++) {
+          const pct = String(i * 5).padStart(3, " ");
+          addLine(`[${pct}%] removing /system/${i}.bin`, "dim");
+          await sleep(60);
+        }
+        addLine("ERROR: permission denied (this was a simulation)", "warn");
+      }
+
+      async function fakeSelfDestruct() {
+        addLine("SELF-DESTRUCT SEQUENCE INITIATED", "danger");
+        for (let i = 5; i >= 1; i--) {
+          await sleep(700);
+          addLine(String(i) + "...", "warn");
+        }
+        await sleep(400);
+        addLine("Abort. Just kidding.", "ok");
+      }
+
+      async function fakePing(target) {
+        const t = target || "localhost";
+        addLine(`PING ${t} (simulated)`, "dim");
+        for (let i = 0; i < 4; i++) {
+          await sleep(400);
+          addLine(`Reply from ${t}: time=${randInt(7, 83)}ms TTL=${randInt(45, 64)}`, "dim");
+        }
+        addLine("Ping finished.", "dim");
+      }
+
+      function showSecretHints() {
+        addLine("Hints:", "ok");
+        addLine("  Try: sudo", "dim");
+        addLine("  Try: rm -rf /", "dim");
+        addLine("  Try: self-destruct", "dim");
+        addLine("  Try: ping anything", "dim");
+        addLine("  Try: lemon", "dim");
+        addLine("  Try: hack", "dim");
+      }
+
+      async function handleCommand(raw) {
+        const input = String(raw || "").trim();
+        if (!input) return;
+
+        if (input.startsWith("sudo")) {
+          addLine("Nice try.", "warn");
+          return;
+        }
+
+        if (input === "rm -rf /" || input === "rm -rf /*") {
+          await fakeDeleteAnimation();
+          return;
+        }
+
+        const [command, ...args] = input.split(/\s+/);
+
+        if (command === "help") {
+          addLine("Commands:");
+          addLine("  help");
+          addLine("  me");
+          addLine("  whoami");
+          addLine("  transactions");
+          addLine("  clear");
+          addLine("  chat");
+          addLine("  groups");
+          addLine("  wordle");
+          addLine("  codequiz");
+          addLine("");
+          addLine("Easter eggs:");
+          addLine("  sudo");
+          addLine("  rm -rf /");
+          addLine("  ping <target>");
+          addLine("  lemon");
+          addLine("  self-destruct");
+          addLine("  hack");
+          addLine("  secret");
+          return;
+        }
+
+        if (command === "clear") {
+          clearTerm();
+          return;
+        }
+
+        if (command === "whoami") {
+          addLine("ghost_user", "warn");
+          addLine("uid=0(root) gid=0(root) groups=0(root)", "dim");
+          addLine(`real_user=${me.user.username}`, "dim");
+          return;
+        }
+
+        if (command === "me") {
+          const info = await ZeroPoint.api.json("/api/coins/me", { method: "GET" });
+          addLine(JSON.stringify(info, null, 2));
+          return;
+        }
+
+        if (command === "transactions") {
+          const tx = await ZeroPoint.api.json("/api/transactions/me", { method: "GET" });
+
+          if (tx.error) {
+            addLine("Error: " + tx.error, "danger");
+            return;
+          }
+
+          if (!tx.transactions || tx.transactions.length === 0) {
+            addLine("No transactions found.", "dim");
+            return;
+          }
+
+          for (const t of tx.transactions) {
+            const date = new Date(t.createdAt).toLocaleString();
+            const sign = t.amount > 0 ? "+" : "";
+            addLine(`[${date}] ${t.type || "tx"} ${sign}${t.amount} : ${t.description || ""}`);
+          }
+          return;
+        }
+
+        if (command === "ping") {
+          await fakePing(args.join(" "));
+          return;
+        }
+
+        if (command === "lemon") {
+          addLine("Secret citrus power 🍋", "ok");
+          addLine("Your brain gains +10 focus (totally real).", "dim");
+          return;
+        }
+
+        if (command === "self-destruct") {
+          await fakeSelfDestruct();
+          return;
+        }
+
+        if (command === "hack") {
+          addLine("Hacking the mainframe...", "warn");
+          await sleep(600);
+          addLine("Downloading 1,000,000 coins...", "dim");
+          await sleep(800);
+          addLine("ACCESS DENIED: being cool is required.", "warn");
+          return;
+        }
+
+        if (command === "secret") {
+          showSecretHints();
+          return;
+        }
+
+        if (command === "chat") {
+          await refreshUnlocks();
+          const chatOn =
+            unlocks.chat ||
+            unlocks.chatUnlocked ||
+            unlocks.chatEnabled ||
+            unlocks.chatOn;
+
+          if (!chatOn) {
+            addLine("Chat is locked. Unlock it in the Shop first.", "warn");
+            return;
+          }
+          addLine("Opening Chat...", "dim");
+          location.href = "/chat";
+          return;
+        }
+
+        if (command === "groups") {
+          await refreshUnlocks();
+          const groupsOn =
+            unlocks.groupChat ||
+            unlocks.createGroup ||
+            unlocks.groupUnlocked ||
+            unlocks.groupsEnabled ||
+            unlocks.groupsOn;
+
+          if (!groupsOn) {
+            addLine("Groups are locked. Unlock it in the Shop first.", "warn");
+            return;
+          }
+          addLine("Opening Groups...", "dim");
+          location.href = "/groups";
+          return;
+        }
+
+        if (command === "wordle") {
+          addLine("Opening Wordle...", "dim");
+          location.href = "/wordle";
+          return;
+        }
+
+        if (command === "codequiz") {
+          addLine("Opening CodeQuiz...", "dim");
+          location.href = "/codequiz";
+          return;
+        }
+
+        addLine(`Unknown command: ${command}`, "warn");
+      }
+
+      cmdInput.addEventListener("keydown", async (e) => {
+        if (e.key !== "Enter") return;
+
+        const value = cmdInput.value;
+        cmdInput.value = "";
+
+        addLine("$ " + value, "dim");
+
+        try {
+          await handleCommand(value);
+        } catch (err) {
+          console.error(err);
+          addLine("Internal error", "danger");
+        }
       });
-      if (!(a.announcements || []).length) print("(no announcements yet)", "warn");
-      return;
-    }
-
-    if (c === "transactions") {
-      const t = await ZeroPoint.api.json("/api/transactions/me", { method: "GET" });
-      const tx = t.transactions || [];
-      if (!tx.length) return print("(no transactions yet)", "warn");
-      tx.slice(0, 10).forEach(x => {
-        const when = new Date(x.createdAt).toLocaleString();
-        print(`[${when}] ${x.type} ${x.fromUsername || ""} -> ${x.toUsername || ""} amount=${x.amount} ${x.description || ""}`);
-      });
-      return;
-    }
-
-    if (c === "achievements") {
-      const ach = await ZeroPoint.api.json("/api/achievements/me", { method: "GET" });
-      const list = ach.achievements || [];
-      if (!list.length) return print("(no achievements yet)", "warn");
-      list.forEach(a => print(`- ${a.title}`));
-      return;
-    }
-
-    if (c === "chat") {
-      const u = args[0];
-      if (!u) return print("Usage: chat <username>", "bad");
-      location.href = "/chat?with=" + encodeURIComponent(u);
-      return;
-    }
-
-    if (c === "people") { location.href="/people"; return; }
-    if (c === "groups") { location.href="/groups"; return; }
-    if (c === "mypage") { location.href="/mypage"; return; }
-    if (c === "levels") { location.href="/levels"; return; }
-
-    if (c === "settheme") {
-      const t = args[0];
-      const res = await ZeroPoint.api.json("/api/profile/theme", { method: "POST", body: { theme: t } });
-      if (res.error) return print(res.error, "bad");
-      applyTheme(res.theme);
-      print("Theme updated.", "ok");
-      return;
-    }
-
-    if (c === "setstatus") {
-      const text = args.join(" ");
-      const res = await ZeroPoint.api.json("/api/profile/status", { method: "POST", body: { statusMessage: text } });
-      if (res.error) return print(res.error, "bad");
-      print("Status updated.", "ok");
-      return;
-    }
-
-    print("Unknown command. Try: help", "bad");
-  }
-
-  print("Welcome to ZeroPoint Terminal.", "ok");
-  print("Type: help");
-
-  cmd.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      const line = cmd.value;
-      cmd.value = "";
-      print("$ " + line, "dim-text");
-      run(line);
-    }
-  });
-
-  logoutBtn.onclick = async () => {
-    logoutBtn.disabled = true;
-    await ZeroPoint.logout();
-    location.href="/login";
-  };
-})();
-</script>
+    })();
+  </script>
 </body>
 </html>

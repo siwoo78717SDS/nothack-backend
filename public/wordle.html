@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>ZeroPoint Wordle</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/shared.js"></script>
+  <style>
+    .wordle-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 12px 40px;
+      color: var(--txt);
+    }
+    .wordle-header {
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .wordle-header h1 {
+      margin: 0 0 4px;
+      font-size: 24px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    .wordle-header p {
+      margin: 2px 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .wordle-status {
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .wordle-grid {
+      display: grid;
+      grid-template-rows: repeat(6, 1fr);
+      grid-gap: 4px;
+      margin: 10px 0 16px;
+    }
+    .wordle-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      grid-gap: 4px;
+    }
+    .wordle-cell {
+      width: 52px;
+      height: 52px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.16);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 600;
+      text-transform: uppercase;
+      background: rgba(0,0,0,0.5);
+      color: var(--txt);
+    }
+    .cell-gray {
+      background: #111827;
+      border-color: #111827;
+      color: #6b7280;
+    }
+    .cell-yellow {
+      background: #facc15;
+      border-color: #eab308;
+      color: #1f2933;
+    }
+    .cell-green {
+      background: #22c55e;
+      border-color: #16a34a;
+      color: #052e16;
+    }
+
+    .wordle-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .wordle-input-row input {
+      flex: 1;
+      min-width: 0;
+    }
+    .wordle-input-row button {
+      width: auto;
+      margin-top: 0;
+      flex: 0 0 auto;
+    }
+
+    .wordle-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .wordle-msg {
+      min-height: 20px;
+      margin-top: 4px;
+      font-size: 13px;
+    }
+    .msg-ok {
+      color: #4ade80;
+    }
+    .msg-err {
+      color: #f87171;
+    }
+    .msg-info {
+      color: var(--muted);
+    }
+
+    @media (max-width: 480px) {
+      .wordle-cell {
+        width: 46px;
+        height: 46px;
+        font-size: 20px;
+      }
+      .wordle-header h1 {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wordle-container">
+    <div class="wordle-header">
+      <h1>ZeroPoint Wordle</h1>
+      <p id="meTag">Loading user…</p>
+      <p id="dayTag"></p>
+    </div>
+
+    <div class="wordle-status" id="statusTag"></div>
+
+    <div class="wordle-grid" id="wordleGrid"></div>
+
+    <div class="wordle-input-row">
+      <input
+        id="guessInput"
+        type="text"
+        inputmode="text"
+        autocapitalize="none"
+        spellcheck="false"
+        autocomplete="off"
+        maxlength="5"
+        placeholder="Enter 5-letter word"
+      />
+      <button id="guessBtn">Guess</button>
+    </div>
+
+    <div class="wordle-buttons">
+      <button id="claimBtn" disabled>Claim Reward</button>
+      <button id="backBtn">Back to Terminal</button>
+    </div>
+
+    <div class="wordle-msg" id="msg"></div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      (async function () {
+        const meTag = document.getElementById("meTag");
+        const dayTag = document.getElementById("dayTag");
+        const statusTag = document.getElementById("statusTag");
+        const grid = document.getElementById("wordleGrid");
+        const guessInput = document.getElementById("guessInput");
+        const guessBtn = document.getElementById("guessBtn");
+        const claimBtn = document.getElementById("claimBtn");
+        const backBtn = document.getElementById("backBtn");
+        const msg = document.getElementById("msg");
+
+        function setMsg(text, cls) {
+          msg.textContent = text || "";
+          msg.className = "wordle-msg" + (cls ? " " + cls : "");
+        }
+
+        function buildEmptyGrid() {
+          grid.innerHTML = "";
+          for (let r = 0; r < 6; r++) {
+            const row = document.createElement("div");
+            row.className = "wordle-row";
+            for (let c = 0; c < 5; c++) {
+              const cell = document.createElement("div");
+              cell.className = "wordle-cell";
+              row.appendChild(cell);
+            }
+            grid.appendChild(row);
+          }
+        }
+
+        function renderState(state) {
+          buildEmptyGrid();
+          const guesses = state.guesses || [];
+
+          guesses.forEach((g, rowIdx) => {
+            const row = grid.children[rowIdx];
+            const word = g.word || "";
+            const result = g.result || "";
+            for (let i = 0; i < 5; i++) {
+              const cell = row.children[i];
+              const ch = word[i] || "";
+              cell.textContent = ch.toUpperCase();
+
+              const r = result[i];
+              if (r === "g") cell.classList.add("cell-green");
+              else if (r === "y") cell.classList.add("cell-yellow");
+              else if (r === "b") cell.classList.add("cell-gray");
+            }
+          });
+
+          let statusText = "";
+          if (state.solved && state.claimed) {
+            statusText = "Solved! Reward already claimed.";
+          } else if (state.solved) {
+            statusText = "Solved! You can claim your reward.";
+          } else if (guesses.length >= 6) {
+            statusText = "No guesses left for today.";
+          } else {
+            statusText = `Guesses: ${guesses.length}/6`;
+          }
+          statusTag.textContent = statusText;
+
+          claimBtn.disabled = !(state.solved && !state.claimed);
+        }
+
+        async function loadStatus() {
+          try {
+            const res = await ZeroPoint.api.json("/api/games/wordle/status", {
+              method: "GET"
+            });
+            if (res.error) {
+              setMsg(res.error, "msg-err");
+              return null;
+            }
+            dayTag.textContent = `Puzzle day: ${res.dayKey}`;
+            renderState(res);
+            return res;
+          } catch (err) {
+            console.error(err);
+            setMsg("Failed to load status", "msg-err");
+            return null;
+          }
+        }
+
+        const me = await ZeroPoint.api.json("/api/auth/me", { method: "GET" });
+        if (!me.loggedIn) {
+          location.href = "/login";
+          return;
+        }
+        meTag.textContent = `${me.user.username} • ${me.user.role}`;
+
+        buildEmptyGrid();
+        const initial = await loadStatus();
+        if (!initial) return;
+
+        guessInput.focus();
+
+        async function submitGuess() {
+          const raw = guessInput.value.trim().toLowerCase();
+          if (raw.length !== 5) {
+            setMsg("Guess must be 5 letters", "msg-err");
+            return;
+          }
+
+          try {
+            setMsg("Checking guess…", "msg-info");
+            const res = await ZeroPoint.api.json("/api/games/wordle/guess", {
+              method: "POST",
+              body: { guess: raw }
+            });
+            if (res.error) {
+              setMsg(res.error, "msg-err");
+              return;
+            }
+
+            const statusRes = await ZeroPoint.api.json("/api/games/wordle/status", {
+              method: "GET"
+            });
+            renderState(statusRes);
+
+            if (res.solved) {
+              setMsg("Nice! You solved today’s Wordle.", "msg-ok");
+            } else {
+              setMsg(`Guess submitted. Remaining: ${res.remaining}`, "msg-info");
+            }
+            guessInput.value = "";
+            guessInput.focus();
+          } catch (err) {
+            console.error(err);
+            setMsg("Server error while guessing", "msg-err");
+          }
+        }
+
+        guessBtn.onclick = submitGuess;
+        guessInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") submitGuess();
+        });
+
+        claimBtn.onclick = async () => {
+          try {
+            setMsg("Claiming reward…", "msg-info");
+            const res = await ZeroPoint.api.json("/api/games/wordle/claim", {
+              method: "POST"
+            });
+            if (res.error) {
+              setMsg(res.error, "msg-err");
+              return;
+            }
+            setMsg(`Reward claimed: +${res.reward} coins (total: ${res.coins})`, "msg-ok");
+            const statusRes = await ZeroPoint.api.json("/api/games/wordle/status", {
+              method: "GET"
+            });
+            renderState(statusRes);
+          } catch (err) {
+            console.error(err);
+            setMsg("Server error while claiming", "msg-err");
+          }
+        };
+
+        backBtn.onclick = () => {
+          location.href = "/";
+        };
+      })();
+    });
+  </script>
+</body>
+</html>

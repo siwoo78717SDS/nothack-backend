@@ -1,37 +1,148 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Feature Shop - Zeropoint</title>
+  <meta charset="utf-8" />
+  <title>Feature Shop • ZeroPoint</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="/shared.js"></script>
   <style>
-    body {
+    body.shell {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #111827;
+      background: #020617;
       color: #e5e7eb;
       margin: 0;
       padding: 0;
     }
 
-    header {
-      background: #1f2937;
-      padding: 1rem 1.5rem;
+    /* Global top bar */
+    #topBar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 0.35rem 0.9rem;
+      background: #0b1220;
       border-bottom: 1px solid #374151;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.18);
     }
 
-    header h1 {
-      margin: 0;
-      font-size: 1.3rem;
-      color: #f9fafb;
+    #brand {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9be7ff;
+      font-size: 0.85rem;
     }
 
-    header a {
-      color: #60a5fa;
+    #brand #dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #0ff, #05f);
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.9);
+      animation: zp-pulseDot 1.6s infinite alternate;
+    }
+
+    @keyframes zp-pulseDot {
+      from { transform: scale(1); box-shadow: 0 0 8px rgba(0, 255, 255, 0.7); }
+      to   { transform: scale(1.25); box-shadow: 0 0 15px rgba(0, 255, 255, 1); }
+    }
+
+    #statusPills {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: 0.75rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.74rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid transparent;
       text-decoration: none;
-      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .pill.info {
+      background: linear-gradient(120deg, rgba(0, 160, 255, 0.1), rgba(0, 255, 255, 0.07));
+      border-color: rgba(0, 200, 255, 0.45);
+      color: #e0f7ff;
+    }
+
+    .pill.ok {
+      background: linear-gradient(120deg, rgba(0, 255, 180, 0.1), rgba(0, 255, 120, 0.1));
+      border-color: rgba(0, 255, 180, 0.6);
+      color: #d8ffe8;
+    }
+
+    #topRightBtns {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.38rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 200, 255, 0.6);
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 255, 0.23), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(0, 140, 255, 0.23), transparent 60%),
+        #020617;
+      box-shadow:
+        0 0 10px rgba(0, 150, 255, 0.3),
+        0 0 2px rgba(0, 255, 255, 0.4) inset;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #e5f6ff;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow:
+        0 0 14px rgba(0, 200, 255, 0.65),
+        0 0 3px rgba(0, 255, 255, 0.55) inset;
+      border-color: rgba(165, 235, 255, 0.95);
+    }
+
+    #logoutBtn {
+      border: none;
+      background: transparent;
+      color: #ffb3b3;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      margin-left: 0.25rem;
+      opacity: 0.9;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+
+    #logoutBtn:hover {
+      opacity: 1;
+      transform: translateY(-1px);
     }
 
     main {
@@ -155,15 +266,6 @@
       transform: translateY(-1px);
     }
 
-    button.secondary {
-      background: #374151;
-      color: #e5e7eb;
-    }
-
-    button.secondary:hover {
-      background: #4b5563;
-    }
-
     button[disabled] {
       opacity: 0.6;
       cursor: default;
@@ -200,15 +302,42 @@
       color: #a7f3d0;
       border: 1px solid rgba(52, 211, 153, 0.4);
     }
+
+    @media (max-width: 720px){
+      #topBar {
+        flex-wrap: wrap;
+        row-gap: 0.4rem;
+        padding: 0.45rem 0.55rem;
+      }
+      #statusPills {
+        margin-left: 0.3rem;
+      }
+      #topRightBtns {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 0.25rem;
+      }
+    }
   </style>
 </head>
-<body>
-  <header>
-    <h1>Feature Shop</h1>
-    <nav>
-      <a href="/account">Back to Account</a>
-    </nav>
-  </header>
+<body class="shell">
+  <div id="topBar">
+    <div id="brand">
+      <div id="dot"></div>
+      <div>ZeroPoint</div>
+      <div id="statusPills">
+        <div id="mePill" class="pill info">Loading…</div>
+        <div id="coinsPill" class="pill ok">0 coins</div>
+      </div>
+    </div>
+
+    <div id="topRightBtns">
+      <a class="nav-btn" href="/">Terminal</a>
+      <a class="nav-btn" href="/account">Account</a>
+      <a class="nav-btn" href="/mypage">My Page</a>
+      <button id="logoutBtn">Logout</button>
+    </div>
+  </div>
 
   <main>
     <section class="summary-card">
@@ -250,160 +379,168 @@
     </footer>
   </main>
 
-  <script>
-    const FEATURE_DEFS = [
-      {
-        key: "chat",
-        title: "Direct Messages",
-        price: 100,
-        desc: "Unlock 1:1 direct messages so you can chat privately with friends."
-      },
-      {
-        key: "groupChat",
-        title: "Join Group Chats",
-        price: 200,
-        desc: "Unlock the ability to participate in existing group chats."
-      },
-      {
-        key: "createGroup",
-        title: "Create Group Chats",
-        price: 300,
-        desc: "Create your own group chat rooms and invite other users."
-      },
-      {
-        key: "imageUpload",
-        title: "Image Upload",
-        price: 150,
-        desc: "Send images in chat. Please follow all community guidelines."
-      }
-    ];
+<script>
+const FEATURE_DEFS = [
+  {
+    key: "chat",
+    title: "Direct Messages",
+    price: 100,
+    desc: "Unlock 1:1 direct messages so you can chat privately with friends."
+  },
+  {
+    key: "groupChat",
+    title: "Join Group Chats",
+    price: 200,
+    desc: "Unlock the ability to participate in existing group chats."
+  },
+  {
+    key: "createGroup",
+    title: "Create Group Chats",
+    price: 300,
+    desc: "Create your own group chat rooms and invite other users."
+  },
+  {
+    key: "imageUpload",
+    title: "Image Upload",
+    price: 150,
+    desc: "Send images in chat. Please follow all community guidelines."
+  }
+];
 
-    let state = {
-      username: null,
-      coins: 0,
-      role: null,
-      level: 1,
-      bans: {},
-      unlocks: {}
-    };
+let state = {
+  username: null,
+  coins: 0,
+  role: null,
+  level: 1,
+  bans: {},
+  unlocks: {}
+};
 
-    function setStatus(msg, isError = false) {
-      const el = document.getElementById("globalStatus");
-      el.textContent = msg || "";
-      el.className = "status" + (msg ? (isError ? " err" : " ok") : "");
+function setStatus(msg, isError = false) {
+  const el = document.getElementById("globalStatus");
+  el.textContent = msg || "";
+  el.className = "status" + (msg ? (isError ? " err" : " ok") : "");
+}
+
+async function loadMe() {
+  try {
+    const auth = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+    if(!auth.loggedIn){ location.href="/login"; return; }
+
+    const coinsData = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+
+    state.username = auth.user.username;
+    state.role = auth.user.role;
+    state.level = coinsData.level;
+    state.coins = coinsData.coins;
+    state.bans = coinsData.bans || {};
+    state.unlocks = coinsData.unlocks || {};
+
+    const mePill = document.getElementById("mePill");
+    const coinsPill = document.getElementById("coinsPill");
+    mePill.textContent = `${state.username} • ${state.role} • L${state.level}`;
+    coinsPill.textContent = `${state.coins} coins`;
+
+    document.getElementById("username").textContent = state.username || "-";
+    document.getElementById("coins").textContent = state.coins ?? "-";
+    document.getElementById("role").textContent = state.role ?? "-";
+    document.getElementById("level").textContent = state.level ?? "-";
+
+    const coinStatus = document.getElementById("coinStatus");
+    if (state.bans && state.bans.isBannedFromCoins) {
+      coinStatus.innerHTML =
+        '<span class="badge banned">COIN BANNED</span> ' +
+        (state.bans.reason ? `<span style="margin-left:0.5rem;color:#fecaca;">${state.bans.reason}</span>` : "");
+    } else {
+      coinStatus.innerHTML = '<span class="badge ok">COINS ALLOWED</span>';
     }
 
-    async function loadMe() {
-      try {
-        const res = await fetch("/api/coins/me", { credentials: "include" });
-        if (!res.ok) {
-          setStatus("Failed to load account info", true);
-          return;
-        }
-        const data = await res.json();
-        state.username = data.username;
-        state.coins = data.coins;
-        state.role = data.role;
-        state.level = data.level;
-        state.bans = data.bans || {};
-        state.unlocks = data.unlocks || {};
+    renderFeatures();
+  } catch (err) {
+    console.error(err);
+    setStatus("Error loading account info", true);
+  }
+}
 
-        document.getElementById("username").textContent = state.username || "-";
-        document.getElementById("coins").textContent = state.coins ?? "-";
-        document.getElementById("role").textContent = state.role ?? "-";
-        document.getElementById("level").textContent = state.level ?? "-";
+function renderFeatures() {
+  const grid = document.getElementById("featureGrid");
+  grid.innerHTML = "";
 
-        const coinStatus = document.getElementById("coinStatus");
-        if (state.bans && state.bans.isBannedFromCoins) {
-          coinStatus.innerHTML =
-            '<span class="badge banned">COIN BANNED</span> ' +
-            (state.bans.reason ? `<span style="margin-left:0.5rem;color:#fecaca;">${state.bans.reason}</span>` : "");
-        } else {
-          coinStatus.innerHTML = '<span class="badge ok">COINS ALLOWED</span>';
-        }
+  const bannedFromCoins = !!(state.bans && state.bans.isBannedFromCoins);
 
-        renderFeatures();
-      } catch (err) {
-        console.error(err);
-        setStatus("Error loading account info", true);
-      }
+  FEATURE_DEFS.forEach((f) => {
+    const unlocked = !!(state.unlocks && state.unlocks[f.key]);
+    const canAfford = state.coins >= f.price;
+    const disabled = unlocked || bannedFromCoins || !canAfford;
+
+    const card = document.createElement("div");
+    card.className = "feature-card";
+
+    card.innerHTML = `
+      <div>
+        <div class="feature-title">${f.title}</div>
+        <div class="feature-price">${f.price.toLocaleString()} coins</div>
+        <div class="feature-desc">${f.desc}</div>
+        <div class="feature-status ${unlocked ? "unlocked" : "locked"}">
+          ${unlocked ? "Already unlocked ✓" : "Locked"}
+        </div>
+      </div>
+      <div>
+        <button
+          class="primary"
+          data-key="${f.key}"
+          ${disabled ? "disabled" : ""}
+        >
+          ${unlocked ? "Unlocked" : "Buy"}
+        </button>
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll("button[data-key]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-key");
+      buyFeature(key);
+    });
+  });
+}
+
+async function buyFeature(featureKey) {
+  setStatus("");
+  try {
+    const res = await ZeroPoint.api.json("/api/coins/buy-feature", {
+      method: "POST",
+      body: { featureKey }
+    });
+
+    if (res.error) {
+      setStatus(res.error || "Purchase failed", true);
+      return;
     }
 
-    function renderFeatures() {
-      const grid = document.getElementById("featureGrid");
-      grid.innerHTML = "";
+    state.coins = res.coins;
+    state.unlocks = res.unlocks || state.unlocks;
 
-      const bannedFromCoins = !!(state.bans && state.bans.isBannedFromCoins);
+    document.getElementById("coins").textContent = state.coins;
+    const coinsPill = document.getElementById("coinsPill");
+    coinsPill.textContent = `${state.coins} coins`;
+    setStatus("Feature unlocked successfully!");
+    renderFeatures();
+  } catch (err) {
+    console.error(err);
+    setStatus("Error while purchasing feature", true);
+  }
+}
 
-      FEATURE_DEFS.forEach((f) => {
-        const unlocked = !!(state.unlocks && state.unlocks[f.key]);
-        const canAfford = state.coins >= f.price;
-        const disabled = unlocked || bannedFromCoins || !canAfford;
-
-        const card = document.createElement("div");
-        card.className = "feature-card";
-
-        card.innerHTML = `
-          <div>
-            <div class="feature-title">${f.title}</div>
-            <div class="feature-price">${f.price.toLocaleString()} coins</div>
-            <div class="feature-desc">${f.desc}</div>
-            <div class="feature-status ${unlocked ? "unlocked" : "locked"}">
-              ${unlocked ? "Already unlocked ✓" : "Locked"}
-            </div>
-          </div>
-          <div>
-            <button
-              class="primary"
-              data-key="${f.key}"
-              ${disabled ? "disabled" : ""}
-            >
-              ${unlocked ? "Unlocked" : "Buy"}
-            </button>
-          </div>
-        `;
-
-        grid.appendChild(card);
-      });
-
-      grid.querySelectorAll("button[data-key]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const key = btn.getAttribute("data-key");
-          buyFeature(key);
-        });
-      });
-    }
-
-    async function buyFeature(featureKey) {
-      setStatus("");
-      try {
-        const res = await fetch("/api/coins/buy-feature", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ featureKey })
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setStatus(data.error || "Purchase failed", true);
-          return;
-        }
-
-        const data = await res.json();
-        state.coins = data.coins;
-        state.unlocks = data.unlocks || state.unlocks;
-
-        document.getElementById("coins").textContent = state.coins;
-        setStatus("Feature unlocked successfully!");
-        renderFeatures();
-      } catch (err) {
-        console.error(err);
-        setStatus("Error while purchasing feature", true);
-      }
-    }
-
-    loadMe();
-  </script>
+(async function(){
+  document.getElementById("logoutBtn").onclick = async () => {
+    await ZeroPoint.logout();
+    location.href = "/login";
+  };
+  await loadMe();
+})();
+</script>
 </body>
 </html>

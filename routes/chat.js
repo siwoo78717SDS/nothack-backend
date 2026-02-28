@@ -41,8 +41,7 @@ function requireImageUploadUnlocked(req, res, next) {
 
 // ---------- routes ----------
 
-// GET /dm/history?with=username
-// Both users must have chat unlocked.
+// GET /api/chat/history?with=username
 router.get("/history", loadUser, requireChatUnlocked, async (req, res) => {
   try {
     const withUsername = String(req.query.with || "").trim();
@@ -77,7 +76,7 @@ router.get("/history", loadUser, requireChatUnlocked, async (req, res) => {
   }
 });
 
-// POST /dm/send
+// POST /api/chat/send
 router.post(
   "/send",
   chatLimiter,
@@ -184,6 +183,23 @@ router.post(
           1
         );
       }
+
+      // ---- SOCKET.IO BROADCAST ----
+      const io = req.app.get("io");
+      const dmRoomName = req.app.get("dmRoomName");
+      if (io && dmRoomName) {
+        const room = dmRoomName(req.user.username, target.username);
+        io.to(room).emit("dm_message", {
+          _id: msg._id,
+          fromUsername: msg.fromUsername,
+          toUsername: msg.toUsername,
+          text: msg.text,
+          imageUrl: msg.imageUrl,
+          coinsSent: msg.coinsSent,
+          createdAt: msg.createdAt
+        });
+      }
+      // ------------------------------
 
       res.json({ ok: true, message: msg, coins: req.user.coins });
     } catch (err) {

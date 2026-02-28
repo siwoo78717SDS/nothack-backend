@@ -7,6 +7,8 @@ const { awardAchievement } = require("../services/achievements");
 const { coinLimiter, adminLimiter } = require("../services/security");
 const { audit } = require("../services/audit");
 
+// ----------------- helpers -----------------
+
 async function dailyLimitsOK(userId, maxTransfers, maxCoins) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -36,6 +38,23 @@ async function dailyLimitsOK(userId, maxTransfers, maxCoins) {
   return { ok: true };
 }
 
+// For simple internal coin awards from games, etc.
+async function addCoins(user, amount, type, description, extra = {}) {
+  user.coins = (user.coins || 0) + amount;
+  await user.save();
+
+  await CoinTransaction.create({
+    type,
+    toUserId: user._id,
+    toUsername: user.username,
+    amount,
+    description,
+    ...extra
+  });
+
+  return user.coins;
+}
+
 // ---------- ME ----------
 
 router.get("/me", loadUser, async (req, res) => {
@@ -45,7 +64,6 @@ router.get("/me", loadUser, async (req, res) => {
     level: req.user.level,
     role: req.user.role,
     bans: req.user.bans || {},
-    // for AP + feature shop UI
     achievementPoints: req.user.achievementPoints || 0,
     unlocks: req.user.unlocks || {},
     statusMessage: req.user.statusMessage || ""
@@ -123,7 +141,7 @@ router.post("/level-up", coinLimiter, loadUser, async (req, res) => {
     const diff = lvl - req.user.level;
     const cost = diff * 100;
 
-    // admin can level-up free (optional convenience)
+    // admin can level-up free (optional)
     if (req.user.role !== "admin") {
       if (req.user.coins < cost) return res.status(400).json({ error: "Not enough coins" });
       req.user.coins -= cost;
@@ -151,7 +169,7 @@ router.post("/level-up", coinLimiter, loadUser, async (req, res) => {
   }
 });
 
-// ---------- FEATURE SHOP (NEW) ----------
+// ---------- FEATURE SHOP ----------
 
 const FEATURE_PRICES = {
   chat: 100,
@@ -160,7 +178,6 @@ const FEATURE_PRICES = {
   imageUpload: 150
 };
 
-// Buy a feature unlock with coins
 router.post("/buy-feature", coinLimiter, loadUser, async (req, res) => {
   try {
     const { featureKey } = req.body || {};
@@ -174,7 +191,6 @@ router.post("/buy-feature", coinLimiter, loadUser, async (req, res) => {
       return res.status(403).json({ error: "You are banned from using coins" });
     }
 
-    // already unlocked?
     const unlocks = req.user.unlocks || {};
     if (unlocks[key]) {
       return res.status(400).json({ error: "Feature already unlocked" });
@@ -185,7 +201,6 @@ router.post("/buy-feature", coinLimiter, loadUser, async (req, res) => {
       return res.status(400).json({ error: "Not enough coins" });
     }
 
-    // deduct & unlock
     req.user.coins -= cost;
     req.user.unlocks = {
       ...unlocks,
@@ -212,9 +227,105 @@ router.post("/buy-feature", coinLimiter, loadUser, async (req, res) => {
   }
 });
 
+// ---------- GAME REWARDS ----------
+
+// Wordle
+router.post("/wordle-claim", coinLimiter, loadUser, async (req, res) => {
+  try {
+    const { solved, guesses } = req.body || {};
+    if (!solved) {
+      return res.status(400).json({ error: "Not solved" });
+    }
+
+    if (req.user.bans?.isBannedFromCoins) {
+      return res.status(403).json({ error: "You are banned from using coins" });
+    }
+
+    const reward = 5;
+    const newBalance = await addCoins(
+      req.user,
+      reward,
+      "game_wordle",
+      `Solved Wordle in ${Array.isArray(guesses) ? guesses.length : "?"} guesses`
+    );
+
+    res.json({ ok: true, reward, coins: newBalance });
+  } catch (err) {
+    console.error("POST /coins/wordle-claim error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Simple coding quiz
+const QUIZ_QUESTIONS = [
+  {
+    id: "q1",
+    question: "What does 'const' do in JavaScript?",
+    choices: [
+      "Declares a constant variable",
+      "Declares a global function",
+      "Imports a module",
+      "Creates a class"
+    ],
+    answerIndex: 0
+  },
+  {
+    id: "q2",
+    question: "Which HTML tag is used to include JavaScript?",
+    choices: ["<js>", "<script>", "<javascript>", "<code>"],
+    answerIndex: 1
+  }
+];
+
+router.get("/quiz-coding", coinLimiter, loadUser, (req, res) => {
+  const safe = QUIZ_QUESTIONS.map(q => ({
+    id: q.id,
+    question: q.question,
+    choices: q.choices
+  }));
+  res.json({ questions: safe });
+});
+
+router.post("/quiz-coding-submit", coinLimiter, loadUser, async (req, res) => {
+  try {
+    const { answers } = req.body || {};
+    let correct = 0;
+
+    for (const q of QUIZ_QUESTIONS) {
+      if (answers && answers[q.id] === q.answerIndex) correct++;
+    }
+
+    if (req.user.bans?.isBannedFromCoins) {
+      return res.status(403).json({ error: "You are banned from using coins" });
+    }
+
+    const reward = correct;
+    let newBalance = req.user.coins;
+
+    if (reward > 0) {
+      newBalance = await addCoins(
+        req.user,
+        reward,
+        "game_quiz_coding",
+        `Coding quiz: ${correct}/${QUIZ_QUESTIONS.length} correct`
+      );
+    }
+
+    res.json({
+      ok: true,
+      correct,
+      total: QUIZ_QUESTIONS.length,
+      reward,
+      coins: newBalance
+    });
+  } catch (err) {
+    console.error("POST /coins/quiz-coding-submit error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // ---------- ADMIN ----------
 
-// Admin list users (people page uses a different endpoint with less info)
 router.get("/users", adminLimiter, loadUser, requireAdmin, async (req, res) => {
   try {
     const users = await User.find(
@@ -224,7 +335,6 @@ router.get("/users", adminLimiter, loadUser, requireAdmin, async (req, res) => {
       .sort({ username: 1 })
       .limit(2000);
 
-    // Provide both statusMessage and statusMsg for frontend convenience
     const mapped = users.map(u => ({
       username: u.username,
       role: u.role,
@@ -284,7 +394,6 @@ router.post("/adjust", adminLimiter, loadUser, requireAdmin, async (req, res) =>
   }
 });
 
-// Admin set role
 router.post("/set-role", adminLimiter, loadUser, requireAdmin, async (req, res) => {
   try {
     const { username, role } = req.body || {};
@@ -328,7 +437,6 @@ router.post("/set-role", adminLimiter, loadUser, requireAdmin, async (req, res) 
   }
 });
 
-// Admin set level
 router.post("/set-level", adminLimiter, loadUser, requireAdmin, async (req, res) => {
   try {
     const { username, level } = req.body || {};
@@ -372,7 +480,6 @@ router.post("/set-level", adminLimiter, loadUser, requireAdmin, async (req, res)
   }
 });
 
-// Admin set bans (chat/coins)
 router.post("/set-bans", adminLimiter, loadUser, requireAdmin, async (req, res) => {
   try {
     const { username, chatBan, coinsBan, reason } = req.body || {};

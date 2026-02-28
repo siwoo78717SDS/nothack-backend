@@ -9,7 +9,9 @@ const coinTransactionSchema = new mongoose.Schema({
       "level_up",
       "achievement_reward",
       "admin_set_level",
-      "admin_set_bans" 
+      "admin_set_bans",
+      "feature_purchase",   // buying unlocks / features
+      "game_reward"        // rewards from games (Wordle, quizzes, etc.)
     ],
     required: true,
     index: true

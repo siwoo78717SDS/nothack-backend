@@ -1,11 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>How to Get Coins - Zeropoint</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <title>How to Get Coins • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="/shared.js"></script>
   <style>
-    body {
+    body.shell {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #020617;
       color: #e5e7eb;
@@ -13,25 +14,136 @@
       padding: 0;
     }
 
-    header {
-      background: #0f172a;
-      padding: 1rem 1.5rem;
+    /* Global Top Bar */
+    #topBar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      padding: 0.35rem 0.9rem;
+      background: rgba(5, 5, 15, 0.98);
+      backdrop-filter: blur(18px);
       border-bottom: 1px solid #1f2937;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.18);
     }
 
-    header h1 {
-      margin: 0;
-      font-size: 1.3rem;
-      color: #f9fafb;
+    #brand {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9be7ff;
+      font-size: 0.85rem;
     }
 
-    header a {
-      color: #60a5fa;
+    #brand #dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #0ff, #05f);
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.9);
+      animation: zp-pulseDot 1.6s infinite alternate;
+    }
+
+    @keyframes zp-pulseDot {
+      from { transform: scale(1); box-shadow: 0 0 8px rgba(0, 255, 255, 0.7); }
+      to   { transform: scale(1.25); box-shadow: 0 0 15px rgba(0, 255, 255, 1); }
+    }
+
+    #statusPills {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: 0.75rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.74rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid transparent;
       text-decoration: none;
-      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .pill.info {
+      background: linear-gradient(120deg, rgba(0, 160, 255, 0.1), rgba(0, 255, 255, 0.07));
+      border-color: rgba(0, 200, 255, 0.45);
+      color: #e0f7ff;
+    }
+
+    .pill.ok {
+      background: linear-gradient(120deg, rgba(0, 255, 180, 0.1), rgba(0, 255, 120, 0.1));
+      border-color: rgba(0, 255, 180, 0.6);
+      color: #d8ffe8;
+    }
+
+    #topRightBtns {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.38rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 200, 255, 0.6);
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 255, 0.23), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(0, 140, 255, 0.23), transparent 60%),
+        rgba(10, 15, 35, 0.96);
+      box-shadow:
+        0 0 10px rgba(0, 150, 255, 0.3),
+        0 0 2px rgba(0, 255, 255, 0.4) inset;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #e5f6ff;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow:
+        0 0 14px rgba(0, 200, 255, 0.65),
+        0 0 3px rgba(0, 255, 255, 0.55) inset;
+      border-color: rgba(165, 235, 255, 0.95);
+    }
+
+    #logoutBtn {
+      border: none;
+      background: transparent;
+      color: #ffb3b3;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      margin-left: 0.25rem;
+      opacity: 0.9;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+
+    #logoutBtn:hover {
+      opacity: 1;
+      transform: translateY(-1px);
     }
 
     main {
@@ -125,13 +237,28 @@
     }
   </style>
 </head>
-<body>
-  <header>
-    <h1>How to Get Coins</h1>
-    <nav>
-      <a href="/account">Back to Account</a>
-    </nav>
-  </header>
+<body class="shell">
+  <div id="topBar">
+    <div id="brand">
+      <div id="dot"></div>
+      <div>ZeroPoint</div>
+      <div id="statusPills">
+        <div id="mePill" class="pill info">Loading…</div>
+        <div id="coinsPill" class="pill ok">0 coins</div>
+      </div>
+    </div>
+
+    <div id="topRightBtns">
+      <a class="nav-btn" href="/">Terminal</a>
+      <a class="nav-btn" href="/mypage">My Page</a>
+      <a class="nav-btn" href="/people">People</a>
+      <a class="nav-btn" href="/shop">Shop</a>
+      <a class="nav-btn" href="/wordle">Wordle</a>
+      <a class="nav-btn" href="/codequiz">CodeQuiz</a>
+      <a class="nav-btn" href="/how-to-get-coins">Coins</a>
+      <button id="logoutBtn">Logout</button>
+    </div>
+  </div>
 
   <main>
     <section class="card">
@@ -202,7 +329,7 @@
       <span class="tag special">Special</span>
       <h2>4. Admin / teacher rewards</h2>
       <p>
-        On some servers, admins or teachers can reward students with coins for
+        On some servers, admins might reward users with coins for
         things like:
       </p>
       <ul>
@@ -210,16 +337,12 @@
         <li>Reporting serious bugs or security problems responsibly.</li>
         <li>Making useful suggestions that improve the system.</li>
       </ul>
-      <p class="hint">
-        These rewards are not automatic. Don’t spam or beg for coins; focus on being helpful
-        and respectful, and the rewards will follow naturally.
-      </p>
     </section>
 
     <section class="card">
       <h2>5. What <strong>doesn't</strong> give coins</h2>
       <ul>
-        <li>Spamming messages or low-effort activity.</li>
+        <li>Spamming messages</li>
         <li>Trying to cheat.</li>
       </ul>
       <p class="hint">
@@ -233,7 +356,6 @@
       <ul>
         <li>Check your current coins on the <a class="inline" href="/account">Account</a> page.</li>
         <li>Visit the <a class="inline" href="/shop">Feature Shop</a> to see what you can unlock.</li>
-        <li>Stay active and look out for events or missions announced by admins.</li>
       </ul>
     </section>
 
@@ -242,5 +364,24 @@
       If you're unsure, ask your teacher or admin.
     </footer>
   </main>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+
+  const mePill = document.getElementById("mePill");
+  const coinsPill = document.getElementById("coinsPill");
+  mePill.textContent = `${me.user.username} • ${me.user.role} • L${coins.level}`;
+  coinsPill.textContent = `${coins.coins} coins`;
+
+  document.getElementById("logoutBtn").onclick = async () => {
+    await ZeroPoint.logout();
+    location.href = "/login";
+  };
+})();
+</script>
 </body>
 </html>

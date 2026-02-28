@@ -1,0 +1,66 @@
+[
+  { "prompt": "What does `===` mean in JavaScript?", "choices": ["Assignment", "Loose equality", "Strict equality", "Not equal"], "answerIndex": 2 },
+  { "prompt": "Which one creates an array?", "choices": ["{}", "[]", "()", "<>"], "answerIndex": 1 },
+  { "prompt": "What is the output of: `typeof null` ?", "choices": ["null", "object", "undefined", "number"], "answerIndex": 1 },
+  { "prompt": "Which keyword declares a block-scoped variable?", "choices": ["var", "let", "function", "define"], "answerIndex": 1 },
+  { "prompt": "Which method converts a JSON string into an object?", "choices": ["JSON.parse()", "JSON.stringify()", "toJSON()", "parseJSON()"], "answerIndex": 0 },
+  { "prompt": "Which HTTP status code means “Unauthorized”?", "choices": ["200", "301", "401", "500"], "answerIndex": 2 },
+  { "prompt": "In Express, what does `app.use(express.json())` do?", "choices": ["Adds sessions", "Parses JSON request bodies", "Enables CORS", "Serves static files"], "answerIndex": 1 },
+  { "prompt": "Which one is NOT a JavaScript primitive type?", "choices": ["string", "number", "boolean", "object"], "answerIndex": 3 },
+  { "prompt": "What happens if you try to reassign a `const` variable?", "choices": ["It works normally", "It only works in strict mode", "It throws an error", "It becomes undefined"], "answerIndex": 2 },
+  { "prompt": "What is `NaN`?", "choices": ["A number that means “Not a Number”", "A null value", "A string", "A boolean"], "answerIndex": 0 },
+
+  { "prompt": "Which syntax is a template literal?", "choices": ["'hello'", "\"hello\"", "`hello`", "(hello)"], "answerIndex": 2 },
+  { "prompt": "What does `Array.prototype.push()` return?", "choices": ["The new array length", "The removed item", "A copy of the array", "Nothing (undefined)"], "answerIndex": 0 },
+  { "prompt": "What does `map()` do?", "choices": ["Edits the original array only", "Returns a new array with changed items", "Sorts an array", "Removes duplicates"], "answerIndex": 1 },
+  { "prompt": "What does `filter()` do?", "choices": ["Returns a new array with items that pass a test", "Turns an array into a string", "Adds an item to the end", "Reverses the array"], "answerIndex": 0 },
+  { "prompt": "What is the main difference between `==` and `===`?", "choices": ["`==` compares types, `===` doesn't", "`===` does type conversion, `==` doesn't", "`==` can do type conversion, `===` does not", "They are identical"], "answerIndex": 2 },
+
+  { "prompt": "Which DOM method selects the first matching element?", "choices": ["document.select()", "document.querySelector()", "document.get()", "document.firstElement()"], "answerIndex": 1 },
+  { "prompt": "What does `event.preventDefault()` do?", "choices": ["Stops the event from happening forever", "Stops the default browser action (like form submit)", "Reloads the page", "Removes the event listener"], "answerIndex": 1 },
+  { "prompt": "Which HTTP method is most common for creating new data?", "choices": ["GET", "POST", "DELETE", "TRACE"], "answerIndex": 1 },
+  { "prompt": "Which HTTP status code means “Not Found”?", "choices": ["200", "302", "404", "418"], "answerIndex": 2 },
+  { "prompt": "Which Git command downloads a repo for the first time?", "choices": ["git start", "git clone", "git copy", "git pull"], "answerIndex": 1 },
+
+  { "prompt": "Which command installs dependencies from package.json?", "choices": ["npm build", "npm install", "npm run", "npm clean"], "answerIndex": 1 },
+  { "prompt": "In Node.js, environment variables are usually read from:", "choices": ["process.env", "window.env", "env.process", "node.env"], "answerIndex": 0 },
+  { "prompt": "In Express, why does route order matter?", "choices": ["It doesn’t matter", "Earlier routes can match first and stop later ones", "Later routes always override earlier ones", "Only POST routes matter"], "answerIndex": 1 },
+  { "prompt": "What does `res.redirect(302, '/x')` do?", "choices": ["Sends a file", "Sends JSON", "Tells the browser to go to /x", "Deletes a cookie"], "answerIndex": 2 },
+  { "prompt": "What does `res.sendFile(...)` do?", "choices": ["Redirects to another page", "Sends a file as the response", "Sends only text", "Sends only JSON"], "answerIndex": 1 },
+
+  { "prompt": "Why do people use `path.join(__dirname, 'public', 'x.html')`?", "choices": ["To make a URL", "To build correct file paths on any OS", "To encrypt a path", "To shorten code only"], "answerIndex": 1 },
+  { "prompt": "What is CORS mainly about?", "choices": ["Making CSS faster", "Allowing/Blocking cross-site requests in browsers", "Making cookies bigger", "Compressing JSON"], "answerIndex": 1 },
+  { "prompt": "What does `await` work with?", "choices": ["Only arrays", "Only objects", "Promises", "Only strings"], "answerIndex": 2 },
+  { "prompt": "What does `.then(...)` do?", "choices": ["Runs after a Promise resolves", "Runs before a Promise starts", "Stops code forever", "Makes code synchronous"], "answerIndex": 0 },
+  { "prompt": "If an async function throws, where do you handle it?", "choices": ["Only with if statements", "With try/catch (or .catch on the Promise)", "Only with console.log", "You can’t handle it"], "answerIndex": 1 },
+
+  { "prompt": "What does array destructuring do? Example: `const [a,b]=arr;`", "choices": ["Deletes arr", "Copies items into variables", "Sorts arr", "Turns arr into an object"], "answerIndex": 1 },
+  { "prompt": "What does the spread operator `...` do in arrays?", "choices": ["Encrypts values", "Expands items", "Divides numbers", "Creates a loop"], "answerIndex": 1 },
+  { "prompt": "Which loop is great for iterating over values of an array?", "choices": ["for...of", "for...in", "while true", "switch"], "answerIndex": 0 },
+  { "prompt": "What type of data does localStorage store?", "choices": ["Only numbers", "Only arrays", "Strings", "Booleans only"], "answerIndex": 2 },
+  { "prompt": "What is a cookie commonly used for?", "choices": ["Storing big videos", "Remembering session/login info", "Running JavaScript faster", "Replacing databases"], "answerIndex": 1 },
+
+  { "prompt": "What is bcrypt mainly used for?", "choices": ["Compressing files", "Hashing passwords safely", "Animating UI", "Sending emails"], "answerIndex": 1 },
+  { "prompt": "What is XSS (Cross-Site Scripting)?", "choices": ["A way to style HTML", "A security bug where attacker runs scripts in your page", "A database feature", "A server update"], "answerIndex": 1 },
+  { "prompt": "What is CSRF?", "choices": ["A bug that makes CSS fail", "A trick that makes a logged-in user do actions without meaning to", "A Node version", "A Git command"], "answerIndex": 1 },
+  { "prompt": "In semver, what does `^1.2.3` usually mean in package.json?", "choices": ["Only exact 1.2.3", "Any version at all", "Compatible updates (same major version)", "Only major updates"], "answerIndex": 2 },
+  { "prompt": "Where do you define npm scripts like `dev`?", "choices": ["index.html", "package.json", "README.md", "node_modules/"], "answerIndex": 1 },
+
+  { "prompt": "Which method converts an object into a JSON string?", "choices": ["JSON.parse()", "JSON.stringify()", "toStringJSON()", "String.toJSON()"], "answerIndex": 1 },
+  { "prompt": "Which function safely encodes a string for a URL parameter?", "choices": ["encodeURIComponent()", "decodeURIComponent()", "urlEncode()", "safeURL()"], "answerIndex": 0 },
+  { "prompt": "Which HTML tag is most semantic for site navigation?", "choices": ["<div>", "<nav>", "<span>", "<b>"], "answerIndex": 1 },
+  { "prompt": "In CSS Flexbox, which property controls horizontal distribution in a row?", "choices": ["justify-content", "align-content", "font-weight", "overflow"], "answerIndex": 0 },
+  { "prompt": "Which CSS selector selects elements by class?", "choices": ["#name", ".name", "@name", "$name"], "answerIndex": 1 },
+
+  { "prompt": "Why is `<meta name='viewport' ...>` important?", "choices": ["It makes fonts bold", "It helps pages scale correctly on mobile", "It enables cookies", "It blocks hackers"], "answerIndex": 1 },
+  { "prompt": "Which statement is true about HTTP GET?", "choices": ["It should usually not change server data", "It is used to delete data", "It always uploads files", "It is only for admins"], "answerIndex": 0 },
+  { "prompt": "What does `require(...)` mean in Node (CommonJS)?", "choices": ["It runs CSS", "It imports a module/file", "It deletes a file", "It creates HTML"], "answerIndex": 1 },
+  { "prompt": "What is a middleware in Express?", "choices": ["A function that runs before routes/handlers", "A database table", "A CSS file", "A type of HTML tag"], "answerIndex": 0 },
+  { "prompt": "What does `res.json({a:1})` do?", "choices": ["Sends JSON response", "Sends an HTML file", "Redirects", "Crashes the server"], "answerIndex": 0 },
+
+  { "prompt": "Which one is the correct way to check if something is an array?", "choices": ["typeof x === 'array'", "x.isArray()", "Array.isArray(x)", "x instanceof Object"], "answerIndex": 2 },
+  { "prompt": "What does `Number('7')` return?", "choices": ["'7'", "7", "NaN always", "true"], "answerIndex": 1 },
+  { "prompt": "What does `Math.floor(3.9)` return?", "choices": ["3", "4", "3.9", "0"], "answerIndex": 0 },
+  { "prompt": "What does `setTimeout(fn, 1000)` do?", "choices": ["Runs fn immediately", "Runs fn after about 1 second", "Repeats fn forever", "Stops the server"], "answerIndex": 1 },
+  { "prompt": "Which array method removes the last element and returns it?", "choices": ["pop()", "push()", "shift()", "unshift()"], "answerIndex": 0 }
+]

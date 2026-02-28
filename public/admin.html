@@ -6,165 +6,432 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="/style.css">
   <script src="/shared.js"></script>
+
   <style>
+    :root { --border: var(--line); }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #041421 0, #02050b 45%, #000 100%);
+      color: #eaf7ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    /* ===== Global Top Bar (same style as terminal/account) ===== */
+    #topBar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.35rem 0.9rem;
+      background: rgba(5, 5, 15, 0.98);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(120, 200, 255, 0.3);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.18);
+    }
+
+    #brand {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9be7ff;
+      font-size: 0.85rem;
+    }
+
+    #brand #dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #0ff, #05f);
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.9);
+      animation: zp-pulseDot 1.6s infinite alternate;
+    }
+
+    @keyframes zp-pulseDot {
+      from { transform: scale(1); box-shadow: 0 0 8px rgba(0, 255, 255, 0.7); }
+      to   { transform: scale(1.25); box-shadow: 0 0 15px rgba(0, 255, 255, 1); }
+    }
+
+    #statusPills {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: 0.75rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.74rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid transparent;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .pill.info {
+      background: linear-gradient(120deg, rgba(0, 160, 255, 0.1), rgba(0, 255, 255, 0.07));
+      border-color: rgba(0, 200, 255, 0.45);
+      color: #e0f7ff;
+    }
+
+    .pill.ok {
+      background: linear-gradient(120deg, rgba(0, 255, 180, 0.1), rgba(0, 255, 120, 0.1));
+      border-color: rgba(0, 255, 180, 0.6);
+      color: #d8ffe8;
+    }
+
+    #topRightBtns {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.38rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 200, 255, 0.6);
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 255, 0.23), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(0, 140, 255, 0.23), transparent 60%),
+        rgba(10, 15, 35, 0.96);
+      box-shadow:
+        0 0 10px rgba(0, 150, 255, 0.3),
+        0 0 2px rgba(0, 255, 255, 0.4) inset;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #e5f6ff;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow:
+        0 0 14px rgba(0, 200, 255, 0.65),
+        0 0 3px rgba(0, 255, 255, 0.55) inset;
+      border-color: rgba(165, 235, 255, 0.95);
+    }
+
+    .nav-btn.primary {
+      border-color: rgba(0, 255, 187, 0.9);
+      box-shadow:
+        0 0 14px rgba(0, 250, 180, 0.6),
+        0 0 3px rgba(0, 255, 200, 0.7) inset;
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 200, 0.25), transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(0, 220, 160, 0.28), transparent 60%),
+        rgba(8, 25, 20, 0.98);
+    }
+
+    #logoutBtn {
+      border: none;
+      background: transparent;
+      color: #ffb3b3;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      margin-left: 0.25rem;
+      opacity: 0.9;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+
+    #logoutBtn:hover {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+
+    .center-box {
+      min-height: calc(100vh - 64px);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .admin-wrap { width: min(1200px, 100%); }
+
+    .adminTop {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .adminTop h2 { margin:0; }
+
+    .card {
+      background: rgba(5, 10, 20, 0.96);
+      border-radius: 0.9rem;
+      padding: 1.1rem 1.2rem;
+      border: 1px solid rgba(90, 160, 210, 0.7);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.75);
+    }
+
+    .row { display:flex; align-items:center; }
+    .gap { gap:8px; }
+
+    button { width:auto; }
+
     .tabbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-    .tab { padding:8px 10px; border:1px solid var(--border); border-radius:10px; cursor:pointer; background:#0b1220; }
+    .tab {
+      padding:8px 10px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      cursor:pointer;
+      background: rgba(0,0,0,0.35);
+    }
     .tab.active { border-color: var(--accent); }
     .panel { display:none; }
     .panel.active { display:block; }
+
     .mini { font-size: 12px; }
     textarea { width:100%; }
-    .scroll { max-height: 300px; overflow:auto; border:1px solid var(--border); border-radius: 10px; padding: 8px; background:#0b1220; }
 
-    .k { color:#9aa4b2; font-size:12px; }
-    .v { color:#e5e7eb; }
+    .scroll {
+      max-height: 300px;
+      overflow:auto;
+      border:1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      background: rgba(0,0,0,0.35);
+    }
+
+    .k { color: var(--muted); font-size:12px; }
+    .v { color: var(--txt); }
     .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+
     .badge { font-size: 11px; padding:2px 6px; border:1px solid var(--border); border-radius: 999px; }
     .badge.admin { border-color: #e11d48; color:#fecdd3; }
-    .muted { color:#9aa4b2; }
+
     .danger-btn {
       background:#7f1d1d;
       color:#fecaca;
       border:1px solid #b91c1c;
       border-radius:8px;
-      padding:4px 8px;
+      padding:6px 10px;
       cursor:pointer;
       font-size:11px;
     }
+
+    table.table { width:100%; border-collapse: collapse; font-size: 12px; }
+    table.table th, table.table td {
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 6px;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    table.table td { white-space: normal; }
+    table.table input, table.table select { width: 100%; }
+
+    .dim-text { color: #9badc0; font-size: 0.9rem; }
+
+    @media (max-width: 900px) {
+      #topBar {
+        flex-wrap: wrap;
+        row-gap: 0.4rem;
+        padding: 0.45rem 0.55rem;
+      }
+      #statusPills {
+        margin-left: 0.3rem;
+      }
+      #topRightBtns {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 0.25rem;
+      }
+      .center-box {
+        padding: 1rem 0.6rem 1.4rem;
+      }
+      .card {
+        padding: 0.9rem 0.9rem;
+      }
+    }
   </style>
 </head>
+
 <body>
-  <div class="center-box">
-    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
-      <h2 style="margin:0;">Admin Panel</h2>
-      <div class="row gap">
-        <a href="/">Terminal</a>
-        <a href="/people">People</a>
-        <a href="/groups">Groups</a>
+  <div id="topBar">
+    <div id="brand">
+      <div id="dot"></div>
+      <div>ZeroPoint</div>
+      <div id="statusPills">
+        <div id="mePill" class="pill info">Loading…</div>
+        <div id="coinsPill" class="pill ok">0 coins</div>
       </div>
     </div>
 
-    <div class="card">
-      <div id="who" class="dim-text"></div>
-      <hr>
+    <div id="topRightBtns">
+      <a class="nav-btn" href="/">Terminal</a>
+      <a class="nav-btn" href="/mypage">My Page</a>
+      <a class="nav-btn" href="/people">People</a>
+      <a class="nav-btn" href="/shop">Shop</a>
+      <a class="nav-btn" href="/wordle">Wordle</a>
+      <a class="nav-btn" href="/codequiz">CodeQuiz</a>
+      <a class="nav-btn" href="/how-to-get-coins">Coins</a>
+      <button id="logoutBtn">Logout</button>
+    </div>
+  </div>
 
-      <div class="tabbar">
-        <div class="tab active" data-tab="users">Users</div>
-        <div class="tab" data-tab="bugs">Bug Reports</div>
-        <div class="tab" data-tab="ann">Announcements</div>
-        <div class="tab" data-tab="tx">Transactions</div>
-        <div class="tab" data-tab="audit">Audit Logs</div>
+  <div class="center-box">
+    <div class="admin-wrap">
+      <div class="adminTop">
+        <h2>Admin Panel</h2>
+        <div id="who" class="dim-text"></div>
       </div>
 
-      <!-- USERS -->
-      <div class="panel active" id="tab-users">
-        <div class="row gap" style="margin-bottom:8px;">
-          <input id="userSearch" placeholder="search username..." style="flex:1;">
-          <button id="refreshUsers">Refresh</button>
+      <div class="card">
+        <div class="dim-text" style="margin-bottom:6px;">
+          Admin tools for users, bugs, announcements, transactions, and audit logs.
         </div>
-
-        <div id="usersMsg" class="dim-text" style="margin-top:8px;"></div>
-
-        <div style="overflow:auto; margin-top:8px;">
-          <table class="table" id="usersTable">
-            <thead>
-              <tr>
-                <th>username</th>
-                <th>role</th>
-                <th>level</th>
-                <th>AP</th>
-                <th>coins</th>
-                <th>status</th>
-                <th>last online</th>
-                <th>ip</th>
-                <th>chat ban</th>
-                <th>coins ban</th>
-                <th>adjust coins</th>
-                <th>set role</th>
-                <th>set level</th>
-                <th>set bans</th>
-                <th>profile</th>
-                <th>delete</th> <!-- NEW -->
-              </tr>
-            </thead>
-            <tbody id="usersRows"></tbody>
-          </table>
-        </div>
-
         <hr>
 
-        <div style="font-weight:600; margin-bottom:6px;">User Profile Database</div>
-        <div class="grid2">
-          <div class="scroll" id="profileBox">
-            <div class="dim-text">Click “Profile” on a user to view details here.</div>
-          </div>
-          <div class="scroll" id="profileTxBox">
-            <div class="dim-text">Coin history will appear here.</div>
-          </div>
+        <div class="tabbar">
+          <div class="tab active" data-tab="users">Users</div>
+          <div class="tab" data-tab="bugs">Bug Reports</div>
+          <div class="tab" data-tab="ann">Announcements</div>
+          <div class="tab" data-tab="tx">Transactions</div>
+          <div class="tab" data-tab="audit">Audit Logs</div>
         </div>
-      </div>
 
-      <!-- BUGS -->
-      <div class="panel" id="tab-bugs">
-        <div class="row gap" style="margin-bottom:8px;">
-          <select id="bugFilter">
-            <option value="">All</option>
-            <option value="open">Open</option>
-            <option value="in-progress">In Progress</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
-          </select>
-          <button id="refreshBugs">Refresh</button>
-          <span id="bugsMsg" class="dim-text"></span>
-        </div>
-        <div class="row gap" style="align-items:flex-start;">
-          <div class="scroll" style="flex:1;" id="bugList"></div>
-          <div style="flex:1;">
-            <div id="bugDetail" class="scroll" style="display:none;"></div>
-            <div id="bugActions" style="display:none; margin-top:8px;">
-              <select id="bugStatus">
-                <option value="open">Open</option>
-                <option value="in-progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="closed">Closed</option>
-              </select>
-              <button id="saveBugStatus">Save status</button>
-              <textarea id="bugReply" rows="3" placeholder="Reply as admin." style="margin-top:8px;"></textarea>
-              <button id="sendBugReply">Send reply</button>
-              <div id="bugActionMsg" class="dim-text" style="margin-top:6px;"></div>
+        <!-- USERS -->
+        <div class="panel active" id="tab-users">
+          <div class="row gap" style="margin-bottom:8px;">
+            <input id="userSearch" placeholder="search username..." style="flex:1;">
+            <button id="refreshUsers" class="small">Refresh</button>
+          </div>
+
+          <!-- Hard delete UI -->
+          <div class="row gap" style="margin-bottom:8px; flex-wrap:wrap;">
+            <input id="hardDeleteUser" placeholder="hard delete username..." style="flex:1; min-width:200px;">
+            <input id="hardDeleteConfirm" placeholder="type username again to confirm" style="flex:1; min-width:220px;">
+            <button id="hardDeleteBtn" class="danger-btn">HARD DELETE</button>
+            <span id="hardDeleteMsg" class="dim-text"></span>
+          </div>
+
+          <div id="usersMsg" class="dim-text" style="margin-top:8px;"></div>
+
+          <div style="overflow:auto; margin-top:8px;">
+            <table class="table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>username</th>
+                  <th>role</th>
+                  <th>level</th>
+                  <th>AP</th>
+                  <th>coins</th>
+                  <th>status</th>
+                  <th>last online</th>
+                  <th>ip</th>
+                  <th>chat ban</th>
+                  <th>coins ban</th>
+                  <th>adjust coins</th>
+                  <th>set role</th>
+                  <th>set level</th>
+                  <th>set bans</th>
+                  <th>profile</th>
+                  <th>delete</th>
+                </tr>
+              </thead>
+              <tbody id="usersRows"></tbody>
+            </table>
+          </div>
+
+          <hr>
+
+          <div style="font-weight:600; margin-bottom:6px;">User Profile Database</div>
+          <div class="grid2">
+            <div class="scroll" id="profileBox">
+              <div class="dim-text">Click “Profile” on a user to view details here.</div>
+            </div>
+            <div class="scroll" id="profileTxBox">
+              <div class="dim-text">Coin history will appear here.</div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- ANNOUNCEMENTS -->
-      <div class="panel" id="tab-ann">
-        <div style="font-weight:600; margin-bottom:6px;">Create announcement</div>
-        <input id="annTitle" placeholder="Title" style="width:100%; margin-bottom:6px;">
-        <textarea id="annBody" rows="4" placeholder="Body"></textarea>
-        <div class="row gap" style="margin-top:8px;">
-          <button id="postAnn">Post</button>
-          <span id="annMsg" class="dim-text"></span>
+        <!-- BUGS -->
+        <div class="panel" id="tab-bugs">
+          <div class="row gap" style="margin-bottom:8px;">
+            <select id="bugFilter">
+              <option value="">All</option>
+              <option value="open">Open</option>
+              <option value="in-progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+            <button id="refreshBugs" class="small">Refresh</button>
+            <span id="bugsMsg" class="dim-text"></span>
+          </div>
+
+          <div class="row gap" style="align-items:flex-start;">
+            <div class="scroll" style="flex:1;" id="bugList"></div>
+            <div style="flex:1;">
+              <div id="bugDetail" class="scroll" style="display:none;"></div>
+              <div id="bugActions" style="display:none; margin-top:8px;">
+                <select id="bugStatus">
+                  <option value="open">Open</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <button id="saveBugStatus" class="small">Save status</button>
+                <textarea id="bugReply" rows="3" placeholder="Reply as admin." style="margin-top:8px;"></textarea>
+                <button id="sendBugReply" class="small">Send reply</button>
+                <div id="bugActionMsg" class="dim-text" style="margin-top:6px;"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <hr>
-        <div style="font-weight:600; margin-bottom:6px;">Latest announcements</div>
-        <div class="scroll" id="annList"></div>
-      </div>
 
-      <!-- TRANSACTIONS -->
-      <div class="panel" id="tab-tx">
-        <div class="row gap">
-          <input id="txUser" placeholder="filter by username (optional)" style="flex:1;">
-          <button id="refreshTx">Refresh</button>
-          <span id="txMsg" class="dim-text"></span>
+        <!-- ANNOUNCEMENTS -->
+        <div class="panel" id="tab-ann">
+          <div style="font-weight:600; margin-bottom:6px;">Create announcement</div>
+          <input id="annTitle" placeholder="Title" style="width:100%; margin-bottom:6px;">
+          <textarea id="annBody" rows="4" placeholder="Body"></textarea>
+          <div class="row gap" style="margin-top:8px;">
+            <button id="postAnn" class="small">Post</button>
+            <span id="annMsg" class="dim-text"></span>
+          </div>
+          <hr>
+          <div style="font-weight:600; margin-bottom:6px;">Latest announcements</div>
+          <div class="scroll" id="annList"></div>
         </div>
-        <div class="scroll" id="txList" style="margin-top:8px;"></div>
-      </div>
 
-      <!-- AUDIT -->
-      <div class="panel" id="tab-audit">
-        <button id="refreshAudit">Refresh</button>
-        <div class="scroll" id="auditList" style="margin-top:8px;"></div>
+        <!-- TRANSACTIONS -->
+        <div class="panel" id="tab-tx">
+          <div class="row gap">
+            <input id="txUser" placeholder="filter by username (optional)" style="flex:1;">
+            <button id="refreshTx" class="small">Refresh</button>
+            <span id="txMsg" class="dim-text"></span>
+          </div>
+          <div class="scroll" id="txList" style="margin-top:8px;"></div>
+        </div>
+
+        <!-- AUDIT -->
+        <div class="panel" id="tab-audit">
+          <button id="refreshAudit" class="small">Refresh</button>
+          <div class="scroll" id="auditList" style="margin-top:8px;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -175,7 +442,22 @@
   if(!me.loggedIn){ location.href="/login"; return; }
   if(me.user.role !== "admin"){ location.href="/"; return; }
 
-  document.getElementById("who").textContent = `Logged in as ${me.user.username} (admin)`;
+  const mePill = document.getElementById("mePill");
+  const coinsPill = document.getElementById("coinsPill");
+  const who = document.getElementById("who");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  // load coins for header pills
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+  mePill.textContent = `${me.user.username} • ${me.user.role} • L${coins.level}`;
+  coinsPill.textContent = `${coins.coins} coins`;
+
+  who.textContent = `Logged in as ${me.user.username} (admin)`;
+
+  logoutBtn.onclick = async () => {
+    await ZeroPoint.api.json("/api/auth/logout", { method:"POST" });
+    location.href = "/login";
+  };
 
   // tabs
   document.querySelectorAll(".tab").forEach(t => {
@@ -196,6 +478,12 @@
   const profileBox = document.getElementById("profileBox");
   const profileTxBox = document.getElementById("profileTxBox");
 
+  // hard delete controls
+  const hardDeleteUser = document.getElementById("hardDeleteUser");
+  const hardDeleteConfirm = document.getElementById("hardDeleteConfirm");
+  const hardDeleteBtn = document.getElementById("hardDeleteBtn");
+  const hardDeleteMsg = document.getElementById("hardDeleteMsg");
+
   let cachedUsers = [];
 
   function fmtDate(x){
@@ -211,7 +499,6 @@
     const lastIp = user.lastIp || user.ip || user.lastLoginIp || "";
 
     const ap = user.achievementPoints ?? user.ap ?? 0;
-
     const unlocks = user.unlocks || {};
     const stats = user.stats || {};
 
@@ -229,11 +516,7 @@
         </div>
 
         <div style="text-align:right;">
-          <button id="openTxTabBtn">Open in Transactions tab</button>
-          <br>
-          <!-- NEW: Full-ban button -->
-          <button id="fullBanBtn" class="danger-btn" style="margin-top:6px;">Full Ban (IP + user)</button>
-          <div id="fullBanMsg" class="dim-text mini" style="margin-top:4px;"></div>
+          <button id="openTxTabBtn" class="small">Open in Transactions tab</button>
         </div>
       </div>
 
@@ -256,21 +539,6 @@
 
       <hr>
 
-      <div style="font-weight:600; margin-bottom:6px;">Bans</div>
-      <div class="row gap" style="align-items:center; margin-bottom:6px;">
-        <label class="dim-text mini">
-          <input type="checkbox" id="pfChatBan" ${user.bans?.isBannedFromChat ? "checked" : ""}> chat ban
-        </label>
-        <label class="dim-text mini">
-          <input type="checkbox" id="pfCoinsBan" ${user.bans?.isBannedFromCoins ? "checked" : ""}> coins ban
-        </label>
-      </div>
-      <input id="pfBanReason" placeholder="ban reason (optional)" value="${ZeroPoint.escapeHtml(user.bans?.reason || "")}" style="width:100%; margin-bottom:6px;">
-      <button id="pfSaveBansBtn">Save bans</button>
-      <span id="pfBanMsg" class="dim-text mini" style="margin-left:8px;"></span>
-
-      <hr>
-
       <div style="font-weight:600; margin-bottom:6px;">Unlocks</div>
       <div class="dim-text mini">${ZeroPoint.escapeHtml(JSON.stringify(unlocks, null, 2))}</div>
 
@@ -278,9 +546,7 @@
       <div class="dim-text mini">${ZeroPoint.escapeHtml(JSON.stringify(stats, null, 2))}</div>
     `;
 
-    // button: open transactions tab prefilled
-    const openTxTabBtn = document.getElementById("openTxTabBtn");
-    openTxTabBtn.onclick = () => {
+    document.getElementById("openTxTabBtn").onclick = () => {
       document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
       document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
       document.querySelector('.tab[data-tab="tx"]').classList.add("active");
@@ -288,43 +554,6 @@
 
       document.getElementById("txUser").value = user.username || "";
       loadTx();
-    };
-
-    // bans save (profile panel)
-    const pfSaveBansBtn = document.getElementById("pfSaveBansBtn");
-    pfSaveBansBtn.onclick = async () => {
-      const chatBan = document.getElementById("pfChatBan").checked;
-      const coinsBan = document.getElementById("pfCoinsBan").checked;
-      const reason = document.getElementById("pfBanReason").value;
-
-      const msgEl = document.getElementById("pfBanMsg");
-      msgEl.textContent = "Saving...";
-
-      const res = await ZeroPoint.api.json("/api/coins/set-bans", {
-        method:"POST",
-        body: { username: user.username, chatBan, coinsBan, reason }
-      });
-
-      if(res.error){ msgEl.textContent = res.error; return; }
-      msgEl.textContent = "Saved ✔";
-      await loadUsers();
-      await openUserProfile(user.username);
-    };
-
-    // NEW: full-ban button logic
-    const fullBanBtn = document.getElementById("fullBanBtn");
-    const fullBanMsg = document.getElementById("fullBanMsg");
-    fullBanBtn.onclick = async () => {
-      if (!confirm(`Full ban ${user.username}? This will ban account + IP.`)) return;
-      fullBanMsg.textContent = "Banning...";
-      const res = await ZeroPoint.api.json("/api/admin/users/full-ban", {
-        method:"POST",
-        body: { username: user.username, reason: "Full ban from admin panel" }
-      });
-      if(res.error){ fullBanMsg.textContent = res.error; return; }
-      fullBanMsg.textContent = "Full ban applied ✔";
-      await loadUsers();
-      await openUserProfile(user.username);
     };
   }
 
@@ -341,7 +570,7 @@
       <div style="font-weight:600; margin-bottom:6px;">Coin history (${tx.length})</div>
       ${tx.length ? tx.map(t => {
         const when = new Date(t.createdAt).toLocaleString();
-        return `<div class="dim-text mini">[${when}] ${ZeroPoint.escapeHtml(t.type)} ${ZeroPoint.escapeHtml(t.fromUsername||"")} → ${ZeroPoint.escapeHtml(t.toUsername||"")} amount=${t.amount} ${ZeroPoint.escapeHtml(t.description||"")}</div>`;
+        return `<div class="dim-text mini">[${when}] ${ZeroPoint.escapeHtml(t.type)} ${ZeroPoint.escapeHtml(t.fromUsername||"")} -> ${ZeroPoint.escapeHtml(t.toUsername||"")} amount=${t.amount} ${ZeroPoint.escapeHtml(t.description||"")}</div>`;
       }).join("") : '<div class="dim-text">(none)</div>'}
     `;
   }
@@ -351,7 +580,6 @@
     renderProfile(basic);
     await loadUserCoinHistory(username);
 
-    // optional richer profile endpoint
     const res = await ZeroPoint.api.json(
       "/api/admin/users/profile?username=" + encodeURIComponent(username),
       { method:"GET" }
@@ -391,52 +619,46 @@
         <td>${u.bans?.isBannedFromChat ? "Yes" : "No"}</td>
         <td>${u.bans?.isBannedFromCoins ? "Yes" : "No"}</td>
 
-        <td>
+        <td style="min-width:160px;">
           <div class="row gap">
             <input data-user="${u.username}" class="delta" placeholder="+/-" style="width:90px;">
-            <button data-user="${u.username}" class="applyDelta">Apply</button>
+            <button data-user="${u.username}" class="applyDelta small">Apply</button>
           </div>
         </td>
 
-        <td>
+        <td style="min-width:160px;">
           <div class="row gap">
             <select data-user="${u.username}" class="roleSel">
               <option value="user" ${u.role==="user"?"selected":""}>user</option>
               <option value="mod" ${u.role==="mod"?"selected":""}>mod</option>
               <option value="admin" ${u.role==="admin"?"selected":""}>admin</option>
             </select>
-            <button data-user="${u.username}" class="saveRole">Save</button>
+            <button data-user="${u.username}" class="saveRole small">Save</button>
           </div>
         </td>
 
-        <td>
+        <td style="min-width:160px;">
           <div class="row gap">
             <input data-user="${u.username}" class="lvlInp" placeholder="1-10" style="width:70px;" value="${u.level}">
-            <button data-user="${u.username}" class="saveLvl">Save</button>
+            <button data-user="${u.username}" class="saveLvl small">Save</button>
           </div>
         </td>
 
-        <td>
+        <td style="min-width:200px;">
           <div class="row gap" style="align-items:center;">
             <label class="dim-text mini"><input type="checkbox" class="chatBanChk" data-user="${u.username}" ${u.bans?.isBannedFromChat ? "checked":""}> chat</label>
             <label class="dim-text mini"><input type="checkbox" class="coinsBanChk" data-user="${u.username}" ${u.bans?.isBannedFromCoins ? "checked":""}> coins</label>
-            <button data-user="${u.username}" class="saveBansBtn">Save</button>
+            <button data-user="${u.username}" class="saveBansBtn small">Save</button>
           </div>
         </td>
 
-        <td>
-          <button data-user="${u.username}" class="openProfileBtn">Profile</button>
-        </td>
+        <td><button data-user="${u.username}" class="openProfileBtn small">Profile</button></td>
 
-        <td>
-          <!-- NEW: delete button -->
-          <button data-user="${u.username}" class="deleteUserBtn danger-btn">Delete</button>
-        </td>
+        <td><button data-user="${u.username}" class="deleteUserBtn danger-btn">Delete</button></td>
       `;
       usersRows.appendChild(tr);
     });
 
-    // adjust coins
     usersRows.querySelectorAll(".applyDelta").forEach(btn => {
       btn.onclick = async () => {
         const user = btn.dataset.user;
@@ -453,12 +675,11 @@
       };
     });
 
-    // set role
     usersRows.querySelectorAll(".saveRole").forEach(btn => {
       btn.onclick = async () => {
         const user = btn.dataset.user;
         const sel = usersRows.querySelector(`.roleSel[data-user="${user}"]`);
-        const res2 = await ZeroPoint.api.json("/api/coins/set-role", {
+        const res2 = await ZeroPoint.api.json("/api/admin/users/set-role", {
           method:"POST",
           body:{ username:user, role: sel.value }
         });
@@ -467,14 +688,13 @@
       };
     });
 
-    // set level
     usersRows.querySelectorAll(".saveLvl").forEach(btn => {
       btn.onclick = async () => {
         const user = btn.dataset.user;
         const inp = usersRows.querySelector(`.lvlInp[data-user="${user}"]`);
         const lvl = Number(inp.value);
         if(!Number.isFinite(lvl)) return alert("Invalid level");
-        const res2 = await ZeroPoint.api.json("/api/coins/set-level", {
+        const res2 = await ZeroPoint.api.json("/api/admin/users/set-level", {
           method:"POST",
           body:{ username:user, level: lvl }
         });
@@ -483,14 +703,13 @@
       };
     });
 
-    // set bans
     usersRows.querySelectorAll(".saveBansBtn").forEach(btn => {
       btn.onclick = async () => {
         const user = btn.dataset.user;
         const chatBan = usersRows.querySelector(`.chatBanChk[data-user="${user}"]`).checked;
         const coinsBan = usersRows.querySelector(`.coinsBanChk[data-user="${user}"]`).checked;
 
-        const res2 = await ZeroPoint.api.json("/api/coins/set-bans", {
+        const res2 = await ZeroPoint.api.json("/api/admin/users/ban-flags", {
           method:"POST",
           body:{ username:user, chatBan, coinsBan }
         });
@@ -499,7 +718,6 @@
       };
     });
 
-    // open profile
     usersRows.querySelectorAll(".openProfileBtn").forEach(btn => {
       btn.onclick = async () => {
         const user = btn.dataset.user;
@@ -507,11 +725,10 @@
       };
     });
 
-    // NEW: delete user
     usersRows.querySelectorAll(".deleteUserBtn").forEach(btn => {
       btn.onclick = async () => {
         const user = btn.dataset.user;
-        if(!confirm(`Delete account "${user}"? This cannot be easily undone.`)) return;
+        if(!confirm(`Soft-delete account "${user}"?`)) return;
         const res2 = await ZeroPoint.api.json("/api/admin/users/delete", {
           method:"POST",
           body:{ username:user }
@@ -526,7 +743,8 @@
   async function loadUsers(){
     usersMsg.textContent = "Loading...";
     usersRows.innerHTML = "";
-    const res = await ZeroPoint.api.json("/api/coins/users", { method:"GET" });
+
+    const res = await ZeroPoint.api.json("/api/admin/users", { method:"GET" });
     if(res.error){ usersMsg.textContent = res.error; return; }
 
     cachedUsers = (res.users || []);
@@ -536,6 +754,43 @@
 
   refreshUsers.onclick = loadUsers;
   userSearch.oninput = applyUserSearch;
+
+  // Hard delete handler
+  hardDeleteBtn.onclick = async () => {
+    hardDeleteMsg.textContent = "";
+    const username = hardDeleteUser.value.trim();
+    const confirmName = hardDeleteConfirm.value.trim();
+
+    if (!username) {
+      hardDeleteMsg.textContent = "Enter a username.";
+      return;
+    }
+    if (confirmName !== username) {
+      hardDeleteMsg.textContent = "Confirmation must exactly match username.";
+      return;
+    }
+
+    const ok = confirm(`HARD DELETE "${username}"?\nThis cannot be undone.`);
+    if (!ok) return;
+
+    hardDeleteBtn.disabled = true;
+    hardDeleteMsg.textContent = "Deleting...";
+    const res = await ZeroPoint.api.json("/api/admin/users/hard-delete", {
+      method: "POST",
+      body: { username, confirm: confirmName }
+    });
+    hardDeleteBtn.disabled = false;
+
+    if (res.error) {
+      hardDeleteMsg.textContent = res.error;
+      return;
+    }
+
+    hardDeleteMsg.textContent = "Hard deleted ✔";
+    hardDeleteUser.value = "";
+    hardDeleteConfirm.value = "";
+    await loadUsers();
+  };
 
   // BUGS
   const bugFilter = document.getElementById("bugFilter");
@@ -553,17 +808,19 @@
 
   function renderBugThread(bug){
     bugDetail.innerHTML = `
-      <div><b>${ZeroPoint.escapeHtml(bug.title)}</b> <span class="dim-text">(${bug.status})</span></div>
+      <div><b>${ZeroPoint.escapeHtml(bug.title)}</b> <span class="dim-text mini">(${ZeroPoint.escapeHtml(bug.status)})</span></div>
       <div class="dim-text mini">by ${ZeroPoint.escapeHtml(bug.creatorUsername)} • ${new Date(bug.createdAt).toLocaleString()}</div>
       ${bug.screenshotUrl ? `<div style="margin-top:8px;"><img src="${bug.screenshotUrl}" style="max-width:100%; border:1px solid var(--border); border-radius:8px;"></div>` : ""}
       <hr>
       ${(bug.messages||[]).map(m => {
         const when = new Date(m.createdAt).toLocaleString();
         const tag = m.roleAtTime === "admin" ? ' <span class="badge admin">ADMIN</span>' : "";
-        return `<div style="margin-bottom:10px;">
-          <div class="dim-text mini">${ZeroPoint.escapeHtml(m.fromUsername)}${tag} • ${when}</div>
-          <div>${ZeroPoint.escapeHtml(m.text).replace(/\n/g,"<br>")}</div>
-        </div>`;
+        return `
+          <div style="margin-bottom:10px;">
+            <div class="dim-text mini">${ZeroPoint.escapeHtml(m.fromUsername)}${tag} • ${when}</div>
+            <div>${ZeroPoint.escapeHtml(m.text).replace(/\\n/g,"<br>")}</div>
+          </div>
+        `;
       }).join("")}
     `;
   }
@@ -597,18 +854,23 @@
       div.style.padding = "8px";
       div.style.borderBottom = "1px solid var(--border)";
       div.style.cursor = "pointer";
-      div.innerHTML = `<div><b>[${b.status}]</b> ${ZeroPoint.escapeHtml(b.title)}</div><div class="dim-text mini">${ZeroPoint.escapeHtml(b.creatorUsername)} • ${new Date(b.createdAt).toLocaleString()}</div>`;
+      div.innerHTML = `<div><b>[${ZeroPoint.escapeHtml(b.status)}]</b> ${ZeroPoint.escapeHtml(b.title)}</div>
+        <div class="dim-text mini">${ZeroPoint.escapeHtml(b.creatorUsername)} • ${new Date(b.createdAt).toLocaleString()}</div>`;
       div.onclick = () => openBug(b._id);
       bugList.appendChild(div);
     });
   }
+
   refreshBugs.onclick = loadBugs;
   bugFilter.onchange = loadBugs;
 
   saveBugStatus.onclick = async () => {
     if(!currentBugId) return;
     bugActionMsg.textContent = "Saving...";
-    const res = await ZeroPoint.api.json("/api/bugs/admin/" + currentBugId + "/status", { method:"POST", body:{ status: bugStatus.value } });
+    const res = await ZeroPoint.api.json("/api/bugs/admin/" + currentBugId + "/status", {
+      method:"POST",
+      body:{ status: bugStatus.value }
+    });
     if(res.error){ bugActionMsg.textContent = res.error; return; }
     bugActionMsg.textContent = "Saved ✔";
     renderBugThread(res.bug);
@@ -620,7 +882,10 @@
     const text = bugReply.value.trim();
     if(!text) return;
     bugActionMsg.textContent = "Sending...";
-    const res = await ZeroPoint.api.json("/api/bugs/" + currentBugId + "/reply", { method:"POST", body:{ text } });
+    const res = await ZeroPoint.api.json("/api/bugs/" + currentBugId + "/reply", {
+      method:"POST",
+      body:{ text }
+    });
     if(res.error){ bugActionMsg.textContent = res.error; return; }
     bugReply.value = "";
     bugActionMsg.textContent = "Sent ✔";
@@ -643,7 +908,7 @@
       return `<div style="margin-bottom:10px;">
         <div><b>${ZeroPoint.escapeHtml(x.title)}</b></div>
         <div class="dim-text mini">by ${ZeroPoint.escapeHtml(x.createdByUsername)} • ${when}</div>
-        <div class="dim-text">${ZeroPoint.escapeHtml(x.body).replace(/\n/g,"<br>")}</div>
+        <div class="dim-text">${ZeroPoint.escapeHtml(x.body).replace(/\\n/g,"<br>")}</div>
       </div>`;
     }).join("") : '<div class="dim-text">(none)</div>';
   }
@@ -651,7 +916,10 @@
   postAnn.onclick = async () => {
     postAnn.disabled = true;
     annMsg.textContent = "Posting...";
-    const res = await ZeroPoint.api.json("/api/announcements", { method:"POST", body:{ title: annTitle.value.trim(), body: annBody.value } });
+    const res = await ZeroPoint.api.json("/api/announcements", {
+      method:"POST",
+      body:{ title: annTitle.value.trim(), body: annBody.value }
+    });
     postAnn.disabled = false;
     if(res.error){ annMsg.textContent = res.error; return; }
     annMsg.textContent = "Posted ✔";
@@ -688,7 +956,10 @@
   async function loadAudit(){
     auditList.innerHTML = '<div class="dim-text">Loading...</div>';
     const res = await ZeroPoint.api.json("/api/admin/audit", { method:"GET" });
-    if(res.error){ auditList.innerHTML = '<div class="dim-text">' + ZeroPoint.escapeHtml(res.error) + '</div>'; return; }
+    if(res.error){
+      auditList.innerHTML = '<div class="dim-text">' + ZeroPoint.escapeHtml(res.error) + '</div>';
+      return;
+    }
     const logs = res.logs || [];
     auditList.innerHTML = logs.length ? logs.map(l => {
       const when = new Date(l.createdAt).toLocaleString();

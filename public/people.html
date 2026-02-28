@@ -6,19 +6,234 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="/style.css">
   <script src="/shared.js"></script>
+  <style>
+    body.shell {
+      margin: 0;
+      background: radial-gradient(circle at top, #041421 0, #02050b 45%, #000 100%);
+      color: #eaf7ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #topBar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.35rem 0.9rem;
+      background: rgba(5, 5, 15, 0.98);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(120, 200, 255, 0.3);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.18);
+    }
+
+    #brand {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9be7ff;
+      font-size: 0.85rem;
+    }
+
+    #brand #dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #0ff, #05f);
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.9);
+      animation: zp-pulseDot 1.6s infinite alternate;
+    }
+
+    @keyframes zp-pulseDot {
+      from { transform: scale(1); box-shadow: 0 0 8px rgba(0, 255, 255, 0.7); }
+      to   { transform: scale(1.25); box-shadow: 0 0 15px rgba(0, 255, 255, 1); }
+    }
+
+    #statusPills {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: 0.75rem;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 0.25rem 0.7rem;
+      font-size: 0.74rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border: 1px solid transparent;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .pill.info {
+      background: linear-gradient(120deg, rgba(0, 160, 255, 0.1), rgba(0, 255, 255, 0.07));
+      border-color: rgba(0, 200, 255, 0.45);
+      color: #e0f7ff;
+    }
+
+    .pill.ok {
+      background: linear-gradient(120deg, rgba(0, 255, 180, 0.1), rgba(0, 255, 120, 0.1));
+      border-color: rgba(0, 255, 180, 0.6);
+      color: #d8ffe8;
+    }
+
+    #topRightBtns {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.38rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 200, 255, 0.6);
+      background:
+        radial-gradient(circle at 0 0, rgba(0, 255, 255, 0.23), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(0, 140, 255, 0.23), transparent 60%),
+        rgba(10, 15, 35, 0.96);
+      box-shadow:
+        0 0 10px rgba(0, 150, 255, 0.3),
+        0 0 2px rgba(0, 255, 255, 0.4) inset;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #e5f6ff;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow:
+        0 0 14px rgba(0, 200, 255, 0.65),
+        0 0 3px rgba(0, 255, 255, 0.55) inset;
+      border-color: rgba(165, 235, 255, 0.95);
+    }
+
+    #logoutBtn {
+      border: none;
+      background: transparent;
+      color: #ffb3b3;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+      margin-left: 0.25rem;
+      opacity: 0.9;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+
+    #logoutBtn:hover {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+
+    .center-box {
+      min-height: calc(100vh - 64px);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 1.4rem 1rem 2.2rem;
+    }
+
+    .card {
+      background: rgba(5, 10, 20, 0.96);
+      border-radius: 0.9rem;
+      padding: 1.1rem 1.2rem;
+      border: 1px solid rgba(90, 160, 210, 0.7);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.75);
+      width: min(780px, 100%);
+    }
+
+    .row { display:flex; align-items:center; }
+    .gap { gap:8px; }
+
+    .dim-text { color:#9badc0; font-size:0.9rem; }
+
+    table.table { width:100%; border-collapse: collapse; font-size: 0.9rem; }
+    table.table th, table.table td {
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 6px;
+      vertical-align: top;
+    }
+    table.table th { text-align:left; font-weight:600; }
+
+    .badge {
+      display:inline-block;
+      padding:2px 6px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid rgba(148,163,184,0.6);
+    }
+    .badge.admin { border-color:#f97373; color:#fecaca; }
+    .badge.mod { border-color:#38bdf8; color:#bae6fd; }
+    .badge.user { border-color:#9ca3af; color:#e5e7eb; }
+
+    @media (max-width: 720px){
+      #topBar {
+        flex-wrap: wrap;
+        row-gap: 0.4rem;
+        padding: 0.45rem 0.55rem;
+      }
+      #statusPills {
+        margin-left: 0.3rem;
+      }
+      #topRightBtns {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 0.25rem;
+      }
+      .center-box {
+        padding: 1rem 0.6rem 1.6rem;
+      }
+      .card {
+        padding: 0.9rem 0.9rem;
+      }
+    }
+  </style>
 </head>
-<body>
-  <div class="center-box">
-    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
-      <h2 style="margin:0;">People</h2>
-      <div class="row gap">
-        <a href="/">Terminal</a>
-        <a href="/mypage">My Page</a>
-        <a href="/groups">Groups</a>
+<body class="shell">
+  <div id="topBar">
+    <div id="brand">
+      <div id="dot"></div>
+      <div>ZeroPoint</div>
+      <div id="statusPills">
+        <div id="mePill" class="pill info">Loading…</div>
+        <div id="coinsPill" class="pill ok">0 coins</div>
       </div>
     </div>
 
+    <div id="topRightBtns">
+      <a class="nav-btn" href="/">Terminal</a>
+      <a class="nav-btn" href="/mypage">My Page</a>
+      <a class="nav-btn" href="/groups">Groups</a>
+      <button id="logoutBtn">Logout</button>
+    </div>
+  </div>
+
+  <div class="center-box">
     <div class="card">
+      <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+        <h2 style="margin:0;">People</h2>
+      </div>
+
       <div class="row gap" style="margin-bottom:10px;">
         <input id="q" placeholder="Search usernames..." style="flex:1;">
         <button id="searchBtn">Search</button>
@@ -44,6 +259,18 @@
 (async function(){
   const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
   if(!me.loggedIn){ location.href="/login"; return; }
+
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+
+  const mePill = document.getElementById("mePill");
+  const coinsPill = document.getElementById("coinsPill");
+  mePill.textContent = `${me.user.username} • ${me.user.role} • L${coins.level}`;
+  coinsPill.textContent = `${coins.coins} coins`;
+
+  document.getElementById("logoutBtn").onclick = async () => {
+    await ZeroPoint.logout();
+    location.href = "/login";
+  };
 
   const q = document.getElementById("q");
   const btn = document.getElementById("searchBtn");
